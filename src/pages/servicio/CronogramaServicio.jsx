@@ -9,7 +9,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import { Badge } from '../../components/ui/Badge'
 import { formatearFecha } from '../../utils/formatters'
-import { estadoTarea, hoyISO } from '../../utils/calculadora'
+import { avanceEfectivo, estadoTarea, hoyISO } from '../../utils/calculadora'
 
 const DIA_MS = 86400000
 const DIA_PX_MIN = 28
@@ -57,9 +57,10 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, tieneHijos, onCerrar, onGuardar, onEliminar }) {
+function ModalTarea({ servicio, tarea, padre, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
+  const esGrupo = enEdicion && tieneHijos
 
   const {
     register,
@@ -86,7 +87,10 @@ function ModalTarea({ servicio, tarea, padre, tieneHijos, onCerrar, onGuardar, o
       nombre: valores.nombre.trim(),
       fecha_inicio: valores.fecha_inicio,
       fecha_fin: valores.fecha_fin,
-      avance: Math.min(100, Math.max(0, Number(valores.avance) || 0)),
+      // Con hijas, el avance se calcula solo desde las subtareas.
+      avance: esGrupo
+        ? Number(tarea.avance) || 0
+        : Math.min(100, Math.max(0, Number(valores.avance) || 0)),
     })
   }
 
@@ -189,20 +193,31 @@ function ModalTarea({ servicio, tarea, padre, tieneHijos, onCerrar, onGuardar, o
                 })}
               />
             </Campo>
-            <Campo label="Avance (%)" error={errors.avance?.message} htmlFor="tarea-avance">
-              <Input
-                id="tarea-avance"
-                type="number"
-                step="1"
-                min="0"
-                max="100"
-                {...register('avance', {
-                  valueAsNumber: true,
-                  min: { value: 0, message: 'Mínimo: 0' },
-                  max: { value: 100, message: 'Máximo: 100' },
-                })}
-              />
-            </Campo>
+            {esGrupo ? (
+              <Campo label="Avance (%)" htmlFor="tarea-avance-grupo">
+                <div
+                  id="tarea-avance-grupo"
+                  className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800 tabular-nums"
+                >
+                  {avanceDerivado ?? 0}% · calculado de sus subtareas
+                </div>
+              </Campo>
+            ) : (
+              <Campo label="Avance (%)" error={errors.avance?.message} htmlFor="tarea-avance">
+                <Input
+                  id="tarea-avance"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="100"
+                  {...register('avance', {
+                    valueAsNumber: true,
+                    min: { value: 0, message: 'Mínimo: 0' },
+                    max: { value: 100, message: 'Máximo: 100' },
+                  })}
+                />
+              </Campo>
+            )}
           </div>
         </form>
       )}
@@ -635,17 +650,17 @@ export function CronogramaServicio() {
 
               {/* Filas agrupadas: principal + subtareas */}
               {filas.map(({ tarea: t, nivel, numero, hijas }) => {
-                const estado = estadoTarea(t, hoy)
-                const pct = Number(t.avance) || 0
+                const pct = avanceEfectivo(t, tareas)
+                const estado = estadoTarea({ ...t, avance: pct }, hoy)
                 const esPadre = nivel === 0 && hijas.length > 0
                 const colapsada = esPadre && colapsadas[t.id]
                 return (
                   <div
                     key={t.id}
-                    className={`flex items-stretch border-b border-slate-100 last:border-0 ${nivel === 1 ? 'bg-slate-50/70' : ''}`}
+                    className={`flex items-stretch border-b border-slate-100 last:border-0 ${nivel === 1 ? 'bg-slate-50/70' : ''} ${esPadre ? 'border-t-2 border-t-slate-200 first:border-t-0' : ''}`}
                   >
                     <div
-                      className="sticky left-0 z-20 flex min-w-0 shrink-0 items-center gap-1 bg-white px-2 py-1"
+                      className={`sticky left-0 z-20 flex min-w-0 shrink-0 items-center gap-1 px-2 py-1 ${nivel === 1 ? 'border-l-2 border-l-primary-300 bg-slate-50' : 'bg-white'}`}
                       style={{ width: ANCHO_ETIQUETA, paddingLeft: nivel === 1 ? 22 : 8 }}
                     >
                       {esPadre ? (
@@ -802,6 +817,9 @@ export function CronogramaServicio() {
             modal.modo === 'editar'
               ? tareas.some((x) => x.padre_id === modal.tarea.id)
               : false
+          }
+          avanceDerivado={
+            modal.modo === 'editar' ? avanceEfectivo(modal.tarea, tareas) : null
           }
           onCerrar={() => setModal(null)}
           onGuardar={guardar}

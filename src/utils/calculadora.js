@@ -83,16 +83,34 @@ function duracionTarea(tarea) {
   return Math.round((new Date(af, mf - 1, df) - new Date(ai, mi - 1, di)) / 86400000) + 1
 }
 
+function hijasDe(tareas, idPadre) {
+  return tareas.filter((t) => t.padre_id === idPadre)
+}
+
+// Avance efectivo: si la tarea tiene hijas, es el promedio ponderado por
+// duración de sus subtareas (la padre pasa a ser nombre de grupo);
+// si no, su propio avance.
+export function avanceEfectivo(tarea, todas) {
+  const hijas = hijasDe(todas ?? [], tarea.id)
+  if (hijas.length === 0) return Number(tarea.avance) || 0
+  const duracion = hijas.reduce((s, h) => s + duracionTarea(h), 0)
+  if (!duracion) return 0
+  return Math.round(
+    hijas.reduce((s, h) => s + (Number(h.avance) || 0) * duracionTarea(h), 0) / duracion,
+  )
+}
+
 // Métricas del cronograma: conteos por estado y avance global
 // ponderado por duración de cada tarea.
 export function metricasCronograma(tareas, hoy = hoyISO()) {
-  const total = tareas.length
-  const completadas = tareas.filter((t) => estadoTarea(t, hoy) === 'completada').length
-  const atrasadas = tareas.filter((t) => estadoTarea(t, hoy) === 'atrasada').length
-  const duracionTotal = tareas.reduce((s, t) => s + duracionTarea(t), 0)
+  const conAvance = tareas.map((t) => ({ ...t, avance: avanceEfectivo(t, tareas) }))
+  const total = conAvance.length
+  const completadas = conAvance.filter((t) => estadoTarea(t, hoy) === 'completada').length
+  const atrasadas = conAvance.filter((t) => estadoTarea(t, hoy) === 'atrasada').length
+  const duracionTotal = conAvance.reduce((s, t) => s + duracionTarea(t), 0)
   const avanceGlobal = duracionTotal
     ? Math.round(
-        tareas.reduce((s, t) => s + (Number(t.avance) || 0) * duracionTarea(t), 0) /
+        conAvance.reduce((s, t) => s + (Number(t.avance) || 0) * duracionTarea(t), 0) /
           duracionTotal,
       )
     : 0
