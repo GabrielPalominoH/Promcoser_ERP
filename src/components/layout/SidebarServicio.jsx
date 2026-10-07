@@ -48,12 +48,20 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
   const conteo = (tipo) =>
     todos.filter((r) => r.servicio_id === servicio.id && r.tipo_registro === tipo).length
 
+  // Personal cuenta personas distintas asignadas, no registros diarios
+  // (con el régimen mensual un asignado genera ~30 registros).
+  const personasAsignadas = new Set(
+    todos
+      .filter((r) => r.servicio_id === servicio.id && r.tipo_registro === 'personal')
+      .map((r) => r.referencia_id),
+  ).size
+
   const conteos = {
     materiales: conteo('material'),
-    personal: conteo('personal'),
+    personal: personasAsignadas,
     equipos: conteo('equipo'),
     gastos: conteo('gasto'),
-    cronograma: tareas.filter((t) => t.servicio_id === servicio.id).length,
+    cronograma: tareas.filter((t) => t.servicio_id === servicio.id && t.padre_id == null).length,
   }
 
   const base = `/servicios/${servicio.id}`

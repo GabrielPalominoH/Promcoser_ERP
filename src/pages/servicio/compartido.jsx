@@ -19,6 +19,8 @@ import {
   formatearFecha,
 } from '../../utils/formatters'
 import {
+  cuentaComoManoDeObra,
+  esDomingo,
   nombreReferencia,
   ordenarPorFechaDesc,
   sumarMontos,
@@ -62,6 +64,13 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
               <span className="block text-xs text-slate-500">{persona.cargo}</span>
             ) : null
           })()}
+        {registro.tipo_registro === 'personal' &&
+          registro.modalidad !== 'mensual' &&
+          esDomingo(registro.fecha) && (
+            <span className="mt-0.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+              domingo · no suma
+            </span>
+          )}
       </Td>
       {conCantidad && (
         <Td alinear="right" className="tabular-nums">
@@ -87,6 +96,9 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
 }
 
 // Sección genérica de una pestaña del panel: formulario + su tabla.
+// Con `tablaAgrupada` se puede reemplazar la tabla por una vista propia
+// (recibe { registros, refs, onEliminar }); `porEliminar` acepta un
+// registro o un grupo { ids, titulo } para borrado múltiple.
 export function SeccionRegistros({
   servicio,
   tipo,
@@ -96,6 +108,7 @@ export function SeccionRegistros({
   etiquetaCantidad,
   mensajeVacio,
   mensajeExito,
+  tablaAgrupada,
   children,
 }) {
   const { estado, agregarItem, eliminarItem } = useData()
@@ -110,8 +123,12 @@ export function SeccionRegistros({
       (r) => r.servicio_id === servicio.id && r.tipo_registro === tipo,
     ),
   )
-  const totalMonto = sumarMontos(registros)
-  const totalCantidad = registros.reduce(
+  // Los domingos no generan costo de mano de obra: se muestran con
+  // insignia pero no suman a los totales.
+  const registrosQueSuman =
+    tipo === 'personal' ? registros.filter(cuentaComoManoDeObra) : registros
+  const totalMonto = sumarMontos(registrosQueSuman)
+  const totalCantidad = registrosQueSuman.reduce(
     (total, r) => total + (Number(r.cantidad_o_horas) || 0),
     0,
   )
@@ -121,9 +138,19 @@ export function SeccionRegistros({
     setAviso({ tipo: 'exito', mensaje: mensajeExito(datos) })
   }
 
+  const registrarLote = (items, mensaje) => {
+    items.forEach((datos) => agregarItem('registros_servicio', datos))
+    setAviso({ tipo: 'exito', mensaje })
+  }
+
   const confirmarEliminar = () => {
-    eliminarItem('registros_servicio', porEliminar.id)
-    setAviso({ tipo: 'info', mensaje: 'Registro eliminado.' })
+    if (Array.isArray(porEliminar.ids)) {
+      porEliminar.ids.forEach((id) => eliminarItem('registros_servicio', id))
+      setAviso({ tipo: 'info', mensaje: `${porEliminar.ids.length} registros eliminados.` })
+    } else {
+      eliminarItem('registros_servicio', porEliminar.id)
+      setAviso({ tipo: 'info', mensaje: 'Registro eliminado.' })
+    }
     setPorEliminar(null)
   }
 
@@ -132,10 +159,13 @@ export function SeccionRegistros({
   return (
     <div className="space-y-6">
       <Card titulo={titulo} descripcion={descripcion}>
-        {children({ servicio, personal, materiales, equipos, registrar })}
+        {children({ servicio, personal, materiales, equipos, registrar, registrarLote })}
       </Card>
 
       <Card titulo={`Registros de ${titulo.toLowerCase()}`}>
+        {tablaAgrupada ? (
+          tablaAgrupada({ registros, refs, onEliminar: setPorEliminar })
+        ) : (
         <Table>
           <TableHead>
             <TableRow>
@@ -180,13 +210,14 @@ export function SeccionRegistros({
             )}
           </TableBody>
         </Table>
+        )}
       </Card>
 
       {porEliminar && (
         <Modal
           abierto
           ancho="sm"
-          titulo="Eliminar registro"
+          titulo={Array.isArray(porEliminar.ids) ? 'Eliminar grupo' : 'Eliminar registro'}
           descripcion="Esta acción no se puede deshacer."
           onCerrar={() => setPorEliminar(null)}
           pie={
@@ -201,12 +232,28 @@ export function SeccionRegistros({
           }
         >
           <p className="text-sm text-slate-600">
-            Se eliminará{' '}
-            <span className="font-semibold text-slate-900">
-              {conceptoRegistro(porEliminar, refs)}
-            </span>{' '}
-            del {formatearFecha(porEliminar.fecha)}. El presupuesto del servicio se
-            actualiza automáticamente.
+            {Array.isArray(porEliminar.ids) ? (
+              <>
+                Se eliminarán los{' '}
+                <span className="font-semibold text-slate-900">
+                  {porEliminar.ids.length} registros
+                </span>{' '}
+                de{' '}
+                <span className="font-semibold text-slate-900">
+                  {porEliminar.titulo}
+                </span>
+                . El presupuesto del servicio se actualiza automáticamente.
+              </>
+            ) : (
+              <>
+                Se eliminará{' '}
+                <span className="font-semibold text-slate-900">
+                  {conceptoRegistro(porEliminar, refs)}
+                </span>{' '}
+                del {formatearFecha(porEliminar.fecha)}. El presupuesto del servicio se
+                actualiza automáticamente.
+              </>
+            )}
           </p>
         </Modal>
       )}

@@ -10,6 +10,7 @@ import {
 } from '../../utils/formatters'
 import {
   consumoPresupuesto,
+  cuentaComoManoDeObra,
   desglosePorTipo,
   diasRestantes,
   gastoPorMes,
@@ -188,9 +189,9 @@ export function ResumenServicio() {
   } = useData()
 
   // La mano de obra (personal con costo) sí suma al gastado, igual que
-  // materiales y gastos. Los registros viejos de personal con monto 0 no
-  // alteran los totales.
-  const registrosVigentes = todosLosRegistros
+  // materiales y gastos. Los domingos no generan costo de mano de obra,
+  // así que esos registros se excluyen de todos los cálculos.
+  const registrosVigentes = todosLosRegistros.filter(cuentaComoManoDeObra)
   const consumo = consumoPresupuesto(servicio, registrosVigentes)
   const dias = diasRestantes(servicio.fecha_fin_estimada)
 

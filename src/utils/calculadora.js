@@ -118,6 +118,139 @@ export function metricasCronograma(tareas, hoy = hoyISO()) {
   return { total, completadas, atrasadas, avanceGlobal }
 }
 
+// Proyección de mano de obra: cubre todos los meses desde el inicio del
+// servicio (o el primer registro) hasta su fecha fin. Los meses con
+// registros muestran el costo real; todos los meses vacíos se estiman con
+// el ritmo (promedio de meses con costo), prorrateados si caen parciales al
+// inicio o fin del servicio. Van marcados con estimado: true.
+export function proyeccionLaboral(registrosPersonal, fechaFin, hoy = hoyISO(), fechaInicio = '', tarifaReferencia = 0) {
+  const porMes = new Map()
+  for (const r of registrosPersonal) {
+    if (!r.fecha || r.fecha.length < 7) continue
+    const mes = r.fecha.slice(0, 7)
+    const actual = porMes.get(mes) ?? { mes, horas: 0, monto: 0 }
+    actual.horas += Number(r.cantidad_o_horas) || 0
+    actual.monto += Number(r.monto_calculado) || 0
+    porMes.set(mes, actual)
+  }
+  const reales = [...porMes.values()].sort((a, b) => a.mes.localeCompare(b.mes))
+  const conCosto = reales.filter((m) => m.monto > 0)
+  const ritmo = conCosto.length
+    ? conCosto.reduce((s, m) => s + m.monto, 0) / conCosto.length
+    : 0
+  // Meses con horas pero sin costo (registros viejos): se estiman con la
+  // tarifa media (costo/hora de los meses con costo) o, si no hay ningún
+  // mes con costo, con la tarifa de referencia de las fichas.
+  const horasConCosto = conCosto.reduce((s, m) => s + m.horas, 0)
+  const tarifaMedia = horasConCosto > 0
+    ? conCosto.reduce((s, m) => s + m.monto, 0) / horasConCosto
+    : (Number(tarifaReferencia) || 0)
+  for (const m of reales) {
+    if (m.horas > 0 && m.monto === 0 && tarifaMedia > 0) {
+      m.monto = Math.round(m.horas * tarifaMedia * 100) / 100
+      m.calculado = true
+    }
+  }
+  const conHoras = reales.filter((m) => m.horas > 0)
+  const ritmoHoras = conHoras.length
+    ? conHoras.reduce((s, m) => s + m.horas, 0) / conHoras.length
+    : 0
+
+  let desde = fechaInicio && fechaInicio.length >= 7 ? fechaInicio.slice(0, 7) : ''
+  if (!desde) desde = reales.length > 0 ? reales[0].mes : hoy.slice(0, 7)
+  let hasta = fechaFin && fechaFin.length >= 7 ? fechaFin.slice(0, 7) : ''
+  if (!hasta || hasta < desde) hasta = desde
+
+  const meses = []
+  let [anio, mes] = desde.split('-').map(Number)
+  const [anioFin, mesFin] = hasta.split('-').map(Number)
+  const mesDeInicio = fechaInicio && fechaInicio.length >= 7 ? fechaInicio.slice(0, 7) : ''
+  const mesDeFin = fechaFin && fechaFin.length >= 7 ? fechaFin.slice(0, 7) : ''
+  while (anio < anioFin || (anio === anioFin && mes <= mesFin)) {
+    const clave = `${anio}-${String(mes).padStart(2, '0')}`
+    const real = porMes.get(clave)
+    if (real) {
+      meses.push({ ...real, estimado: false })
+      // Los meses reales pasados sin registros previos no existen aquí:
+      // `real` solo existe si hubo registros ese mes.
+    } else {
+      // Mes vacío (pasado, actual o futuro): se estima con el ritmo,
+      // prorrateado si cae parcial al inicio o fin del servicio.
+      let factor = 1
+      const diasMes = diasLaborables(clave)
+      if (diasMes > 0) {
+        if (clave === mesDeInicio && fechaInicio > `${clave}-01`) {
+          factor = diasLaborablesRango(fechaInicio, `${clave}-${String(new Date(anio, mes, 0).getDate()).padStart(2, '0')}`) / diasMes
+        }
+        if (clave === mesDeFin && fechaFin < `${clave}-${String(new Date(anio, mes, 0).getDate()).padStart(2, '0')}`) {
+          const diasCubiertos = diasLaborablesRango(`${clave}-01`, fechaFin)
+          factor = Math.min(factor, diasCubiertos / diasMes)
+        }
+      }
+      meses.push({
+        mes: clave,
+        horas: Math.round(ritmoHoras * factor * 100) / 100,
+        monto: ritmo * factor,
+        estimado: true,
+      })
+    }
+    mes += 1
+    if (mes > 12) {
+      mes = 1
+      anio += 1
+    }
+  }
+
+  const mesesRestantes = meses.filter((m) => m.estimado).length
+  const costoProyectado = meses
+    .filter((m) => m.estimado)
+    .reduce((s, m) => s + m.monto, 0)
+
+  return {
+    porMes: meses,
+    ritmo,
+    ritmoHoras,
+    mesesRestantes,
+    costoProyectado,
+  }
+}
+
+// Agrupa registros de personal por persona y mes: una fila por persona por
+// mes con días, horas y costo mensual. Para la vista registrada (los
+// registros diarios siguen existiendo por debajo para los cálculos).
+export function agruparPersonalPorMes(registros, personal = []) {
+  const grupos = new Map()
+  for (const r of registros) {
+    if (r.tipo_registro !== 'personal' || !r.fecha || r.fecha.length < 7) continue
+    const mes = r.fecha.slice(0, 7)
+    const clave = `${r.referencia_id ?? 'x'}|${mes}`
+    if (!grupos.has(clave)) {
+      const persona = personal.find((p) => p.id === r.referencia_id)
+      grupos.set(clave, {
+        clave,
+        personaId: r.referencia_id ?? null,
+        nombre: persona
+          ? `${persona.nombre} ${persona.apellido ?? ''}`.trim()
+          : 'Personal eliminado',
+        cargo: persona?.cargo ?? '',
+        mes,
+        dias: 0,
+        horas: 0,
+        monto: 0,
+        ids: [],
+      })
+    }
+    const g = grupos.get(clave)
+    g.dias += 1
+    g.horas += Number(r.cantidad_o_horas) || 0
+    g.monto += Number(r.monto_calculado) || 0
+    g.ids.push(r.id)
+  }
+  return [...grupos.values()].sort(
+    (a, b) => a.mes.localeCompare(b.mes) || a.nombre.localeCompare(b.nombre, 'es'),
+  )
+}
+
 // Gasto por mes (YYYY-MM) con meses intermedios en cero, ordenado.
 export function gastoPorMes(registros) {
   const porMes = new Map()
@@ -158,6 +291,123 @@ export function indiceAvance(servicio, avanceGlobal, hoy = hoyISO()) {
   const esperado = Math.min(100, (van / total) * 100)
   if (esperado <= 0) return null
   return { spi: avanceGlobal / esperado, esperado }
+}
+
+// true si la fecha ISO cae en domingo (construcción local, sin desfase UTC).
+export function esDomingo(fechaISO) {
+  if (!fechaISO) return false
+  const [anio, mes, dia] = fechaISO.split('-').map(Number)
+  if (!anio || !mes || !dia) return false
+  return new Date(anio, mes - 1, dia).getDay() === 0
+}
+
+// Los domingos no generan costo de mano de obra diaria: los registros de
+// personal con fecha en domingo no cuentan, salvo los de modalidad mensual
+// (régimen de 30 días, domingos incluidos). Materiales, gastos y equipos no
+// se ven afectados.
+export function cuentaComoManoDeObra(registro) {
+  return !(
+    registro.tipo_registro === 'personal' &&
+    registro.modalidad !== 'mensual' &&
+    esDomingo(registro.fecha)
+  )
+}
+
+// Fechas ISO de los días laborables (sin domingos) de un mes YYYY-MM.
+// Para generar la asignación mensual de personal de una sola vez.
+export function fechasLaborablesMes(mesISO) {
+  if (!mesISO) return []
+  const [anio, mes] = mesISO.split('-').map(Number)
+  if (!anio || !mes) return []
+  const diasEnMes = new Date(anio, mes, 0).getDate()
+  const fechas = []
+  for (let dia = 1; dia <= diasEnMes; dia += 1) {
+    if (new Date(anio, mes - 1, dia).getDay() !== 0) {
+      fechas.push(`${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`)
+    }
+  }
+  return fechas
+}
+
+// Fechas ISO de todos los días de un mes YYYY-MM (régimen mensual de
+// 30 días: incluye domingos).
+export function fechasDelMes(mesISO) {
+  if (!mesISO) return []
+  const [anio, mes] = mesISO.split('-').map(Number)
+  if (!anio || !mes) return []
+  const diasEnMes = new Date(anio, mes, 0).getDate()
+  const fechas = []
+  for (let dia = 1; dia <= diasEnMes; dia += 1) {
+    fechas.push(`${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`)
+  }
+  return fechas
+}
+
+// Fechas ISO de todos los días desde una fecha hasta fin de ese mes
+// (domingos incluidos: régimen mensual). Para la asignación mensual que
+// empieza a mitad de mes.
+export function fechasHastaFinDeMes(desdeISO) {
+  if (!desdeISO || desdeISO.length < 10) return []
+  const [anio, mes, dia] = desdeISO.split('-').map(Number)
+  if (!anio || !mes || !dia) return []
+  const ultimo = new Date(anio, mes, 0).getDate()
+  if (dia < 1 || dia > ultimo) return []
+  const fechas = []
+  for (let d = dia; d <= ultimo; d += 1) {
+    fechas.push(`${anio}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
+  }
+  return fechas
+}
+
+// Fechas ISO de los días laborables (sin domingos) en un rango inclusive.
+// Para generar asignaciones por rango de fechas.
+export function fechasLaborables(desdeISO, hastaISO) {
+  if (!desdeISO || !hastaISO || hastaISO < desdeISO) return []
+  const [ai, mi, di] = desdeISO.split('-').map(Number)
+  const [af, mf, df] = hastaISO.split('-').map(Number)
+  if (!ai || !mi || !di || !af || !mf || !df) return []
+  const fechas = []
+  const actual = new Date(ai, mi - 1, di)
+  const fin = new Date(af, mf - 1, df)
+  while (actual <= fin) {
+    if (actual.getDay() !== 0) {
+      const mes = String(actual.getMonth() + 1).padStart(2, '0')
+      const dia = String(actual.getDate()).padStart(2, '0')
+      fechas.push(`${actual.getFullYear()}-${mes}-${dia}`)
+    }
+    actual.setDate(actual.getDate() + 1)
+  }
+  return fechas
+}
+
+// Días laborables (sin domingos) de un mes YYYY-MM. Para el estimador
+// mensual de mano de obra.
+export function diasLaborables(mesISO) {
+  if (!mesISO) return 0
+  const [anio, mes] = mesISO.split('-').map(Number)
+  if (!anio || !mes) return 0
+  const diasEnMes = new Date(anio, mes, 0).getDate()
+  let laborables = 0
+  for (let dia = 1; dia <= diasEnMes; dia += 1) {
+    if (new Date(anio, mes - 1, dia).getDay() !== 0) laborables += 1
+  }
+  return laborables
+}
+
+// Días laborables en un rango ISO inclusive. Si el rango es inválido, 0.
+export function diasLaborablesRango(desdeISO, hastaISO) {
+  if (!desdeISO || !hastaISO || hastaISO < desdeISO) return 0
+  const [ai, mi, di] = desdeISO.split('-').map(Number)
+  const [af, mf, df] = hastaISO.split('-').map(Number)
+  if (!ai || !mi || !di || !af || !mf || !df) return 0
+  let laborables = 0
+  const actual = new Date(ai, mi - 1, di)
+  const fin = new Date(af, mf - 1, df)
+  while (actual <= fin) {
+    if (actual.getDay() !== 0) laborables += 1
+    actual.setDate(actual.getDate() + 1)
+  }
+  return laborables
 }
 
 // Días restantes hasta una fecha ISO (YYYY-MM-DD). Negativo = vencido.
