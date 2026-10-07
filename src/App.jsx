@@ -7,7 +7,6 @@ import { MaterialesServicio } from './pages/servicio/MaterialesServicio'
 import { PersonalServicio } from './pages/servicio/PersonalServicio'
 import { EquiposServicio } from './pages/servicio/EquiposServicio'
 import { GastosServicio } from './pages/servicio/GastosServicio'
-import { CronogramaServicio } from './pages/servicio/CronogramaServicio'
 import { OpcionesServicio } from './pages/servicio/OpcionesServicio'
 import { Personal } from './pages/Personal'
 import { Equipos } from './pages/Equipos'
@@ -24,7 +23,6 @@ export default function App() {
           <Route path="personal" element={<PersonalServicio />} />
           <Route path="equipos" element={<EquiposServicio />} />
           <Route path="gastos" element={<GastosServicio />} />
-          <Route path="cronograma" element={<CronogramaServicio />} />
           <Route path="opciones" element={<OpcionesServicio />} />
         </Route>
         <Route path="personal" element={<Personal />} />

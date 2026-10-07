@@ -15,12 +15,18 @@ function nombreCompleto(item) {
 }
 
 function FormularioPersonalCosto({ servicio, personal, registrar }) {
+  // Solo personal de Obra: el de Oficina es gasto general y no se asigna
+  // a un servicio. Los registros viejos sin ámbito cuentan como Obra.
+  const elegibles = useMemo(
+    () => personal.filter((p) => (p.ambito ?? 'Obra') !== 'Oficina'),
+    [personal],
+  )
   const ordenados = useMemo(
     () =>
-      [...personal].sort((a, b) =>
+      [...elegibles].sort((a, b) =>
         `${a.nombre} ${a.apellido ?? ''}`.localeCompare(`${b.nombre} ${b.apellido ?? ''}`, 'es'),
       ),
-    [personal],
+    [elegibles],
   )
 
   const [busqueda, setBusqueda] = useState('')

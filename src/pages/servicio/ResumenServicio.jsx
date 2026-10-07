@@ -4,6 +4,7 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import {
   formatearCantidad,
+  formatearMes,
   formatearMoneda,
   formatearFecha,
 } from '../../utils/formatters'
@@ -11,7 +12,8 @@ import {
   consumoPresupuesto,
   desglosePorTipo,
   diasRestantes,
-  metricasCronograma,
+  gastoPorMes,
+  indiceAvance,
   registrosDeServicio,
   rentabilidadServicio,
 } from '../../utils/calculadora'
@@ -93,6 +95,90 @@ function CascadaPresupuesto({ presupuesto, materiales, manoObra, gastos, saldo }
   )
 }
 
+// Curva de gasto acumulado (burn-up) con línea de presupuesto.
+// SVG puro, sin librerías: cada mes ocupa el mismo ancho.
+function CurvaGasto({ porMes, presupuesto }) {
+  if (porMes.length === 0) return null
+
+  const acumulado = []
+  let suma = 0
+  for (const item of porMes) {
+    suma += item.monto
+    acumulado.push({ mes: item.mes, monto: item.monto, total: suma })
+  }
+
+  const ANCHO_MES = 72
+  const ALTO = 170
+  const MARGEN_ABAJO = 26
+  const altoUtil = ALTO - MARGEN_ABAJO
+  const maximo = Math.max(presupuesto, suma, 1)
+  const pasoX = (i) => 8 + (i * ((porMes.length * ANCHO_MES - 16) / Math.max(1, porMes.length - 1 || 1)))
+  const posY = (valor) => altoUtil - (valor / maximo) * altoUtil
+  const puntos = acumulado.map((p, i) => `${pasoX(i)},${posY(p.total)}`).join(' ')
+  const anchoTotal = porMes.length * ANCHO_MES
+
+  return (
+    <div className="mb-5">
+      <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+        Curva de gasto acumulado
+      </p>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-3">
+        <svg
+          width={anchoTotal}
+          height={ALTO}
+          viewBox={`0 0 ${anchoTotal} ${ALTO}`}
+          role="img"
+          aria-label="Curva de gasto acumulado por mes"
+        >
+          {[0.25, 0.5, 0.75].map((f) => (
+            <line
+              key={f}
+              x1="0"
+              x2={anchoTotal}
+              y1={altoUtil * f}
+              y2={altoUtil * f}
+              stroke="#e2e8f0"
+              strokeWidth="1"
+            />
+          ))}
+          <line
+            x1="0"
+            x2={anchoTotal}
+            y1={posY(presupuesto)}
+            y2={posY(presupuesto)}
+            stroke="#94a3b8"
+            strokeWidth="1.5"
+            strokeDasharray="6 4"
+          />
+          <text x={anchoTotal - 4} y={Math.max(12, posY(presupuesto) - 5)} textAnchor="end" fontSize="10" fill="#64748b">
+            Presupuesto
+          </text>
+          <polygon points={`8,${altoUtil} ${puntos} ${pasoX(acumulado.length - 1)},${altoUtil}`} fill="#2563eb" opacity="0.12" />
+          <polyline points={puntos} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          {acumulado.map((p, i) => (
+            <g key={p.mes}>
+              <circle cx={pasoX(i)} cy={posY(p.total)} r="3.5" fill="#2563eb">
+                <title>{`${formatearMes(p.mes)}: ${formatearMoneda(p.total)} acumulado`}</title>
+              </circle>
+              <text x={pasoX(i)} y={ALTO - 8} textAnchor="middle" fontSize="10" fill="#64748b">
+                {porMes.length > 8 && i % 2 === 1 ? '' : formatearMes(p.mes).split(' ')[0]}
+              </text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+        <span className="flex items-center gap-1.5">
+          <span className="h-0.5 w-4 bg-primary-600" /> Gastado acumulado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-0 w-4 border-t-2 border-dashed border-slate-400" /> Presupuesto
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export function ResumenServicio() {
   const { servicio } = useOutletContext()
   const { abrirEditar } = usePanelServicio()
@@ -118,8 +204,16 @@ export function ResumenServicio() {
   const tareas = todasLasTareas
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio))
-  const cronograma = metricasCronograma(tareas)
   const rentabilidad = rentabilidadServicio(servicio, registrosVigentes, tareas)
+  const ritmoAvance = indiceAvance(servicio, rentabilidad.avance)
+  const lecturaSpi =
+    ritmoAvance == null
+      ? null
+      : ritmoAvance.spi >= 1
+        ? { texto: 'A tiempo o adelantado', tono: 'text-emerald-700' }
+        : ritmoAvance.spi >= 0.85
+          ? { texto: 'Leve retraso en tiempo', tono: 'text-amber-700' }
+          : { texto: 'Atrasado en tiempo', tono: 'text-red-600' }
   const lecturaCpi =
     rentabilidad.cpi == null
       ? null
@@ -247,7 +341,7 @@ export function ResumenServicio() {
 
       <Card
         titulo="Métricas del servicio"
-        descripcion="Lectura rápida del gasto, el cronograma y la actividad."
+        descripcion="Lectura rápida del gasto y sus movimientos."
       >
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div>
@@ -288,46 +382,6 @@ export function ResumenServicio() {
 
           <div>
             <p className="mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Avance del cronograma
-            </p>
-            {cronograma.total === 0 ? (
-              <p className="text-sm text-slate-400">
-                Sin tareas todavía.{' '}
-                <Link to="cronograma" className="font-medium text-primary-700 underline">
-                  Planificar
-                </Link>
-              </p>
-            ) : (
-              <>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-slate-900 tabular-nums">
-                    {cronograma.avanceGlobal}%
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {cronograma.completadas}/{cronograma.total} tareas
-                  </p>
-                </div>
-                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-emerald-500"
-                    style={{ width: `${cronograma.avanceGlobal}%` }}
-                  />
-                </div>
-                {cronograma.atrasadas > 0 ? (
-                  <p className="mt-2 inline-block rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-                    {cronograma.atrasadas} atrasada(s)
-                  </p>
-                ) : (
-                  <p className="mt-2 inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                    Al día
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-
-          <div>
-            <p className="mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Cascada del presupuesto
             </p>
             <CascadaPresupuesto
@@ -343,9 +397,13 @@ export function ResumenServicio() {
 
       <Card
         titulo="Rentabilidad"
-        descripcion="Margen proyectado al cierre, ritmo de gasto frente al avance y costo final estimado."
+        descripcion="Margen proyectado al cierre, ritmos de gasto y avance, costo final y curva de gasto."
       >
-        <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
+        <CurvaGasto
+          porMes={gastoPorMes(registros)}
+          presupuesto={consumo.presupuesto}
+        />
+        <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Margen proyectado
@@ -354,10 +412,7 @@ export function ResumenServicio() {
               <>
                 <p className="mt-1 text-xl font-bold text-slate-400">—</p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Requiere avance en cronograma.{' '}
-                  <Link to="cronograma" className="font-medium text-primary-700 underline">
-                    Planificar
-                  </Link>
+                  Requiere avance en cronograma.
                 </p>
               </>
             ) : (
@@ -384,10 +439,7 @@ export function ResumenServicio() {
               <>
                 <p className="mt-1 text-xl font-bold text-slate-400">—</p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Sin avance en cronograma.{' '}
-                  <Link to="cronograma" className="font-medium text-primary-700 underline">
-                    Planificar
-                  </Link>
+                  Sin avance en cronograma.
                 </p>
               </>
             ) : (
@@ -397,6 +449,28 @@ export function ResumenServicio() {
                 </p>
                 <p className={`mt-0.5 text-xs font-medium ${lecturaCpi.tono}`}>
                   {lecturaCpi.texto}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Ritmo de avance
+            </p>
+            {ritmoAvance == null ? (
+              <>
+                <p className="mt-1 text-xl font-bold text-slate-400">—</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Requiere plazo y avance.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className={`mt-1 text-xl font-bold tabular-nums ${lecturaSpi.tono}`}>
+                  {ritmoAvance.spi.toFixed(2)}
+                </p>
+                <p className={`mt-0.5 text-xs font-medium ${lecturaSpi.tono}`}>
+                  {lecturaSpi.texto} · esperado {ritmoAvance.esperado.toFixed(0)}%
                 </p>
               </>
             )}

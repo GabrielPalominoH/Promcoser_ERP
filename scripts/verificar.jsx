@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { consumoPresupuesto, desglosePorTipo, sumarMontos, registrosDeServicio, metricasCronograma, rentabilidadServicio } from '../src/utils/calculadora'
+import { consumoPresupuesto, desglosePorTipo, sumarMontos, registrosDeServicio, metricasCronograma, rentabilidadServicio, gastoPorMes, indiceAvance } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import App from '../src/App'
 
@@ -133,6 +133,26 @@ comprobar('costo final serv. 6 = 65400', Math.abs(rent6.costoFinal - 65400) < 0.
 comprobar('margen proyectado serv. 6 = 54600', Math.abs(rent6.margenProyectado - 54600) < 0.01, String(rent6.margenProyectado))
 const rentSinAvance = rentabilidadServicio(servicio6, registros, [])
 comprobar('sin tareas no hay CPI ni proyección', rentSinAvance.cpi === null && rentSinAvance.margenProyectado === null)
+
+const mensual6 = gastoPorMes(registrosDeServicio(registros, 6))
+comprobar('gasto mensual serv. 6 = 3 meses', mensual6.length === 3, JSON.stringify(mensual6.map((m) => m.mes)))
+comprobar('julio serv. 6 = 13748', mensual6[0].monto === 13748, String(mensual6[0]?.monto))
+comprobar('agosto serv. 6 = 19040', mensual6[1].monto === 19040, String(mensual6[1]?.monto))
+comprobar('septiembre serv. 6 = 2528', mensual6[2].monto === 2528, String(mensual6[2]?.monto))
+comprobar('gasto mensual vacío = []', gastoPorMes([]).length === 0)
+const spi6 = indiceAvance(servicio6, 54, '2026-10-06')
+comprobar('SPI serv. 6 ≈ 0.96', spi6 && Math.abs(spi6.spi - 0.96) < 0.01, String(spi6?.spi))
+comprobar('sin plazo no hay SPI', indiceAvance({ fecha_inicio: '', fecha_fin_estimada: '' }, 50, '2026-10-06') === null)
+comprobar('obra sin empezar no tiene SPI', indiceAvance({ fecha_inicio: '2026-12-01', fecha_fin_estimada: '2027-01-01' }, 0, '2026-10-06') === null)
+
+const { costos_oficina: oficina } = ESTADO_INICIAL
+const oficinaOct = oficina.filter((c) => c.mes === '2026-10').reduce((t, c) => t + c.monto_calculado, 0)
+const oficinaSep = oficina.filter((c) => c.mes === '2026-09').reduce((t, c) => t + c.monto_calculado, 0)
+comprobar('oficina oct = 17500', oficinaOct === 17500, String(oficinaOct))
+comprobar('oficina sep = 6300', oficinaSep === 6300, String(oficinaSep))
+comprobar('empresa oct = 67184', consumo6.disponible - oficinaOct === 67184)
+const soloObra = ESTADO_INICIAL.personal.filter((p) => (p.ambito ?? 'Obra') !== 'Oficina')
+comprobar('personal de obra > 0 y < total', soloObra.length > 0 && soloObra.length < ESTADO_INICIAL.personal.length, String(soloObra.length))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
 // ============================================================
@@ -161,9 +181,8 @@ const rutas = [
   { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
-  { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/999', etiqueta: 'Detalle id inexistente', monto: false },
-  { ruta: '/personal', etiqueta: 'Personal', monto: false },
+  { ruta: '/personal', etiqueta: 'Personal', monto: true },
   { ruta: '/equipos', etiqueta: 'Equipos', monto: false },
   { ruta: '/materiales', etiqueta: 'Materiales redirige', monto: false },
   { ruta: '/ruta-inexistente', etiqueta: 'Fallback 404', monto: false },

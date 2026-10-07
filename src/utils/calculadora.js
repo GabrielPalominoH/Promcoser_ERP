@@ -118,6 +118,48 @@ export function metricasCronograma(tareas, hoy = hoyISO()) {
   return { total, completadas, atrasadas, avanceGlobal }
 }
 
+// Gasto por mes (YYYY-MM) con meses intermedios en cero, ordenado.
+export function gastoPorMes(registros) {
+  const porMes = new Map()
+  for (const r of registros) {
+    if (!r.fecha || r.fecha.length < 7) continue
+    const mes = r.fecha.slice(0, 7)
+    porMes.set(mes, (porMes.get(mes) || 0) + (Number(r.monto_calculado) || 0))
+  }
+  const meses = [...porMes.keys()].sort()
+  if (meses.length === 0) return []
+
+  const [ai, mi] = meses[0].split('-').map(Number)
+  const [af, mf] = meses[meses.length - 1].split('-').map(Number)
+  const resultado = []
+  let anio = ai
+  let mes = mi
+  while (anio < af || (anio === af && mes <= mf)) {
+    const clave = `${anio}-${String(mes).padStart(2, '0')}`
+    resultado.push({ mes: clave, monto: porMes.get(clave) || 0 })
+    mes += 1
+    if (mes > 12) {
+      mes = 1
+      anio += 1
+    }
+  }
+  return resultado
+}
+
+// SPI: avance real vs avance esperado por tiempo transcurrido del plazo.
+// null si no hay fecha fin o la obra aún no empieza.
+export function indiceAvance(servicio, avanceGlobal, hoy = hoyISO()) {
+  if (!servicio.fecha_inicio || !servicio.fecha_fin_estimada) return null
+  const inicio = servicio.fecha_inicio
+  const fin = servicio.fecha_fin_estimada
+  if (hoy < inicio || fin <= inicio) return null
+  const total = Math.max(1, Math.round((new Date(fin) - new Date(inicio)) / 86400000))
+  const van = Math.round((new Date(hoy) - new Date(inicio)) / 86400000)
+  const esperado = Math.min(100, (van / total) * 100)
+  if (esperado <= 0) return null
+  return { spi: avanceGlobal / esperado, esperado }
+}
+
 // Días restantes hasta una fecha ISO (YYYY-MM-DD). Negativo = vencido.
 export function diasRestantes(fechaISO) {
   if (!fechaISO) return null

@@ -41,3 +41,13 @@ export function porcentaje(parte, total) {
 export function redondearMonto(valor) {
   return Math.round((Number(valor) || 0) * 100) / 100
 }
+
+const MESES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+// 'YYYY-MM' -> 'ene 2026'. Si trae día, lo ignora.
+export function formatearMes(mesISO) {
+  if (!mesISO) return '—'
+  const [anio, mes] = mesISO.split('-').map(Number)
+  if (!anio || !mes) return mesISO
+  return `${MESES_CORTO[mes - 1]} ${anio}`
+}

@@ -112,8 +112,8 @@ export const CATALOGO_PERSONAL = {
   descripcion: 'Registro del personal con su nombre, cargo y tarifa por hora.',
   nombreSingular: 'personal',
   etiquetaContador: 'personas',
-  claveBusqueda: (item) => `${item.nombre} ${item.apellido} ${item.cargo} ${item.dni}`,
-  placeholderBusqueda: 'Buscar por nombre, apellido, cargo o DNI…',
+  claveBusqueda: (item) => `${item.nombre} ${item.apellido} ${item.cargo} ${item.dni} ${item.ambito ?? 'Obra'}`,
+  placeholderBusqueda: 'Buscar por nombre, apellido, cargo, DNI o ámbito…',
   ordenar: (a, b) =>
     `${a.nombre} ${a.apellido}`.localeCompare(`${b.nombre} ${b.apellido}`, 'es'),
   mensajeVacio: 'No hay personal que coincida con la búsqueda.',
@@ -148,6 +148,20 @@ export const CATALOGO_PERSONAL = {
       alinear: 'right',
       render: (item) => (
         <span className="tabular-nums">{formatearMoneda(item.tarifa_por_hora)}</span>
+      ),
+    },
+    {
+      etiqueta: 'Ámbito',
+      render: (item) => (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+            (item.ambito ?? 'Obra') === 'Oficina'
+              ? 'bg-amber-50 text-amber-700 ring-amber-200'
+              : 'bg-primary-50 text-primary-700 ring-primary-200'
+          }`}
+        >
+          {item.ambito ?? 'Obra'}
+        </span>
       ),
     },
   ],
@@ -191,6 +205,14 @@ export const CATALOGO_PERSONAL = {
       paso: '0.01',
       hint: 'Se sugiere al asignar personal a un servicio.',
     },
+    {
+      name: 'ambito',
+      etiqueta: 'Ámbito',
+      tipo: 'select',
+      requerido: true,
+      opciones: opciones(['Obra', 'Oficina']),
+      hint: 'Oficina: costo general, no se asigna a servicios.',
+    },
   ],
 
   valoresIniciales: {
@@ -199,6 +221,7 @@ export const CATALOGO_PERSONAL = {
     cargo: '',
     dni: '',
     tarifa_por_hora: '',
+    ambito: 'Obra',
   },
 
   normalizar: (valores) => ({
@@ -207,6 +230,7 @@ export const CATALOGO_PERSONAL = {
     cargo: valores.cargo.trim(),
     dni: valores.dni.trim(),
     tarifa_por_hora: Number(valores.tarifa_por_hora),
+    ambito: valores.ambito || 'Obra',
   }),
 }
 
