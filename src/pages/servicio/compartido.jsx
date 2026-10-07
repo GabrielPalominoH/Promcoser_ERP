@@ -55,6 +55,13 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
         <span className="font-medium text-slate-800">
           {conceptoRegistro(registro, refs)}
         </span>
+        {registro.tipo_registro === 'personal' &&
+          (() => {
+            const persona = refs.personal.find((p) => p.id === registro.referencia_id)
+            return persona?.cargo ? (
+              <span className="block text-xs text-slate-500">{persona.cargo}</span>
+            ) : null
+          })()}
       </Td>
       {conCantidad && (
         <Td alinear="right" className="tabular-nums">

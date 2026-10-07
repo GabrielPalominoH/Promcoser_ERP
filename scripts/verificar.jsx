@@ -48,22 +48,26 @@ comprobar('ALTERNAR_ACTIVO no toca otros', alternado.materiales.find((p) => p.id
 
 const sinServicio = dataReducer(ESTADO_INICIAL, {
   type: 'ELIMINAR_ITEM',
-  payload: { coleccion: 'servicios', id: 1 },
+  payload: { coleccion: 'servicios', id: 6 },
 })
-const huerfanos = sinServicio.registros_servicio.filter((r) => r.servicio_id === 1)
-comprobar('ELIMINAR_ITEM quita el servicio', !sinServicio.servicios.some((s) => s.id === 1))
+const huerfanos = sinServicio.registros_servicio.filter((r) => r.servicio_id === 6)
+comprobar('ELIMINAR_ITEM quita el servicio', !sinServicio.servicios.some((s) => s.id === 6))
 comprobar('ELIMINAR_ITEM borra registros en cascada', huerfanos.length === 0, `quedan ${huerfanos.length}`)
-comprobar('conserva registros de otros servicios', sinServicio.registros_servicio.some((r) => r.servicio_id === 2))
+comprobar(
+  'ELIMINAR_ITEM borra tareas en cascada',
+  !sinServicio.tareas.some((t) => t.servicio_id === 6),
+)
+comprobar('conserva las demás colecciones', sinServicio.personal.length === ESTADO_INICIAL.personal.length)
 
 const sinTarea = dataReducer(ESTADO_INICIAL, {
   type: 'ELIMINAR_ITEM',
-  payload: { coleccion: 'tareas', id: 2 },
+  payload: { coleccion: 'tareas', id: 14 },
 })
 comprobar(
   'ELIMINAR_ITEM borra subtareas en cascada',
-  !sinTarea.tareas.some((t) => t.id === 2 || t.padre_id === 2),
+  !sinTarea.tareas.some((t) => t.id === 14 || t.padre_id === 14),
 )
-comprobar('conserva tareas de otros servicios', sinTarea.tareas.some((t) => t.servicio_id === 2))
+comprobar('conserva las demás tareas', sinTarea.tareas.some((t) => t.id === 13))
 
 const restaurado = dataReducer(sinServicio, { type: 'RESTABLECER' })
 comprobar('RESTABLECER vuelve a los mocks', restaurado.materiales.length === ESTADO_INICIAL.materiales.length)
@@ -86,67 +90,49 @@ comprobar('acción desconocida devuelve el estado igual', desconocido === ESTADO
 console.log('\n[ calculadora ]')
 
 const { registros_servicio: registros, servicios } = ESTADO_INICIAL
-const servicio1 = servicios.find((s) => s.id === 1)
-const consumo1 = consumoPresupuesto(servicio1, registros)
+const servicio6 = servicios.find((s) => s.id === 6)
+const consumo6 = consumoPresupuesto(servicio6, registros)
 
-comprobar('consumo servicio 1 = 13238', consumo1.gastado === 13238, String(consumo1.gastado))
-comprobar('presupuesto = 48500', consumo1.presupuesto === 48500)
-comprobar('disponible = 35262', consumo1.disponible === 35262, String(consumo1.disponible))
-comprobar('porcentaje correcto', Math.abs(consumo1.porcentaje - 27.294) < 0.01, consumo1.porcentaje.toFixed(3))
-comprobar('no excedido', consumo1.excedido === false)
+comprobar('consumo servicio 6 = 35316', consumo6.gastado === 35316, String(consumo6.gastado))
+comprobar('presupuesto = 120000', consumo6.presupuesto === 120000)
+comprobar('disponible = 84684', consumo6.disponible === 84684, String(consumo6.disponible))
+comprobar('porcentaje correcto', Math.abs(consumo6.porcentaje - 29.43) < 0.01, consumo6.porcentaje.toFixed(3))
+comprobar('no excedido', consumo6.excedido === false)
 
-const excedido = consumoPresupuesto({ id: 1, presupuesto_asignado: 100 }, registros)
-comprobar('detecta presupuesto excedido', excedido.excedido === true && excedido.disponible === -13138, String(excedido.disponible))
+const excedido = consumoPresupuesto({ id: 6, presupuesto_asignado: 100 }, registros)
+comprobar('detecta presupuesto excedido', excedido.excedido === true && excedido.disponible === -35216, String(excedido.disponible))
 comprobar('excedido no corta el porcentaje', excedido.porcentaje > 100, String(excedido.porcentaje))
 
 const cero = consumoPresupuesto({ id: 98, presupuesto_asignado: 0 }, registros)
 comprobar('presupuesto 0 no divide entre cero', cero.porcentaje === 0 && cero.excedido === false)
 
-const desglose1 = desglosePorTipo(registrosDeServicio(registros, 1))
-comprobar('desglose material = 11888', desglose1.material === 11888, String(desglose1.material))
-comprobar('desglose personal = 0', desglose1.personal === 0, String(desglose1.personal))
-comprobar('desglose gasto = 1350', desglose1.gasto === 1350, String(desglose1.gasto))
-comprobar('desglose equipo = 0', desglose1.equipo === 0, String(desglose1.equipo))
-comprobar('desglose suma el total', Object.values(desglose1).reduce((a, b) => a + b, 0) === consumo1.gastado)
+const desglose6 = desglosePorTipo(registrosDeServicio(registros, 6))
+comprobar('desglose material = 30276', desglose6.material === 30276, String(desglose6.material))
+comprobar('desglose personal = 1540', desglose6.personal === 1540, String(desglose6.personal))
+comprobar('desglose gasto = 3500', desglose6.gasto === 3500, String(desglose6.gasto))
+comprobar('desglose equipo = 0', desglose6.equipo === 0, String(desglose6.equipo))
+comprobar('desglose suma el total', Object.values(desglose6).reduce((a, b) => a + b, 0) === consumo6.gastado)
 
-// 13238 (serv. 1) + 5650.5 (serv. 2) + 12110 (serv. 4) + 1942 (serv. 5) + 35316 (serv. 6)
-comprobar('sumarMontos total = 68256.5', sumarMontos(registros) === 68256.5, String(sumarMontos(registros)))
+comprobar('sumarMontos total = 35316', sumarMontos(registros) === 35316, String(sumarMontos(registros)))
 
 const { tareas } = ESTADO_INICIAL
-const met1 = metricasCronograma(tareas.filter((t) => t.servicio_id === 1))
-comprobar('cronograma serv. 1 = 7 tareas', met1.total === 7, String(met1.total))
-comprobar('cronograma serv. 1 = 1 completada', met1.completadas === 1, String(met1.completadas))
-comprobar('avance global serv. 1 = 39', met1.avanceGlobal === 39, String(met1.avanceGlobal))
-const metVacio = metricasCronograma([])
-comprobar('cronograma vacío en ceros', metVacio.total === 0 && metVacio.avanceGlobal === 0)
-
-const rent1 = rentabilidadServicio(servicio1, registros, tareas.filter((t) => t.servicio_id === 1))
-comprobar('margen serv. 1 = 35262', rent1.margen === 35262, String(rent1.margen))
-comprobar('margen % serv. 1 ≈ 72.71', Math.abs(rent1.margenPct - 72.71) < 0.01, rent1.margenPct.toFixed(2))
-comprobar('valor ganado serv. 1 = 18915', rent1.valorGanado === 18915, String(rent1.valorGanado))
-comprobar('CPI serv. 1 ≈ 1.43', Math.abs(rent1.cpi - 1.43) < 0.01, String(rent1.cpi))
-comprobar('costo final ≈ 33943.59', Math.abs(rent1.costoFinal - 33943.59) < 0.01, String(rent1.costoFinal))
-comprobar('margen proyectado ≈ 14556.41', Math.abs(rent1.margenProyectado - 14556.41) < 0.01, String(rent1.margenProyectado))
-const rentSinAvance = rentabilidadServicio(servicio1, registros, [])
-comprobar('sin tareas no hay CPI ni proyección', rentSinAvance.cpi === null && rentSinAvance.margenProyectado === null)
-
-const servicio6 = servicios.find((s) => s.id === 6)
-const consumo6 = consumoPresupuesto(servicio6, registros)
-comprobar('consumo servicio 6 = 35316', consumo6.gastado === 35316, String(consumo6.gastado))
-comprobar('disponible servicio 6 = 84684', consumo6.disponible === 84684, String(consumo6.disponible))
-const desglose6 = desglosePorTipo(registrosDeServicio(registros, 6))
-comprobar('mano de obra serv. 6 = 1540', desglose6.personal === 1540, String(desglose6.personal))
 const tareas6 = tareas.filter((t) => t.servicio_id === 6)
 const met6 = metricasCronograma(tareas6)
 comprobar('cronograma serv. 6 = 9 tareas', met6.total === 9, String(met6.total))
 comprobar('cronograma serv. 6 = 4 completadas', met6.completadas === 4, String(met6.completadas))
 comprobar('avance global serv. 6 = 54', met6.avanceGlobal === 54, String(met6.avanceGlobal))
+const metVacio = metricasCronograma([])
+comprobar('cronograma vacío en ceros', metVacio.total === 0 && metVacio.avanceGlobal === 0)
+
 const rent6 = rentabilidadServicio(servicio6, registros, tareas6)
 comprobar('margen serv. 6 = 84684', rent6.margen === 84684, String(rent6.margen))
+comprobar('margen % serv. 6 ≈ 70.57', Math.abs(rent6.margenPct - 70.57) < 0.01, rent6.margenPct.toFixed(2))
 comprobar('valor ganado serv. 6 = 64800', Math.abs(rent6.valorGanado - 64800) < 0.01, String(rent6.valorGanado))
 comprobar('CPI serv. 6 ≈ 1.83', Math.abs(rent6.cpi - 1.83) < 0.01, String(rent6.cpi))
 comprobar('costo final serv. 6 = 65400', Math.abs(rent6.costoFinal - 65400) < 0.01, String(rent6.costoFinal))
 comprobar('margen proyectado serv. 6 = 54600', Math.abs(rent6.margenProyectado - 54600) < 0.01, String(rent6.margenProyectado))
+const rentSinAvance = rentabilidadServicio(servicio6, registros, [])
+comprobar('sin tareas no hay CPI ni proyección', rentSinAvance.cpi === null && rentSinAvance.margenProyectado === null)
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
 // ============================================================
@@ -169,14 +155,13 @@ console.log('\n[ render ]')
 const rutas = [
   { ruta: '/', etiqueta: 'Raíz redirige a servicios', monto: false },
   { ruta: '/servicios', etiqueta: 'Servicios', monto: true },
-  { ruta: '/servicios/1', etiqueta: 'Detalle /servicios/1', monto: true },
-  { ruta: '/servicios/1/materiales', etiqueta: 'Panel materiales', monto: true },
-  { ruta: '/servicios/1/personal', etiqueta: 'Panel personal', monto: true },
-  { ruta: '/servicios/1/equipos', etiqueta: 'Panel equipos', monto: false },
-  { ruta: '/servicios/1/gastos', etiqueta: 'Panel gastos', monto: true },
-  { ruta: '/servicios/1/opciones', etiqueta: 'Panel opciones', monto: false },
-  { ruta: '/servicios/1/cronograma', etiqueta: 'Panel cronograma', monto: false },
-  { ruta: '/servicios/5/cronograma', etiqueta: 'Cronograma sin tareas', monto: false },
+  { ruta: '/servicios/6', etiqueta: 'Detalle /servicios/6', monto: true },
+  { ruta: '/servicios/6/materiales', etiqueta: 'Panel materiales', monto: true },
+  { ruta: '/servicios/6/personal', etiqueta: 'Panel personal', monto: true },
+  { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
+  { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
+  { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
+  { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/999', etiqueta: 'Detalle id inexistente', monto: false },
   { ruta: '/personal', etiqueta: 'Personal', monto: false },
   { ruta: '/equipos', etiqueta: 'Equipos', monto: false },

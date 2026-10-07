@@ -6,14 +6,28 @@ import { usePanelServicio } from '../../pages/servicio/panel'
 
 // Rutas absolutas: este sidebar lo renderiza el Layout (ruta sin path),
 // así que los enlaces relativos se resolverían contra la raíz.
-const OPCIONES = [
-  { id: 'resumen', etiqueta: 'Resumen', icono: 'grid', end: true },
-  { id: 'materiales', etiqueta: 'Materiales', icono: 'box' },
-  { id: 'personal', etiqueta: 'Personal', icono: 'users' },
-  { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
-  { id: 'gastos', etiqueta: 'Gastos', icono: 'clipboard' },
-  { id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' },
-  { id: 'opciones', etiqueta: 'Opciones', icono: 'ajustes' },
+const SECCIONES = [
+  {
+    titulo: 'Servicio',
+    opciones: [{ id: 'resumen', etiqueta: 'Resumen', icono: 'grid', end: true }],
+  },
+  {
+    titulo: 'Registro',
+    opciones: [
+      { id: 'materiales', etiqueta: 'Materiales', icono: 'box' },
+      { id: 'personal', etiqueta: 'Personal', icono: 'users' },
+      { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
+      { id: 'gastos', etiqueta: 'Gastos', icono: 'clipboard' },
+    ],
+  },
+  {
+    titulo: 'Planificación',
+    opciones: [{ id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' }],
+  },
+  {
+    titulo: 'Ajustes',
+    opciones: [{ id: 'opciones', etiqueta: 'Opciones', icono: 'ajustes' }],
+  },
 ]
 
 function Contador({ valor }) {
@@ -93,37 +107,39 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
           </div>
         </div>
 
-        <nav className={`flex-1 space-y-6 overflow-y-auto p-4 ${colapsado ? 'md:p-2' : ''}`}>
-          <div>
-            <p className={`mb-2 px-2 text-xs font-semibold tracking-wide text-slate-400 uppercase ${colapsado ? 'md:hidden' : ''}`}>
-              Servicio
-            </p>
-            <ul className="space-y-1">
-              {OPCIONES.map((opcion) => (
-                <li key={opcion.id} className="shrink-0 lg:shrink">
-                  <NavLink
-                    to={destino(opcion.id)}
-                    end={opcion.end}
-                    onClick={onCerrar}
-                    title={opcion.etiqueta}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                        colapsado ? 'md:justify-center md:px-2' : ''
-                      } ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-700'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                      }`
-                    }
-                  >
-                    <Icono nombre={opcion.icono} className="size-5 shrink-0" />
-                    <span className={colapsado ? 'md:hidden' : ''}>{opcion.etiqueta}</span>
-                    {!colapsado && <Contador valor={conteos[opcion.id]} />}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
+        <nav className={`flex-1 space-y-5 overflow-y-auto p-4 ${colapsado ? 'md:p-2' : ''}`}>
+          {SECCIONES.map((seccion) => (
+            <div key={seccion.titulo}>
+              <p className={`mb-1.5 px-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase ${colapsado ? 'md:hidden' : ''}`}>
+                {seccion.titulo}
+              </p>
+              <ul className="space-y-0.5">
+                {seccion.opciones.map((opcion) => (
+                  <li key={opcion.id}>
+                    <NavLink
+                      to={destino(opcion.id)}
+                      end={opcion.end}
+                      onClick={onCerrar}
+                      title={opcion.etiqueta}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          colapsado ? 'md:justify-center md:px-2' : ''
+                        } ${
+                          isActive
+                            ? 'bg-primary-50 text-primary-700'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`
+                      }
+                    >
+                      <Icono nombre={opcion.icono} className="size-5 shrink-0" />
+                      <span className={colapsado ? 'md:hidden' : ''}>{opcion.etiqueta}</span>
+                      {!colapsado && <Contador valor={conteos[opcion.id]} />}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
       </aside>
     </>
