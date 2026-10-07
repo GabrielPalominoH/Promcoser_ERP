@@ -109,8 +109,8 @@ comprobar('desglose gasto = 1350', desglose1.gasto === 1350, String(desglose1.ga
 comprobar('desglose equipo = 0', desglose1.equipo === 0, String(desglose1.equipo))
 comprobar('desglose suma el total', Object.values(desglose1).reduce((a, b) => a + b, 0) === consumo1.gastado)
 
-// 13238 (serv. 1) + 5650.5 (serv. 2) + 12110 (serv. 4) + 1942 (serv. 5) + 33776 (serv. 6)
-comprobar('sumarMontos total = 66716.5', sumarMontos(registros) === 66716.5, String(sumarMontos(registros)))
+// 13238 (serv. 1) + 5650.5 (serv. 2) + 12110 (serv. 4) + 1942 (serv. 5) + 35316 (serv. 6)
+comprobar('sumarMontos total = 68256.5', sumarMontos(registros) === 68256.5, String(sumarMontos(registros)))
 
 const { tareas } = ESTADO_INICIAL
 const met1 = metricasCronograma(tareas.filter((t) => t.servicio_id === 1))
@@ -132,19 +132,21 @@ comprobar('sin tareas no hay CPI ni proyección', rentSinAvance.cpi === null && 
 
 const servicio6 = servicios.find((s) => s.id === 6)
 const consumo6 = consumoPresupuesto(servicio6, registros)
-comprobar('consumo servicio 6 = 33776', consumo6.gastado === 33776, String(consumo6.gastado))
-comprobar('disponible servicio 6 = 86224', consumo6.disponible === 86224, String(consumo6.disponible))
+comprobar('consumo servicio 6 = 35316', consumo6.gastado === 35316, String(consumo6.gastado))
+comprobar('disponible servicio 6 = 84684', consumo6.disponible === 84684, String(consumo6.disponible))
+const desglose6 = desglosePorTipo(registrosDeServicio(registros, 6))
+comprobar('mano de obra serv. 6 = 1540', desglose6.personal === 1540, String(desglose6.personal))
 const tareas6 = tareas.filter((t) => t.servicio_id === 6)
 const met6 = metricasCronograma(tareas6)
 comprobar('cronograma serv. 6 = 9 tareas', met6.total === 9, String(met6.total))
 comprobar('cronograma serv. 6 = 4 completadas', met6.completadas === 4, String(met6.completadas))
 comprobar('avance global serv. 6 = 54', met6.avanceGlobal === 54, String(met6.avanceGlobal))
 const rent6 = rentabilidadServicio(servicio6, registros, tareas6)
-comprobar('margen serv. 6 = 86224', rent6.margen === 86224, String(rent6.margen))
+comprobar('margen serv. 6 = 84684', rent6.margen === 84684, String(rent6.margen))
 comprobar('valor ganado serv. 6 = 64800', Math.abs(rent6.valorGanado - 64800) < 0.01, String(rent6.valorGanado))
-comprobar('CPI serv. 6 ≈ 1.92', Math.abs(rent6.cpi - 1.92) < 0.01, String(rent6.cpi))
-comprobar('costo final ≈ 62548.15', Math.abs(rent6.costoFinal - 62548.15) < 0.01, String(rent6.costoFinal))
-comprobar('margen proyectado ≈ 57451.85', Math.abs(rent6.margenProyectado - 57451.85) < 0.01, String(rent6.margenProyectado))
+comprobar('CPI serv. 6 ≈ 1.83', Math.abs(rent6.cpi - 1.83) < 0.01, String(rent6.cpi))
+comprobar('costo final serv. 6 = 65400', Math.abs(rent6.costoFinal - 65400) < 0.01, String(rent6.costoFinal))
+comprobar('margen proyectado serv. 6 = 54600', Math.abs(rent6.margenProyectado - 54600) < 0.01, String(rent6.margenProyectado))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
 // ============================================================
@@ -169,6 +171,7 @@ const rutas = [
   { ruta: '/servicios', etiqueta: 'Servicios', monto: true },
   { ruta: '/servicios/1', etiqueta: 'Detalle /servicios/1', monto: true },
   { ruta: '/servicios/1/materiales', etiqueta: 'Panel materiales', monto: true },
+  { ruta: '/servicios/1/personal', etiqueta: 'Panel personal', monto: true },
   { ruta: '/servicios/1/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/1/gastos', etiqueta: 'Panel gastos', monto: true },
   { ruta: '/servicios/1/opciones', etiqueta: 'Panel opciones', monto: false },

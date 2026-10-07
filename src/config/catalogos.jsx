@@ -109,7 +109,7 @@ export const CATALOGO_MATERIALES = {
 export const CATALOGO_PERSONAL = {
   coleccion: 'personal',
   titulo: 'Personal',
-  descripcion: 'Registro del personal con su nombre y cargo.',
+  descripcion: 'Registro del personal con su nombre, cargo y tarifa por hora.',
   nombreSingular: 'personal',
   etiquetaContador: 'personas',
   claveBusqueda: (item) => `${item.nombre} ${item.apellido} ${item.cargo} ${item.dni}`,
@@ -143,6 +143,13 @@ export const CATALOGO_PERSONAL = {
       ),
       clase: 'text-slate-500',
     },
+    {
+      etiqueta: 'Tarifa/h',
+      alinear: 'right',
+      render: (item) => (
+        <span className="tabular-nums">{formatearMoneda(item.tarifa_por_hora)}</span>
+      ),
+    },
   ],
 
   campos: [
@@ -173,8 +180,16 @@ export const CATALOGO_PERSONAL = {
       etiqueta: 'DNI',
       tipo: 'texto',
       requerido: true,
-      ancho: 'completo',
       placeholder: 'Ej. 12345678',
+    },
+    {
+      name: 'tarifa_por_hora',
+      etiqueta: 'Tarifa por hora (S/)',
+      tipo: 'numero',
+      requerido: true,
+      min: 0,
+      paso: '0.01',
+      hint: 'Se sugiere al asignar personal a un servicio.',
     },
   ],
 
@@ -183,6 +198,7 @@ export const CATALOGO_PERSONAL = {
     apellido: '',
     cargo: '',
     dni: '',
+    tarifa_por_hora: '',
   },
 
   normalizar: (valores) => ({
@@ -190,6 +206,7 @@ export const CATALOGO_PERSONAL = {
     apellido: valores.apellido.trim(),
     cargo: valores.cargo.trim(),
     dni: valores.dni.trim(),
+    tarifa_por_hora: Number(valores.tarifa_por_hora),
   }),
 }
 

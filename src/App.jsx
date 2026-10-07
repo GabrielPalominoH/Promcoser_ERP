@@ -4,6 +4,7 @@ import { Servicios } from './pages/Servicios'
 import { PanelServicio } from './pages/servicio/PanelServicio'
 import { ResumenServicio } from './pages/servicio/ResumenServicio'
 import { MaterialesServicio } from './pages/servicio/MaterialesServicio'
+import { PersonalServicio } from './pages/servicio/PersonalServicio'
 import { EquiposServicio } from './pages/servicio/EquiposServicio'
 import { GastosServicio } from './pages/servicio/GastosServicio'
 import { CronogramaServicio } from './pages/servicio/CronogramaServicio'
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="servicios/:servicioId" element={<PanelServicio />}>
           <Route index element={<ResumenServicio />} />
           <Route path="materiales" element={<MaterialesServicio />} />
+          <Route path="personal" element={<PersonalServicio />} />
           <Route path="equipos" element={<EquiposServicio />} />
           <Route path="gastos" element={<GastosServicio />} />
           <Route path="cronograma" element={<CronogramaServicio />} />

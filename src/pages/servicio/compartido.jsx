@@ -125,7 +125,7 @@ export function SeccionRegistros({
   return (
     <div className="space-y-6">
       <Card titulo={titulo} descripcion={descripcion}>
-        {children({ servicio, equipos, registrar })}
+        {children({ servicio, personal, materiales, equipos, registrar })}
       </Card>
 
       <Card titulo={`Registros de ${titulo.toLowerCase()}`}>

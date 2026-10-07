@@ -19,41 +19,44 @@ import { usePanelServicio } from './panel'
 
 // Diagrama de cascada vertical: cómo el presupuesto se consume paso a
 // paso hasta llegar al saldo. Todo en divs, sin librerías.
-function CascadaPresupuesto({ presupuesto, materiales, gastos, saldo }) {
-  const maximo = Math.max(presupuesto, materiales + gastos, Math.abs(saldo), 1)
+function CascadaPresupuesto({ presupuesto, materiales, manoObra, gastos, saldo }) {
+  const maximo = Math.max(presupuesto, materiales + manoObra + gastos, Math.abs(saldo), 1)
   const altura = (valor) => `${Math.min(100, (Math.abs(valor) / maximo) * 100)}%`
-  const base = (acumulado) => `${Math.max(0, (acumulado / maximo) * 100)}%`
-
-  const trasMateriales = presupuesto - materiales
-  const trasGastos = trasMateriales - gastos
 
   const pasos = [
     {
       etiqueta: 'Presupuesto',
+      valor: presupuesto,
       texto: formatearMoneda(presupuesto),
       tono: 'bg-primary-600',
-      base: '0%',
       altura: altura(presupuesto),
     },
     {
       etiqueta: '− Materiales',
+      valor: materiales,
       texto: `−${formatearMoneda(materiales)}`,
       tono: 'bg-red-500',
-      base: base(trasMateriales),
       altura: altura(materiales),
     },
     {
+      etiqueta: '− Mano de obra',
+      valor: manoObra,
+      texto: `−${formatearMoneda(manoObra)}`,
+      tono: 'bg-emerald-500',
+      altura: altura(manoObra),
+    },
+    {
       etiqueta: '− Gastos',
+      valor: gastos,
       texto: `−${formatearMoneda(gastos)}`,
       tono: 'bg-amber-500',
-      base: base(trasGastos),
       altura: altura(gastos),
     },
     {
       etiqueta: saldo < 0 ? '= Excedente' : '= Saldo',
+      valor: saldo,
       texto: formatearMoneda(Math.abs(saldo)),
-      tono: saldo < 0 ? 'bg-red-600' : 'bg-emerald-500',
-      base: '0%',
+      tono: saldo < 0 ? 'bg-red-600' : 'bg-emerald-700',
       altura: altura(saldo),
     },
   ]
@@ -63,17 +66,20 @@ function CascadaPresupuesto({ presupuesto, materiales, gastos, saldo }) {
       <div className="flex h-56 items-stretch justify-around gap-2">
         {pasos.map((paso) => (
           <div key={paso.etiqueta} className="flex min-w-0 flex-1 flex-col items-center">
-            <p className="mb-1 h-8 text-center text-[11px] leading-tight font-semibold text-slate-700 tabular-nums">
+            <p className="mb-1 flex h-8 items-end justify-center text-center text-[11px] leading-tight font-semibold text-slate-700 tabular-nums">
               {paso.texto}
             </p>
-            <div className="relative w-full max-w-16 flex-1 rounded-lg bg-slate-100">
+            <div className="relative h-44 w-full max-w-10 rounded-lg bg-slate-100">
               <div
-                className={`absolute right-1 left-1 rounded-md ${paso.tono}`}
-                style={{ bottom: paso.base, height: paso.altura, minHeight: paso.texto ? 4 : 0 }}
+                className={`absolute right-1 bottom-0 left-1 rounded-md ${paso.tono}`}
+                style={{
+                  height: paso.altura,
+                  minHeight: paso.valor !== 0 ? 14 : 0,
+                }}
                 title={`${paso.etiqueta}: ${paso.texto}`}
               />
             </div>
-            <p className="mt-1.5 text-center text-[11px] leading-tight font-medium text-slate-500">
+            <p className="mt-1.5 flex h-8 items-start justify-center overflow-hidden text-center text-[11px] leading-tight font-medium text-slate-500">
               {paso.etiqueta}
             </p>
           </div>
@@ -94,16 +100,21 @@ export function ResumenServicio() {
     estado: { registros_servicio: todosLosRegistros, tareas: todasLasTareas },
   } = useData()
 
-  // El personal ya no forma parte del detalle: se excluye también del
-  // cálculo para que gastado y saldo coincidan siempre con las tablas.
-  const registrosVigentes = todosLosRegistros.filter(
-    (r) => r.tipo_registro !== 'personal',
-  )
+  // La mano de obra (personal con costo) sí suma al gastado, igual que
+  // materiales y gastos. Los registros viejos de personal con monto 0 no
+  // alteran los totales.
+  const registrosVigentes = todosLosRegistros
   const consumo = consumoPresupuesto(servicio, registrosVigentes)
   const dias = diasRestantes(servicio.fecha_fin_estimada)
 
   const registros = registrosDeServicio(registrosVigentes, servicio.id)
   const desglose = desglosePorTipo(registros)
+  const conteoTipo = {
+    material: registros.filter((r) => r.tipo_registro === 'material').length,
+    personal: registros.filter((r) => r.tipo_registro === 'personal').length,
+    gasto: registros.filter((r) => r.tipo_registro === 'gasto').length,
+    equipo: registros.filter((r) => r.tipo_registro === 'equipo').length,
+  }
   const tareas = todasLasTareas
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio))
@@ -241,44 +252,35 @@ export function ResumenServicio() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div>
             <p className="mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              En qué se gasta
+              Movimientos
             </p>
-            {consumo.gastado === 0 ? (
+            {registros.length === 0 ? (
               <p className="text-sm text-slate-400">
-                Aún no hay gasto registrado.{' '}
+                Aún no hay movimientos registrados.{' '}
                 <Link to="materiales" className="font-medium text-primary-700 underline">
                   Registrar
                 </Link>
               </p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y divide-slate-100">
                 {[
-                  { etiqueta: 'Materiales', monto: desglose.material, tono: 'bg-primary-600' },
-                  { etiqueta: 'Gastos', monto: desglose.gasto, tono: 'bg-amber-500' },
+                  { etiqueta: 'Materiales', total: conteoTipo.material, detalle: null, a: 'materiales' },
+                  { etiqueta: 'Mano de obra', total: conteoTipo.personal, detalle: null, a: 'personal' },
+                  { etiqueta: 'Gastos', total: conteoTipo.gasto, detalle: null, a: 'gastos' },
+                  { etiqueta: 'Usos de equipo', total: conteoTipo.equipo, detalle: `${formatearCantidad(horasEquipos)} h`, a: 'equipos' },
                 ].map((item) => (
-                  <li key={item.etiqueta}>
-                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                      <span className="font-medium text-slate-700">{item.etiqueta}</span>
-                      <span className="font-semibold text-slate-900 tabular-nums">
-                        {formatearMoneda(item.monto)}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className={`h-full rounded-full ${item.tono}`}
-                        style={{ width: `${Math.min(100, (item.monto / consumo.gastado) * 100)}%` }}
-                      />
-                    </div>
-                    <p className="mt-0.5 text-xs text-slate-400 tabular-nums">
-                      {((item.monto / consumo.gastado) * 100).toFixed(1)}% del gastado
-                    </p>
+                  <li key={item.etiqueta} className="flex items-baseline justify-between gap-2 py-2 text-sm">
+                    <Link to={item.a} className="font-medium text-slate-700 hover:text-primary-700 hover:underline">
+                      {item.etiqueta}
+                    </Link>
+                    <span className="text-slate-500 tabular-nums">
+                      {item.total} reg.{item.detalle ? ` · ${item.detalle}` : ''}
+                    </span>
                   </li>
                 ))}
-                <li className="flex items-baseline justify-between gap-2 border-t border-slate-100 pt-2 text-sm">
-                  <span className="font-medium text-slate-700">Equipos (control)</span>
-                  <span className="font-semibold text-slate-900 tabular-nums">
-                    {formatearCantidad(horasEquipos)} h
-                  </span>
+                <li className="flex items-baseline justify-between gap-2 py-2 text-sm font-semibold">
+                  <span className="text-slate-800">Total movimientos</span>
+                  <span className="text-slate-900 tabular-nums">{registros.length}</span>
                 </li>
               </ul>
             )}
@@ -331,6 +333,7 @@ export function ResumenServicio() {
             <CascadaPresupuesto
               presupuesto={consumo.presupuesto}
               materiales={desglose.material}
+              manoObra={desglose.personal}
               gastos={desglose.gasto}
               saldo={consumo.disponible}
             />
@@ -340,23 +343,38 @@ export function ResumenServicio() {
 
       <Card
         titulo="Rentabilidad"
-        descripcion="Margen actual, ritmo de gasto frente al avance y proyección al cierre."
+        descripcion="Margen proyectado al cierre, ritmo de gasto frente al avance y costo final estimado."
       >
         <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Margen actual
+              Margen proyectado
             </p>
-            <p
-              className={`mt-1 text-xl font-bold tabular-nums ${
-                rentabilidad.margen < 0 ? 'text-red-600' : 'text-slate-900'
-              }`}
-            >
-              {formatearMoneda(rentabilidad.margen)}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
-              {rentabilidad.margenPct.toFixed(1)}% del presupuesto
-            </p>
+            {rentabilidad.margenProyectado == null ? (
+              <>
+                <p className="mt-1 text-xl font-bold text-slate-400">—</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Requiere avance en cronograma.{' '}
+                  <Link to="cronograma" className="font-medium text-primary-700 underline">
+                    Planificar
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <>
+                <p
+                  className={`mt-1 text-xl font-bold tabular-nums ${
+                    rentabilidad.margenProyectado < 0 ? 'text-red-600' : 'text-slate-900'
+                  }`}
+                >
+                  {formatearMoneda(rentabilidad.margenProyectado)}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
+                  {((rentabilidad.margenProyectado / consumo.presupuesto) * 100).toFixed(1)}%
+                  del presupuesto al cierre
+                </p>
+              </>
+            )}
           </div>
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -385,9 +403,9 @@ export function ResumenServicio() {
           </div>
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Proyección al cierre
+              Costo final estimado
             </p>
-            {rentabilidad.margenProyectado == null ? (
+            {rentabilidad.costoFinal == null ? (
               <>
                 <p className="mt-1 text-xl font-bold text-slate-400">—</p>
                 <p className="mt-0.5 text-xs text-slate-500">
@@ -396,15 +414,11 @@ export function ResumenServicio() {
               </>
             ) : (
               <>
-                <p
-                  className={`mt-1 text-xl font-bold tabular-nums ${
-                    rentabilidad.margenProyectado < 0 ? 'text-red-600' : 'text-slate-900'
-                  }`}
-                >
-                  {formatearMoneda(rentabilidad.margenProyectado)}
+                <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+                  {formatearMoneda(rentabilidad.costoFinal)}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
-                  Costo final ≈ {formatearMoneda(rentabilidad.costoFinal)}
+                  Al ritmo actual de gasto
                 </p>
               </>
             )}

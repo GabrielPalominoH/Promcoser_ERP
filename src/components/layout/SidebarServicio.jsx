@@ -9,6 +9,7 @@ import { usePanelServicio } from '../../pages/servicio/panel'
 const OPCIONES = [
   { id: 'resumen', etiqueta: 'Resumen', icono: 'grid', end: true },
   { id: 'materiales', etiqueta: 'Materiales', icono: 'box' },
+  { id: 'personal', etiqueta: 'Personal', icono: 'users' },
   { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
   { id: 'gastos', etiqueta: 'Gastos', icono: 'clipboard' },
   { id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' },
@@ -35,6 +36,7 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
 
   const conteos = {
     materiales: conteo('material'),
+    personal: conteo('personal'),
     equipos: conteo('equipo'),
     gastos: conteo('gasto'),
     cronograma: tareas.filter((t) => t.servicio_id === servicio.id).length,

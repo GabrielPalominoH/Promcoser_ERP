@@ -390,11 +390,11 @@ export function CronogramaServicio() {
     return () => observador.disconnect()
   }, [])
 
-  // Zoom continuo: el ajuste automático llena el ancho disponible y los
-  // botones −/+ achican o agrandan el día (mínimo 6 px, máximo 160 px).
+  // Por defecto se muestra el panorama completo (todo el rango visible,
+  // normalmente en vista de trimestres); los botones −/+ ajustan el detalle.
   const ajusteAuto =
     rango && anchoCaja > 0
-      ? Math.max(DIA_PX_MIN, (anchoCaja - ANCHO_ETIQUETA) / rango.totalDias)
+      ? Math.max(4, (anchoCaja - ANCHO_ETIQUETA) / rango.totalDias)
       : DIA_PX_MIN
   const bruto = zoomManual ?? ajusteAuto
   const diaPx =
