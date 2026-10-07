@@ -14,6 +14,7 @@ import {
   diasRestantes,
   gastoPorMes,
   indiceAvance,
+  metricasCronograma,
   registrosDeServicio,
   rentabilidadServicio,
 } from '../../utils/calculadora'
@@ -204,6 +205,7 @@ export function ResumenServicio() {
   const tareas = todasLasTareas
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio))
+  const cronograma = metricasCronograma(tareas)
   const rentabilidad = rentabilidadServicio(servicio, registrosVigentes, tareas)
   const ritmoAvance = indiceAvance(servicio, rentabilidad.avance)
   const lecturaSpi =
@@ -377,6 +379,46 @@ export function ResumenServicio() {
                   <span className="text-slate-900 tabular-nums">{registros.length}</span>
                 </li>
               </ul>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Avance del cronograma
+            </p>
+            {cronograma.total === 0 ? (
+              <p className="text-sm text-slate-400">
+                Sin tareas todavía.{' '}
+                <Link to="cronograma" className="font-medium text-primary-700 underline">
+                  Planificar
+                </Link>
+              </p>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-bold text-slate-900 tabular-nums">
+                    {cronograma.avanceGlobal}%
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {cronograma.completadas}/{cronograma.total} tareas
+                  </p>
+                </div>
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-emerald-500"
+                    style={{ width: `${cronograma.avanceGlobal}%` }}
+                  />
+                </div>
+                {cronograma.atrasadas > 0 ? (
+                  <p className="mt-2 inline-block rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+                    {cronograma.atrasadas} atrasada(s)
+                  </p>
+                ) : (
+                  <p className="mt-2 inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                    Al día
+                  </p>
+                )}
+              </>
             )}
           </div>
 

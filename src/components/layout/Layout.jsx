@@ -44,6 +44,7 @@ export function Layout() {
   const [menuAbierto, setMenuAbierto] = useState(false)
   const [colapsado, setColapsado] = useState(leerColapsado)
   const coincideServicio = useMatch('/servicios/:servicioId/*')
+  const coincideCronograma = useMatch('/servicios/:servicioId/cronograma')
   const { servicioId } = useParams()
   const {
     estado: { servicios },
@@ -104,7 +105,9 @@ export function Layout() {
               </div>
             </header>
 
-            <main className="mx-auto max-w-7xl p-4 sm:p-6">
+            <main
+              className={`mx-auto p-4 sm:p-6 ${coincideCronograma ? 'max-w-none' : 'max-w-7xl'}`}
+            >
               <Outlet />
             </main>
           </div>

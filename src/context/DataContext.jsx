@@ -130,11 +130,26 @@ export function dataReducer(estado, accion) {
         }
       }
 
-      // Al borrar una tarea se van sus subtareas.
+      // Al borrar una tarea se van sus subtareas en todos los niveles.
       if (payload.coleccion === 'tareas') {
+        const porBorrar = new Set([payload.id])
+        let cambio = true
+        while (cambio) {
+          cambio = false
+          for (const tarea of estado.tareas) {
+            if (
+              !porBorrar.has(tarea.id) &&
+              tarea.padre_id != null &&
+              porBorrar.has(tarea.padre_id)
+            ) {
+              porBorrar.add(tarea.id)
+              cambio = true
+            }
+          }
+        }
         return {
           ...estado,
-          tareas: restantes.filter((tarea) => tarea.padre_id !== payload.id),
+          tareas: estado.tareas.filter((tarea) => !porBorrar.has(tarea.id)),
         }
       }
 

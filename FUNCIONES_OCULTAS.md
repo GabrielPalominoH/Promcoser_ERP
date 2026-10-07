@@ -9,13 +9,10 @@ Estado al: commit `2c893b0`.
 - **Reactivar:** devolver la ruta `<Route path="oficina" element={<Oficina />} />` con su import, y el enlace `{ to: '/oficina', label: 'Oficina', icono: 'grid' }` en `SECCIONES_NAVEGACION`.
 
 ## 2. Pestaña Cronograma del servicio (`/servicios/:id/cronograma`)
-- **Estado:** página `src/pages/servicio/CronogramaServicio.jsx`, datos (`tareas`) y pruebas intactos.
-- **Oculto en:** `src/App.jsx` (ruta eliminada) y `src/components/layout/SidebarServicio.jsx` (enlace y sección eliminados).
-- **Reactivar:** devolver la ruta anidada + el enlace `{ id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' }` (y su contador si se quiere).
+- **Estado:** ✅ VISIBLE de nuevo (ruta, enlace con contador y sección Planificación reactivados).
 
 ## 3. Bloque “Avance del cronograma” del Resumen
-- **Estado:** el cálculo (`metricasCronograma`, `avanceEfectivo`) y los datos siguen activos; solo se quitó su visualización en `src/pages/servicio/ResumenServicio.jsx`.
-- **Reactivar:** reponer el bloque entre “Movimientos” y la cascada (ver historial git del archivo).
+- **Estado:** ✅ VISIBLE de nuevo (entre “Movimientos” y la cascada).
 
 ## 4. Módulo Gestión de Servicios (antiguo)
 - **Estado:** ⚠️ ELIMINADO del disco antes del primer commit (no está en git). Su funcionalidad vive repartida en el panel del servicio (Materiales/Personal/Equipos/Gastos).

@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { consumoPresupuesto, desglosePorTipo, sumarMontos, registrosDeServicio, metricasCronograma, rentabilidadServicio, gastoPorMes, indiceAvance } from '../src/utils/calculadora'
+import { avanceEfectivo, consumoPresupuesto, desglosePorTipo, sumarMontos, registrosDeServicio, metricasCronograma, rentabilidadServicio, gastoPorMes, indiceAvance } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import App from '../src/App'
 
@@ -68,6 +68,17 @@ comprobar(
   !sinTarea.tareas.some((t) => t.id === 14 || t.padre_id === 14),
 )
 comprobar('conserva las demás tareas', sinTarea.tareas.some((t) => t.id === 13))
+
+const arbolPrueba = [
+  { id: 91, servicio_id: 6, padre_id: null, nombre: 'Abuelo', fecha_inicio: '2026-01-01', fecha_fin: '2026-01-10', avance: 0 },
+  { id: 92, servicio_id: 6, padre_id: 91, nombre: 'Hijo', fecha_inicio: '2026-01-01', fecha_fin: '2026-01-10', avance: 0 },
+  { id: 93, servicio_id: 6, padre_id: 92, nombre: 'Nieto', fecha_inicio: '2026-01-01', fecha_fin: '2026-01-10', avance: 60 },
+]
+comprobar('avance recursivo nivel 3 = 60', avanceEfectivo(arbolPrueba[0], arbolPrueba) === 60, String(avanceEfectivo(arbolPrueba[0], arbolPrueba)))
+comprobar('avance hoja intacto', avanceEfectivo(arbolPrueba[2], arbolPrueba) === 60)
+const conArbol = { ...ESTADO_INICIAL, tareas: [...ESTADO_INICIAL.tareas, ...arbolPrueba] }
+const sinAbuelo = dataReducer(conArbol, { type: 'ELIMINAR_ITEM', payload: { coleccion: 'tareas', id: 91 } })
+comprobar('cascada multinivel borra todo el árbol', ![91, 92, 93].some((id) => sinAbuelo.tareas.some((t) => t.id === id)))
 
 const restaurado = dataReducer(sinServicio, { type: 'RESTABLECER' })
 comprobar('RESTABLECER vuelve a los mocks', restaurado.materiales.length === ESTADO_INICIAL.materiales.length)
@@ -180,6 +191,7 @@ const rutas = [
   { ruta: '/servicios/6/personal', etiqueta: 'Panel personal', monto: true },
   { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
+  { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
   { ruta: '/servicios/999', etiqueta: 'Detalle id inexistente', monto: false },
   { ruta: '/personal', etiqueta: 'Personal', monto: true },

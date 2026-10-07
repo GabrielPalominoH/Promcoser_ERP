@@ -87,16 +87,16 @@ function hijasDe(tareas, idPadre) {
   return tareas.filter((t) => t.padre_id === idPadre)
 }
 
-// Avance efectivo: si la tarea tiene hijas, es el promedio ponderado por
-// duración de sus subtareas (la padre pasa a ser nombre de grupo);
-// si no, su propio avance.
+// Avance efectivo (recursivo): si la tarea tiene hijas, es el promedio
+// ponderado por duración de sus subtareas (la padre pasa a ser nombre de
+// grupo); si no, su propio avance.
 export function avanceEfectivo(tarea, todas) {
   const hijas = hijasDe(todas ?? [], tarea.id)
   if (hijas.length === 0) return Number(tarea.avance) || 0
   const duracion = hijas.reduce((s, h) => s + duracionTarea(h), 0)
   if (!duracion) return 0
   return Math.round(
-    hijas.reduce((s, h) => s + (Number(h.avance) || 0) * duracionTarea(h), 0) / duracion,
+    hijas.reduce((s, h) => s + avanceEfectivo(h, todas) * duracionTarea(h), 0) / duracion,
   )
 }
 

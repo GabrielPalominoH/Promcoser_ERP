@@ -227,7 +227,7 @@ function ModalTarea({ servicio, tarea, padre, tieneHijos, avanceDerivado, onCerr
 
 export function CronogramaServicio() {
   const { servicio } = useOutletContext()
-  const { estado, agregarItem, actualizarItem, eliminarItem } = useData()
+  const { estado, agregarItem, actualizarItem, eliminarItem, reemplazarColeccion } = useData()
   const { tareas: todas } = estado
 
   const [aviso, setAviso] = useState(null)
@@ -258,39 +258,71 @@ export function CronogramaServicio() {
     [todas, servicio.id],
   )
 
-  // Árbol de un nivel: tareas principales con sus subtareas.
-  const grupos = useMemo(() => {
+  // Árbol multinivel: cada tarea puede tener subtareas que a su vez
+  // pueden tener las suyas. Las huérfanas (padre inexistente) suben a raíz.
+  const arbol = useMemo(() => {
+    const porId = new Map(tareas.map((t) => [t.id, t]))
     const hijasPorPadre = new Map()
     for (const t of tareas) {
-      if (t.padre_id != null) {
-        if (!hijasPorPadre.has(t.padre_id)) hijasPorPadre.set(t.padre_id, [])
-        hijasPorPadre.get(t.padre_id).push(t)
-      }
+      const pid = t.padre_id ?? null
+      const clave = pid !== null && !porId.has(pid) ? null : pid
+      if (!hijasPorPadre.has(clave)) hijasPorPadre.set(clave, [])
+      hijasPorPadre.get(clave).push(t)
     }
-    return tareas
-      .filter((t) => t.padre_id == null)
-      .map((t) => ({ tarea: t, hijas: hijasPorPadre.get(t.id) ?? [] }))
+    const armar = (t) => ({
+      tarea: t,
+      hijas: (hijasPorPadre.get(t.id) ?? []).map(armar),
+    })
+    return (hijasPorPadre.get(null) ?? []).map(armar)
   }, [tareas])
 
-  // Filas planas para la lista y el diagrama: principal + subtareas
-  // (respetando colapsadas), con numeración jerárquica 1, 1.1, 1.2…
+  // Filas planas para la lista y el diagrama, con numeración jerárquica
+  // 1, 1.1, 1.1.1… Respetan los grupos colapsados.
   const filas = useMemo(() => {
     const lista = []
-    grupos.forEach((grupo, i) => {
-      lista.push({ tarea: grupo.tarea, nivel: 0, numero: `${i + 1}`, hijas: grupo.hijas })
-      if (!colapsadas[grupo.tarea.id]) {
-        grupo.hijas.forEach((hija, j) => {
-          lista.push({ tarea: hija, nivel: 1, numero: `${i + 1}.${j + 1}`, hijas: [] })
-        })
+    const recorrer = (nodo, nivel, numero) => {
+      const hijas = nodo.hijas
+      lista.push({ tarea: nodo.tarea, nivel, numero, hijas: hijas.map((h) => h.tarea) })
+      if (hijas.length > 0 && !colapsadas[nodo.tarea.id]) {
+        hijas.forEach((hija, j) => recorrer(hija, nivel + 1, `${numero}.${j + 1}`))
       }
-    })
+    }
+    arbol.forEach((nodo, i) => recorrer(nodo, 0, `${i + 1}`))
     return lista
-  }, [grupos, colapsadas])
+  }, [arbol, colapsadas])
 
   const alternarGrupo = (id) =>
     setColapsadas((previo) => ({ ...previo, [id]: !previo[id] }))
 
+  // Historial para deshacer/rehacer (fotos de la colección de tareas).
+  const [atras, setAtras] = useState([])
+  const [adelante, setAdelante] = useState([])
+
+  const registrarPaso = () => {
+    setAtras((previo) => [...previo.slice(-29), todas])
+    setAdelante([])
+  }
+
+  const deshacer = () => {
+    if (atras.length === 0) return
+    const previo = atras[atras.length - 1]
+    setAtras((lista) => lista.slice(0, -1))
+    setAdelante((lista) => [...lista, todas])
+    reemplazarColeccion('tareas', previo)
+    setAviso({ tipo: 'info', mensaje: 'Cambio deshecho.' })
+  }
+
+  const rehacer = () => {
+    if (adelante.length === 0) return
+    const siguiente = adelante[adelante.length - 1]
+    setAdelante((lista) => lista.slice(0, -1))
+    setAtras((lista) => [...lista.slice(-29), todas])
+    reemplazarColeccion('tareas', siguiente)
+    setAviso({ tipo: 'info', mensaje: 'Cambio rehecho.' })
+  }
+
   const guardar = (valores) => {
+    registrarPaso()
     if (valores.id == null) {
       agregarItem('tareas', valores)
       setAviso({
@@ -308,6 +340,7 @@ export function CronogramaServicio() {
   }
 
   const eliminar = (tarea) => {
+    registrarPaso()
     eliminarItem('tareas', tarea.id)
     setAviso({ tipo: 'info', mensaje: `Tarea «${tarea.nombre}» eliminada.` })
     setModal(null)
@@ -497,12 +530,64 @@ export function CronogramaServicio() {
           <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
             <button
               type="button"
+              onClick={() => {
+                const conHijas = new Set(tareas.filter((t) => tareas.some((x) => x.padre_id === t.id)).map((t) => t.id))
+                const hayColapsada = [...conHijas].some((id) => colapsadas[id])
+                if (hayColapsada) {
+                  setColapsadas({})
+                } else {
+                  setColapsadas(Object.fromEntries([...conHijas].map((id) => [id, true])))
+                }
+              }}
+              className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+              title="Expandir o colapsar todos los grupos"
+            >
+              {[...tareas.filter((t) => tareas.some((x) => x.padre_id === t.id)).map((t) => t.id)].some((id) => colapsadas[id])
+                ? 'Expandir todo'
+                : 'Colapsar todo'}
+            </button>
+            <span className="h-5 w-px bg-slate-200" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={deshacer}
+              disabled={atras.length === 0}
+              className="rounded-md px-2.5 py-1.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Deshacer cambio"
+              title="Deshacer cambio"
+            >
+              ↩
+            </button>
+            <button
+              type="button"
+              onClick={rehacer}
+              disabled={adelante.length === 0}
+              className="rounded-md px-2.5 py-1.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Rehacer cambio"
+              title="Rehacer cambio"
+            >
+              ↪
+            </button>
+          </div>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
               onClick={() => setZoomManual((previo) => indicePaso(previo ?? diaPx, -1))}
-              className="rounded-md px-2.5 py-1.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+              className="rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100"
               aria-label="Alejar: ver más meses"
               title="Alejar: ver más meses"
             >
-              −
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                className="size-5"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5M8.5 11h5" />
+              </svg>
             </button>
             <button
               type="button"
@@ -515,11 +600,22 @@ export function CronogramaServicio() {
             <button
               type="button"
               onClick={() => setZoomManual((previo) => indicePaso(previo ?? diaPx, 1))}
-              className="rounded-md px-2.5 py-1.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100"
+              className="rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100"
               aria-label="Acercar: ver más detalle"
               title="Acercar: ver más detalle"
             >
-              +
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                className="size-5"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5M11 8.5v5M8.5 11h5" />
+              </svg>
             </button>
           </div>
           <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
@@ -648,26 +744,28 @@ export function CronogramaServicio() {
                 </div>
               </div>
 
-              {/* Filas agrupadas: principal + subtareas */}
+              {/* Filas agrupadas: tareas y subtareas multinivel */}
               {filas.map(({ tarea: t, nivel, numero, hijas }) => {
                 const pct = avanceEfectivo(t, tareas)
                 const estado = estadoTarea({ ...t, avance: pct }, hoy)
-                const esPadre = nivel === 0 && hijas.length > 0
+                const esPadre = hijas.length > 0
                 const colapsada = esPadre && colapsadas[t.id]
+                const tonoBarra = nivel === 0 ? COLORES_BARRA[estado] : nivel === 1 ? 'bg-violet-500' : 'bg-teal-500'
+                const altoBarra = nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'
                 return (
                   <div
                     key={t.id}
-                    className={`flex items-stretch border-b border-slate-100 last:border-0 ${nivel === 1 ? 'bg-slate-50/70' : ''} ${esPadre ? 'border-t-2 border-t-slate-200 first:border-t-0' : ''}`}
+                    className={`flex items-stretch border-b border-slate-100 last:border-0 ${nivel >= 1 ? 'bg-slate-50/70' : ''} ${esPadre ? 'border-t-2 border-t-slate-200 first:border-t-0' : ''}`}
                   >
                     <div
-                      className={`sticky left-0 z-20 flex min-w-0 shrink-0 items-center gap-1 px-2 py-1 ${nivel === 1 ? 'border-l-2 border-l-primary-300 bg-slate-50' : 'bg-white'}`}
-                      style={{ width: ANCHO_ETIQUETA, paddingLeft: nivel === 1 ? 22 : 8 }}
+                      className={`sticky left-0 z-20 flex min-w-0 shrink-0 items-center gap-1 bg-white px-2 py-1 ${nivel >= 1 ? 'border-l-2 border-l-violet-300' : ''}`}
+                      style={{ width: ANCHO_ETIQUETA, paddingLeft: 8 + nivel * 16 }}
                     >
                       {esPadre ? (
                         <button
                           type="button"
                           onClick={() => alternarGrupo(t.id)}
-                          className="rounded p-0.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          className="w-5 shrink-0 rounded p-0.5 text-center text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                           aria-label={colapsada ? 'Expandir subtareas' : 'Colapsar subtareas'}
                           title={colapsada ? 'Expandir subtareas' : 'Colapsar subtareas'}
                         >
@@ -678,17 +776,18 @@ export function CronogramaServicio() {
                             strokeWidth="2.2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className={`size-4 transition-transform ${colapsada ? '-rotate-90' : ''}`}
+                            className={`mx-auto size-4 transition-transform ${colapsada ? '-rotate-90' : ''}`}
                             aria-hidden="true"
                           >
                             <path d="m6 9 6 6 6-6" />
                           </svg>
                         </button>
                       ) : (
-                        <span className="w-5 shrink-0 text-center text-xs font-bold text-slate-400 tabular-nums">
-                          {numero}
-                        </span>
+                        <span className="w-5 shrink-0" aria-hidden="true" />
                       )}
+                      <span className="w-9 shrink-0 text-center text-xs font-bold text-slate-400 tabular-nums">
+                        {numero}
+                      </span>
                       <button
                         type="button"
                         onClick={() => setModal({ modo: 'editar', tarea: t })}
@@ -696,11 +795,6 @@ export function CronogramaServicio() {
                         title={`${t.nombre} · ${formatearFecha(t.fecha_inicio)} → ${formatearFecha(t.fecha_fin)} — clic para editar`}
                       >
                       <span className="block text-sm leading-snug font-medium text-slate-800 [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden">
-                        {esPadre && (
-                          <span className="mr-1 text-xs font-bold text-slate-400 tabular-nums">
-                            {numero}
-                          </span>
-                        )}
                         {t.nombre}
                       </span>
                         <span className="mt-0.5 inline-flex items-center gap-1.5">
@@ -712,17 +806,15 @@ export function CronogramaServicio() {
                           )}
                         </span>
                       </button>
-                      {nivel === 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setModal({ modo: 'crear', padre: t })}
-                          className="rounded-lg p-1.5 text-lg leading-none font-bold text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-700"
-                          aria-label={`Agregar subtarea a ${t.nombre}`}
-                          title="Agregar subtarea"
-                        >
-                          +
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setModal({ modo: 'crear', padre: t })}
+                        className="rounded-lg p-1.5 text-lg leading-none font-bold text-slate-400 transition-colors hover:bg-primary-50 hover:text-primary-700"
+                        aria-label={`Agregar subtarea a ${t.nombre}`}
+                        title="Agregar subtarea"
+                      >
+                        +
+                      </button>
                     </div>
                     <span className="relative flex min-w-0 flex-1 items-center">
                       {esTrimestre &&
@@ -751,15 +843,15 @@ export function CronogramaServicio() {
                             style={{ left: `${izq}%` }}
                           />
                         ))}
-                      <span className={`relative block w-full overflow-hidden rounded-full bg-slate-200 ring-1 ring-inset ring-slate-300 ${nivel === 1 ? 'h-4' : 'h-6'}`}>
+                      <span className={`relative block w-full overflow-hidden rounded-full bg-slate-200 ring-1 ring-inset ring-slate-300 ${nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'}`}>
                         {/* Rango planificado */}
                         <span
-                          className="absolute inset-y-0 rounded-full bg-slate-400 transition-[left,width] duration-300 ease-out"
+                          className={`absolute inset-y-0 rounded-full transition-[left,width] duration-300 ease-out ${nivel === 0 ? 'bg-slate-400' : 'bg-violet-300'}`}
                           style={{ left: `${pos(t.fecha_inicio)}%`, width: `${ancho(t.fecha_inicio, t.fecha_fin)}%` }}
                         />
                         {/* Avance real */}
                         <span
-                          className={`absolute inset-y-0 flex items-center justify-end overflow-hidden rounded-full shadow-sm ring-1 ring-inset ring-black/20 transition-[left,width] duration-300 ease-out ${COLORES_BARRA[estado]}`}
+                          className={`absolute inset-y-0 flex items-center justify-end overflow-hidden rounded-full shadow-sm ring-1 ring-inset ring-black/20 transition-[left,width] duration-300 ease-out ${tonoBarra}`}
                           style={{
                             left: `${pos(t.fecha_inicio)}%`,
                             width: `${(ancho(t.fecha_inicio, t.fecha_fin) * pct) / 100}%`,
@@ -799,6 +891,9 @@ export function CronogramaServicio() {
             </span>
             <span className="flex items-center gap-1.5">
               <span className="size-2.5 rounded-full bg-red-500" /> Atrasada
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full bg-violet-500" /> Subtarea
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-px w-4 bg-red-400" /> Hoy
