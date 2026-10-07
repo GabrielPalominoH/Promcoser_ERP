@@ -131,3 +131,32 @@ export function diasRestantes(fechaISO) {
 export function nombreServicio(servicios, servicioId) {
   return servicios.find((s) => s.id === servicioId)?.nombre_servicio ?? 'Servicio eliminado'
 }
+
+// Rentabilidad del servicio con lo registrado (materiales + gastos):
+// 1) margen actual, 2) índice costo vs avance (valor ganado) y
+// 3) proyección al cierre. Sin tareas con avance no hay CPI ni proyección.
+export function rentabilidadServicio(servicio, registros, tareas, hoy = hoyISO()) {
+  const consumo = consumoPresupuesto(servicio, registros)
+  const margen = consumo.disponible
+  const margenPct = consumo.presupuesto ? (margen / consumo.presupuesto) * 100 : 0
+
+  const { avanceGlobal } = metricasCronograma(tareas, hoy)
+  const tieneAvance = tareas.length > 0 && avanceGlobal > 0
+  const avanceTanto = avanceGlobal / 100
+
+  const valorGanado = consumo.presupuesto * avanceTanto
+  const cpi = tieneAvance && consumo.gastado > 0 ? valorGanado / consumo.gastado : null
+  const costoFinal = tieneAvance ? consumo.gastado / avanceTanto : null
+  const margenProyectado = costoFinal == null ? null : consumo.presupuesto - costoFinal
+
+  return {
+    margen,
+    margenPct,
+    avance: avanceGlobal,
+    tieneAvance,
+    valorGanado,
+    cpi,
+    costoFinal,
+    margenProyectado,
+  }
+}

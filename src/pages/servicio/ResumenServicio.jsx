@@ -13,6 +13,7 @@ import {
   diasRestantes,
   metricasCronograma,
   registrosDeServicio,
+  rentabilidadServicio,
 } from '../../utils/calculadora'
 import { usePanelServicio } from './panel'
 
@@ -107,6 +108,15 @@ export function ResumenServicio() {
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio))
   const cronograma = metricasCronograma(tareas)
+  const rentabilidad = rentabilidadServicio(servicio, registrosVigentes, tareas)
+  const lecturaCpi =
+    rentabilidad.cpi == null
+      ? null
+      : rentabilidad.cpi >= 1
+        ? { texto: 'Eficiente: avanzas más de lo que gastas', tono: 'text-emerald-700' }
+        : rentabilidad.cpi >= 0.85
+          ? { texto: 'Ajustado: el gasto va alcanzando al avance', tono: 'text-amber-700' }
+          : { texto: 'En pérdida: gastas más rápido de lo que avanzas', tono: 'text-red-600' }
   const horasEquipos = registros
     .filter((r) => r.tipo_registro === 'equipo')
     .reduce((s, r) => s + (Number(r.cantidad_o_horas) || 0), 0)
@@ -324,6 +334,80 @@ export function ResumenServicio() {
               gastos={desglose.gasto}
               saldo={consumo.disponible}
             />
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        titulo="Rentabilidad"
+        descripcion="Margen actual, ritmo de gasto frente al avance y proyección al cierre."
+      >
+        <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Margen actual
+            </p>
+            <p
+              className={`mt-1 text-xl font-bold tabular-nums ${
+                rentabilidad.margen < 0 ? 'text-red-600' : 'text-slate-900'
+              }`}
+            >
+              {formatearMoneda(rentabilidad.margen)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
+              {rentabilidad.margenPct.toFixed(1)}% del presupuesto
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Ritmo de gasto
+            </p>
+            {rentabilidad.cpi == null ? (
+              <>
+                <p className="mt-1 text-xl font-bold text-slate-400">—</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Sin avance en cronograma.{' '}
+                  <Link to="cronograma" className="font-medium text-primary-700 underline">
+                    Planificar
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <>
+                <p className={`mt-1 text-xl font-bold tabular-nums ${lecturaCpi.tono}`}>
+                  {rentabilidad.cpi.toFixed(2)}
+                </p>
+                <p className={`mt-0.5 text-xs font-medium ${lecturaCpi.tono}`}>
+                  {lecturaCpi.texto}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Proyección al cierre
+            </p>
+            {rentabilidad.margenProyectado == null ? (
+              <>
+                <p className="mt-1 text-xl font-bold text-slate-400">—</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Aún sin proyección (requiere avance).
+                </p>
+              </>
+            ) : (
+              <>
+                <p
+                  className={`mt-1 text-xl font-bold tabular-nums ${
+                    rentabilidad.margenProyectado < 0 ? 'text-red-600' : 'text-slate-900'
+                  }`}
+                >
+                  {formatearMoneda(rentabilidad.margenProyectado)}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
+                  Costo final ≈ {formatearMoneda(rentabilidad.costoFinal)}
+                </p>
+              </>
+            )}
           </div>
         </div>
       </Card>

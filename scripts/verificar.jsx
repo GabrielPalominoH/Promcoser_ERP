@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { consumoPresupuesto, desglosePorTipo, sumarMontos, registrosDeServicio, metricasCronograma } from '../src/utils/calculadora'
+import { consumoPresupuesto, desglosePorTipo, sumarMontos, registrosDeServicio, metricasCronograma, rentabilidadServicio } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import App from '../src/App'
 
@@ -109,8 +109,8 @@ comprobar('desglose gasto = 1350', desglose1.gasto === 1350, String(desglose1.ga
 comprobar('desglose equipo = 0', desglose1.equipo === 0, String(desglose1.equipo))
 comprobar('desglose suma el total', Object.values(desglose1).reduce((a, b) => a + b, 0) === consumo1.gastado)
 
-// 13238 (serv. 1) + 5650.5 (serv. 2) + 12110 (serv. 4) + 1942 (serv. 5)
-comprobar('sumarMontos total = 32940.5', sumarMontos(registros) === 32940.5, String(sumarMontos(registros)))
+// 13238 (serv. 1) + 5650.5 (serv. 2) + 12110 (serv. 4) + 1942 (serv. 5) + 33776 (serv. 6)
+comprobar('sumarMontos total = 66716.5', sumarMontos(registros) === 66716.5, String(sumarMontos(registros)))
 
 const { tareas } = ESTADO_INICIAL
 const met1 = metricasCronograma(tareas.filter((t) => t.servicio_id === 1))
@@ -119,6 +119,32 @@ comprobar('cronograma serv. 1 = 1 completada', met1.completadas === 1, String(me
 comprobar('avance global serv. 1 = 39', met1.avanceGlobal === 39, String(met1.avanceGlobal))
 const metVacio = metricasCronograma([])
 comprobar('cronograma vacío en ceros', metVacio.total === 0 && metVacio.avanceGlobal === 0)
+
+const rent1 = rentabilidadServicio(servicio1, registros, tareas.filter((t) => t.servicio_id === 1))
+comprobar('margen serv. 1 = 35262', rent1.margen === 35262, String(rent1.margen))
+comprobar('margen % serv. 1 ≈ 72.71', Math.abs(rent1.margenPct - 72.71) < 0.01, rent1.margenPct.toFixed(2))
+comprobar('valor ganado serv. 1 = 18915', rent1.valorGanado === 18915, String(rent1.valorGanado))
+comprobar('CPI serv. 1 ≈ 1.43', Math.abs(rent1.cpi - 1.43) < 0.01, String(rent1.cpi))
+comprobar('costo final ≈ 33943.59', Math.abs(rent1.costoFinal - 33943.59) < 0.01, String(rent1.costoFinal))
+comprobar('margen proyectado ≈ 14556.41', Math.abs(rent1.margenProyectado - 14556.41) < 0.01, String(rent1.margenProyectado))
+const rentSinAvance = rentabilidadServicio(servicio1, registros, [])
+comprobar('sin tareas no hay CPI ni proyección', rentSinAvance.cpi === null && rentSinAvance.margenProyectado === null)
+
+const servicio6 = servicios.find((s) => s.id === 6)
+const consumo6 = consumoPresupuesto(servicio6, registros)
+comprobar('consumo servicio 6 = 33776', consumo6.gastado === 33776, String(consumo6.gastado))
+comprobar('disponible servicio 6 = 86224', consumo6.disponible === 86224, String(consumo6.disponible))
+const tareas6 = tareas.filter((t) => t.servicio_id === 6)
+const met6 = metricasCronograma(tareas6)
+comprobar('cronograma serv. 6 = 9 tareas', met6.total === 9, String(met6.total))
+comprobar('cronograma serv. 6 = 4 completadas', met6.completadas === 4, String(met6.completadas))
+comprobar('avance global serv. 6 = 54', met6.avanceGlobal === 54, String(met6.avanceGlobal))
+const rent6 = rentabilidadServicio(servicio6, registros, tareas6)
+comprobar('margen serv. 6 = 86224', rent6.margen === 86224, String(rent6.margen))
+comprobar('valor ganado serv. 6 = 64800', Math.abs(rent6.valorGanado - 64800) < 0.01, String(rent6.valorGanado))
+comprobar('CPI serv. 6 ≈ 1.92', Math.abs(rent6.cpi - 1.92) < 0.01, String(rent6.cpi))
+comprobar('costo final ≈ 62548.15', Math.abs(rent6.costoFinal - 62548.15) < 0.01, String(rent6.costoFinal))
+comprobar('margen proyectado ≈ 57451.85', Math.abs(rent6.margenProyectado - 57451.85) < 0.01, String(rent6.margenProyectado))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
 // ============================================================
