@@ -17,14 +17,14 @@ const SECCIONES = [
       { id: 'materiales', etiqueta: 'Materiales', icono: 'box' },
       { id: 'personal', etiqueta: 'Personal', icono: 'users' },
       { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
-      { id: 'gastos', etiqueta: 'Gastos', icono: 'clipboard' },
+      { id: 'gastos', etiqueta: 'Gastos', icono: 'recibo' },
     ],
   },
   {
     titulo: 'Planificación',
     opciones: [
       { id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' },
-      { id: 'partidas', etiqueta: 'Partidas', icono: 'clipboard' },
+      { id: 'partidas', etiqueta: 'Partidas', icono: 'layers' },
     ],
   },
   {

@@ -8,7 +8,7 @@ export const SECCIONES_NAVEGACION = [
       { to: '/servicios', label: 'Servicios', icono: 'clipboard' },
       { to: '/personal', label: 'Personal', icono: 'users' },
       { to: '/equipos', label: 'Equipos', icono: 'truck' },
-      { to: '/oficina', label: 'Oficina', icono: 'grid' },
+      { to: '/oficina', label: 'Oficina', icono: 'oficina' },
     ],
   },
 ]
@@ -21,6 +21,9 @@ const ICONOS = {
   clipboard: 'M9 4h6v3H9zM9 5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 12h6M9 16h6',
   ajustes: 'M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6',
   gantt: 'M3 5h18M3 12h12M3 19h15M19 10v4m-2-2h4',
+  oficina: 'M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 8h2a2 2 0 0 1 2 2v11M3 21h18M8 7h2m-2 4h2m-2 4h2',
+  recibo: 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6',
+  layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
 }
 
 export { ICONOS }
