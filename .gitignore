@@ -7,3 +7,4 @@ dist-ssr
 .vite
 npm-debug.log*
 yarn-error.log*
+vite*.log
