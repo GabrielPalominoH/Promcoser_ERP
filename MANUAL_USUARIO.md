@@ -86,7 +86,9 @@ movilidad, etc.
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
 fechas. Se marca el avance de cada tarea y el sistema muestra una barra de
-tiempo (diagrama de Gantt) con el progreso total.
+tiempo (diagrama de Gantt) con el progreso total. Al crear o editar una tarea
+puede elegir su **partida** (opcional): así ese trabajo queda vinculado con
+su parte del presupuesto, y la tarea muestra el nombre de su partida.
 
 ### Partidas
 Una **partida es un pedazo del presupuesto de la obra**. En vez de manejar
@@ -136,13 +138,20 @@ presupuesto total. Es el avance real de la obra. Debajo hay la lista de
 valorizaciones registradas por mes (cada una se puede eliminar si se
 equivocó).
 
+**Partidas y tareas vinculadas.** Debajo del nombre de cada partida verá sus
+tareas del cronograma: cuántas son y su avance en tiempo. Si el avance en
+tiempo y el avance en plata difieren mucho (20 puntos o más), aparece un
+aviso ámbar *"difiere"*: significa que algo no cuadra (por ejemplo, el
+cronograma dice 0% pero ya se valorizó 20%, o al revés) y conviene revisar
+cuál de los dos está desactualizado.
+
 Tenga en cuenta:
 
 - Lo que registre **sin partida** no aparece en ninguna fila; debajo del
   total verá un aviso con ese monto (*"sin partida asignada"*) para que nada
-  se pierda. Elija la partida siempre que pueda.
-- Si borra una partida, se borran sus valorizaciones, pero los costos quedan
-  como "sin partida": la plata no se pierde.
+  se pierda. Elija la partida siempre que pueda, en costos y en tareas.
+- Si borra una partida, se borran sus valorizaciones, pero los costos y las
+  tareas quedan como "sin partida": nada se pierde.
 
 **El flujo de cada mes, en 3 pasos:** 1) durante el mes registre los costos
 eligiendo su partida; 2) a fin de mes registre la valorización (metrado

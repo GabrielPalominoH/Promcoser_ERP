@@ -329,15 +329,15 @@ export const registros_servicio = [
 
 export const tareas = [
   // Servicio 6 — Construcción de almacén
-  { id: 13, servicio_id: 6, nombre: 'Obras preliminares', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-15', avance: 100 },
-  { id: 14, servicio_id: 6, nombre: 'Cimentación', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100 },
-  { id: 15, servicio_id: 6, padre_id: 14, nombre: 'Excavación', fecha_inicio: '2026-07-16', fecha_fin: '2026-07-31', avance: 100 },
-  { id: 16, servicio_id: 6, padre_id: 14, nombre: 'Vaciado de cimientos', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15', avance: 100 },
-  { id: 17, servicio_id: 6, nombre: 'Estructuras', fecha_inicio: '2026-08-16', fecha_fin: '2026-10-15', avance: 60 },
-  { id: 18, servicio_id: 6, padre_id: 17, nombre: 'Columnas y vigas', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-20', avance: 70 },
-  { id: 19, servicio_id: 6, padre_id: 17, nombre: 'Losa aligerada', fecha_inicio: '2026-09-21', fecha_fin: '2026-10-15', avance: 30 },
-  { id: 20, servicio_id: 6, nombre: 'Cobertura y cerramientos', fecha_inicio: '2026-10-16', fecha_fin: '2026-11-20', avance: 0 },
-  { id: 21, servicio_id: 6, nombre: 'Acabados y entrega', fecha_inicio: '2026-11-21', fecha_fin: '2026-12-20', avance: 0 },
+  { id: 13, servicio_id: 6, partida_id: 1, nombre: 'Obras preliminares', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-15', avance: 100 },
+  { id: 14, servicio_id: 6, partida_id: 2, nombre: 'Cimentación', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100 },
+  { id: 15, servicio_id: 6, padre_id: 14, partida_id: 2, nombre: 'Excavación', fecha_inicio: '2026-07-16', fecha_fin: '2026-07-31', avance: 100 },
+  { id: 16, servicio_id: 6, padre_id: 14, partida_id: 2, nombre: 'Vaciado de cimientos', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15', avance: 100 },
+  { id: 17, servicio_id: 6, partida_id: 3, nombre: 'Estructuras', fecha_inicio: '2026-08-16', fecha_fin: '2026-10-15', avance: 60 },
+  { id: 18, servicio_id: 6, padre_id: 17, partida_id: 3, nombre: 'Columnas y vigas', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-20', avance: 70 },
+  { id: 19, servicio_id: 6, padre_id: 17, partida_id: 3, nombre: 'Losa aligerada', fecha_inicio: '2026-09-21', fecha_fin: '2026-10-15', avance: 30 },
+  { id: 20, servicio_id: 6, partida_id: 4, nombre: 'Cobertura y cerramientos', fecha_inicio: '2026-10-16', fecha_fin: '2026-11-20', avance: 0 },
+  { id: 21, servicio_id: 6, partida_id: 5, nombre: 'Acabados y entrega', fecha_inicio: '2026-11-21', fecha_fin: '2026-12-20', avance: 0 },
 ]
 
 // ------------------------------------------------------------

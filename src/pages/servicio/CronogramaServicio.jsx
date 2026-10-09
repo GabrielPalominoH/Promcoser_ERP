@@ -5,11 +5,12 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import { Badge } from '../../components/ui/Badge'
 import { formatearFecha } from '../../utils/formatters'
-import { avanceEfectivo, estadoTarea, hoyISO } from '../../utils/calculadora'
+import { avanceEfectivo, estadoTarea, hoyISO, partidasDeServicio } from '../../utils/calculadora'
 
 const DIA_MS = 86400000
 const DIA_PX_MIN = 28
@@ -57,7 +58,7 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
+function ModalTarea({ servicio, tarea, padre, partidas, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
   const esGrupo = enEdicion && tieneHijos
@@ -66,6 +67,7 @@ function ModalTarea({ servicio, tarea, padre, tieneHijos, avanceDerivado, onCerr
     register,
     handleSubmit,
     getValues,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: tarea
@@ -74,8 +76,9 @@ function ModalTarea({ servicio, tarea, padre, tieneHijos, avanceDerivado, onCerr
           fecha_inicio: tarea.fecha_inicio,
           fecha_fin: tarea.fecha_fin,
           avance: tarea.avance ?? 0,
+          partida_id: tarea.partida_id != null ? String(tarea.partida_id) : '',
         }
-      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0 },
+      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0, partida_id: '' },
     mode: 'onBlur',
   })
 
@@ -84,6 +87,7 @@ function ModalTarea({ servicio, tarea, padre, tieneHijos, avanceDerivado, onCerr
       id: tarea?.id,
       servicio_id: servicio.id,
       padre_id: tarea?.padre_id ?? padre?.id ?? null,
+      partida_id: valores.partida_id ? Number(valores.partida_id) : null,
       nombre: valores.nombre.trim(),
       fecha_inicio: valores.fecha_inicio,
       fecha_fin: valores.fecha_fin,
@@ -193,6 +197,23 @@ function ModalTarea({ servicio, tarea, padre, tieneHijos, avanceDerivado, onCerr
                 })}
               />
             </Campo>
+            {partidas.length > 0 && (
+              <Campo
+                label="Partida (opcional)"
+                error={errors.partida_id?.message}
+                htmlFor="tarea-partida"
+                hint="Vincula este trabajo con su partida del presupuesto"
+                className="sm:col-span-3"
+              >
+                <CampoComboBox
+                  id="tarea-partida"
+                  control={control}
+                  name="partida_id"
+                  placeholder="Sin partida — escribe para buscar…"
+                  opciones={partidas.map((p) => ({ valor: String(p.id), etiqueta: p.nombre }))}
+                />
+              </Campo>
+            )}
             {esGrupo ? (
               <Campo label="Avance (%)" htmlFor="tarea-avance-grupo">
                 <div
@@ -257,6 +278,12 @@ export function CronogramaServicio() {
         .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio) || a.id - b.id),
     [todas, servicio.id],
   )
+
+  const partidas = useMemo(
+    () => partidasDeServicio(estado.partidas, servicio.id),
+    [estado.partidas, servicio.id],
+  )
+  const partidaDe = (id) => partidas.find((p) => p.id === id)
 
   // Árbol multinivel: cada tarea puede tener subtareas que a su vez
   // pueden tener las suyas. Las huérfanas (padre inexistente) suben a raíz.
@@ -799,6 +826,11 @@ export function CronogramaServicio() {
                       </span>
                         <span className="mt-0.5 inline-flex items-center gap-1.5">
                           <Badge variante={COLORES_ETIQUETA[estado]}>{estado}</Badge>
+                          {t.partida_id != null && partidaDe(t.partida_id) && (
+                            <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700">
+                              {partidaDe(t.partida_id).nombre}
+                            </span>
+                          )}
                           {esPadre && (
                             <span className="text-[11px] text-slate-400 tabular-nums">
                               {hijas.length} subt.
@@ -908,6 +940,7 @@ export function CronogramaServicio() {
           servicio={servicio}
           tarea={modal.modo === 'editar' ? modal.tarea : null}
           padre={modal.modo === 'crear' ? modal.padre ?? null : null}
+          partidas={partidas}
           tieneHijos={
             modal.modo === 'editar'
               ? tareas.some((x) => x.padre_id === modal.tarea.id)

@@ -52,6 +52,20 @@ export function costoPorPartida(registros, servicioId, partidaId) {
     .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
 }
 
+// Tareas vinculadas a una partida (el mismo trabajo visto en tiempo).
+export function tareasDePartida(partidaId, tareas) {
+  return (tareas ?? []).filter((t) => t.partida_id === partidaId)
+}
+
+// Avance promedio de las tareas vinculadas (con avance efectivo recursivo).
+// null si no hay tareas vinculadas.
+export function avanceTareasPartida(partidaId, tareas) {
+  const vinculadas = tareasDePartida(partidaId, tareas)
+  if (vinculadas.length === 0) return null
+  const suma = vinculadas.reduce((t, tarea) => t + avanceEfectivo(tarea, tareas), 0)
+  return suma / vinculadas.length
+}
+
 // Costo sin partida asignada dentro del servicio.
 export function costoSinPartida(registros, servicioId) {
   return (registros ?? [])

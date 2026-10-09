@@ -136,13 +136,19 @@ export function dataReducer(estado, accion) {
         }
       }
 
-      // Al borrar una partida se van sus valorizaciones.
+      // Al borrar una partida se van sus valorizaciones; las tareas
+      // vinculadas quedan sin partida (no se borran).
       if (payload.coleccion === 'partidas') {
         return {
           ...estado,
           partidas: restantes,
           valorizaciones: (estado.valorizaciones ?? []).filter(
             (valorizacion) => valorizacion.partida_id !== payload.id,
+          ),
+          tareas: estado.tareas.map((tarea) =>
+            tarea.partida_id === payload.id
+              ? { ...tarea, partida_id: null }
+              : tarea,
           ),
         }
       }

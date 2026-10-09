@@ -20,10 +20,12 @@ import {
 import { formatearCantidad, formatearMes, formatearMoneda } from '../../utils/formatters'
 import {
   avanceMedido,
+  avanceTareasPartida,
   costoPorPartida,
   costoSinPartida,
   partidasDeServicio,
   presupuestoPartida,
+  tareasDePartida,
   valorizadoPartida,
 } from '../../utils/calculadora'
 import {
@@ -189,7 +191,9 @@ export function PartidasServicio() {
     partidas: todasPartidas,
     valorizaciones: todasValorizaciones,
     registros_servicio: todosRegistros,
+    tareas: todasTareas,
   } = estado
+  const tareasServicio = (todasTareas ?? []).filter((t) => t.servicio_id === servicio.id)
 
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
@@ -222,7 +226,23 @@ export function PartidasServicio() {
     const presupuesto = presupuestoPartida(p)
     const valorizado = valorizadoPartida(p, todasValorizaciones)
     const costo = costoPorPartida(todosRegistros, servicio.id, p.id)
-    return { partida: p, presupuesto, valorizado, costo, margen: valorizado - costo }
+    const avance = presupuesto > 0 ? (valorizado / presupuesto) * 100 : 0
+    const tareasVinculadas = tareasDePartida(p.id, tareasServicio)
+    const avanceTareas = avanceTareasPartida(p.id, tareasServicio)
+    // Si el avance en tiempo y en plata difieren mucho, algo no cuadra.
+    const difieren =
+      avanceTareas != null && Math.abs(avanceTareas - avance) >= 20
+    return {
+      partida: p,
+      presupuesto,
+      valorizado,
+      avance,
+      costo,
+      margen: valorizado - costo,
+      tareasVinculadas,
+      avanceTareas,
+      difieren,
+    }
   })
   const sinPartida = costoSinPartida(todosRegistros, servicio.id)
 
@@ -270,8 +290,7 @@ export function PartidasServicio() {
             {filas.length === 0 ? (
               <TableEmpty colSpan={7} mensaje="Aún no hay partidas registradas." />
             ) : (
-              filas.map(({ partida, presupuesto, valorizado, costo, margen }) => {
-                const avance = presupuesto > 0 ? (valorizado / presupuesto) * 100 : 0
+              filas.map(({ partida, presupuesto, valorizado, avance, costo, margen, tareasVinculadas, avanceTareas, difieren }) => {
                 return (
                   <TableRow key={partida.id}>
                     <Td>
@@ -279,6 +298,20 @@ export function PartidasServicio() {
                       <span className="block text-xs text-slate-500">
                         {formatearCantidad(partida.metrado)} {partida.unidad} × {formatearMoneda(partida.precio_unitario)}
                       </span>
+                      {tareasVinculadas.length > 0 ? (
+                        <span className="block text-xs text-slate-500">
+                          {tareasVinculadas.length} {tareasVinculadas.length === 1 ? 'tarea' : 'tareas'} · tiempo {avanceTareas.toFixed(0)}%
+                          {difieren && (
+                            <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                              difiere de plata {avance.toFixed(0)}%
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="block text-xs text-slate-400">
+                          Sin tareas vinculadas
+                        </span>
+                      )}
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {formatearMoneda(presupuesto)}
@@ -404,8 +437,8 @@ export function PartidasServicio() {
               <>
                 Se eliminará la partida{' '}
                 <span className="font-semibold text-slate-900">{porEliminar.nombre}</span>{' '}
-                junto con sus valorizaciones. Los registros de costo vinculados quedarán
-                como “sin partida”.
+                junto con sus valorizaciones. Los registros de costo y las tareas
+                vinculados quedarán como “sin partida”.
               </>
             ) : (
               <>Se eliminará la valorización seleccionada.</>

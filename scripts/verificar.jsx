@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, coberturaTareo, consumoPresupuesto, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoPartida } from '../src/utils/calculadora'
+import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, avanceTareasPartida, coberturaTareo, consumoPresupuesto, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, tareasDePartida, valorizadoPartida } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
@@ -314,6 +314,22 @@ const sinPartida = dataReducer(ESTADO_INICIAL, {
   payload: { coleccion: 'partidas', id: 2 },
 })
 comprobar('cascada partida borra sus valorizaciones', !sinPartida.valorizaciones.some((v) => v.partida_id === 2))
+comprobar(
+  'borrar partida deja sus tareas sin partida',
+  [14, 15, 16].every((id) => sinPartida.tareas.find((t) => t.id === id).partida_id == null),
+)
+comprobar('borrar partida no toca otras tareas', sinPartida.tareas.find((t) => t.id === 17).partida_id === 3)
+
+const tareasServ6 = ESTADO_INICIAL.tareas.filter((t) => t.servicio_id === 6)
+comprobar('partida cimentación tiene 3 tareas', tareasDePartida(2, tareasServ6).length === 3)
+comprobar('avance en tiempo cimentación = 100', avanceTareasPartida(2, tareasServ6) === 100)
+comprobar('sin tareas no hay avance en tiempo', avanceTareasPartida(999, tareasServ6) === null)
+const avancePlataCobertura = (valorizadoPartida(partidas.find((p) => p.id === 4), valorizaciones) / presupuestoPartida(partidas.find((p) => p.id === 4))) * 100
+comprobar(
+  'cobertura difiere: tiempo 0 vs plata 20',
+  avanceTareasPartida(4, tareasServ6) === 0 && Math.abs(avanceTareasPartida(4, tareasServ6) - avancePlataCobertura) >= 20,
+  `tiempo=${avanceTareasPartida(4, tareasServ6)} plata=${avancePlataCobertura}`,
+)
 
 // ============================================================
 //  3. Formato
