@@ -86,22 +86,67 @@ fechas. Se marca el avance de cada tarea y el sistema muestra una barra de
 tiempo (diagrama de Gantt) con el progreso total.
 
 ### Partidas
-Las obras grandes se dividen en **partidas** (pedazos del presupuesto: por
-ejemplo, "Cimentación", "Cobertura", "Acabados"). Cada partida tiene su
-cantidad y su precio. Aquí se ve, por cada partida:
+Una **partida es un pedazo del presupuesto de la obra**. En vez de manejar
+la obra como un solo monto grande, se divide en partes que corresponden al
+trabajo real: por ejemplo, "Obras preliminares", "Cimentación", "Cobertura",
+"Acabados". ¿Para qué sirve? Para saber **qué parte de la obra gana plata y
+qué parte la pierde**: sin partidas solo sabría si la obra en general va bien
+o mal; con partidas ve, por ejemplo, que la cimentación dejó ganancia pero
+los acabados están en rojo. Eso le dice dónde mirar.
 
-- **Presupuesto:** cuánto vale esa parte.
-- **Valorizado:** cuánto ya se ejecutó y se puede cobrar (se registra mes a
-  mes con el botón **"Agregar valorización"**).
-- **Avance:** qué porcentaje ya está hecho (medido de verdad, no a ojo).
-- **Costo:** cuánto se gastó en esa partida.
+El módulo tiene 3 bloques:
+
+**1. Crear las partidas (una sola vez, al inicio de la obra).**
+Cada partida lleva 4 datos: nombre, unidad (m³, m² o glb = global, o sea un
+trabajo cobrado como paquete completo), metrado (cuánto hay que hacer) y
+precio unitario (a cuánto se cobra cada unidad). El sistema multiplica solo:
+por ejemplo, Cimentación con 120 m³ × S/ 180 = S/ 21,600 de presupuesto. La
+suma de todas las partidas debería acercarse al monto contratado de la obra.
+
+**2. Valorización mensual (el avance medido).**
+Cada fin de mes se indica cuánto de cada partida **realmente se ejecutó**:
+partida + mes + metrado ejecutado (por ejemplo, Cimentación, octubre,
+20 m³), con el botón **"Agregar valorización"**. El sistema lo multiplica por
+el precio y obtiene el **valorizado**: lo que ya hizo y puede cobrar al
+cliente. Es distinto del Cronograma: allá el avance es un porcentaje que se
+marca a ojo por tarea; aquí es una **medición** (m³, m²) que respalda lo que
+se factura.
+
+**3. La tabla de control (dónde se gana o se pierde).**
+Una fila por partida con estas columnas:
+
+- **Presupuesto:** cuánto vale la partida (metrado × precio).
+- **Valorizado:** lo ejecutado hasta hoy (suma de las valorizaciones).
+- **Avance:** valorizado ÷ presupuesto, en porcentaje. Si Cimentación vale
+  S/ 21,600 y se valorizó S/ 18,000, va al 83%.
+- **Costo:** lo gastado en esa partida. Sale de los materiales, gastos,
+  personal y equipos donde eligió esa partida en su campo "Partida
+  (opcional)".
 - **Margen:** valorizado menos costo. Si sale en rojo, esa partida está
   perdiendo plata.
 
+Arriba de la tabla verá el **avance medido global**: valorizado total ÷
+presupuesto total. Es el avance real de la obra. Debajo hay la lista de
+valorizaciones registradas por mes (cada una se puede eliminar si se
+equivocó).
+
+Tenga en cuenta:
+
+- Lo que registre **sin partida** no aparece en ninguna fila; debajo del
+  total verá un aviso con ese monto (*"sin partida asignada"*) para que nada
+  se pierda. Elija la partida siempre que pueda.
+- Si borra una partida, se borran sus valorizaciones, pero los costos quedan
+  como "sin partida": la plata no se pierde.
+
+**El flujo de cada mes, en 3 pasos:** 1) durante el mes registre los costos
+eligiendo su partida; 2) a fin de mes registre la valorización (metrado
+ejecutado) de cada partida; 3) revise la tabla: todo margen en rojo necesita
+atención.
+
 ### Opciones
 Datos de la obra (nombre, cliente, fechas) y la opción de eliminarla. Eliminar
-una obra borra todo lo suyo (registros, tareas, partidas y movimientos), así
-que pide escribir "Eliminar servicio" para confirmar que es en serio.
+una obra borra todo lo suyo (registros, tareas, partidas y valorizaciones),
+así que pide escribir "Eliminar servicio" para confirmar que es en serio.
 
 ---
 
@@ -125,6 +170,8 @@ tal como figura en la factura, para poder ubicarla después.
 - **Saldo / disponible:** presupuesto menos gastado. Lo que queda.
 - **Partida:** un pedazo del presupuesto (ej. cimentación). Sirve para saber
   qué parte gana y qué parte pierde.
+- **Unidad glb (global):** un trabajo cobrado como paquete completo, sin
+  medirse en metros (ej. "Obras preliminares: 1 glb × S/ 8,000").
 - **Valorización:** decir cuánto de cada partida ya se ejecutó en el mes,
   para cobrarlo. Es el avance "medido".
 - **Margen:** valorizado menos costo. Positivo = ganancia, negativo = pérdida.
