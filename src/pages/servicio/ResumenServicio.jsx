@@ -9,6 +9,8 @@ import {
   formatearFecha,
 } from '../../utils/formatters'
 import {
+  alertasServicio,
+  coberturaTareo,
   consumoPresupuesto,
   cuentaComoManoDeObra,
   desglosePorTipo,
@@ -23,8 +25,8 @@ import { usePanelServicio } from './panel'
 
 // Diagrama de cascada vertical: cómo el presupuesto se consume paso a
 // paso hasta llegar al saldo. Todo en divs, sin librerías.
-function CascadaPresupuesto({ presupuesto, materiales, manoObra, gastos, saldo }) {
-  const maximo = Math.max(presupuesto, materiales + manoObra + gastos, Math.abs(saldo), 1)
+function CascadaPresupuesto({ presupuesto, materiales, manoObra, equipos, gastos, saldo }) {
+  const maximo = Math.max(presupuesto, materiales + manoObra + equipos + gastos, Math.abs(saldo), 1)
   const altura = (valor) => `${Math.min(100, (Math.abs(valor) / maximo) * 100)}%`
 
   const pasos = [
@@ -48,6 +50,13 @@ function CascadaPresupuesto({ presupuesto, materiales, manoObra, gastos, saldo }
       texto: `−${formatearMoneda(manoObra)}`,
       tono: 'bg-emerald-500',
       altura: altura(manoObra),
+    },
+    {
+      etiqueta: '− Equipos',
+      valor: equipos,
+      texto: `−${formatearMoneda(equipos)}`,
+      tono: 'bg-sky-500',
+      altura: altura(equipos),
     },
     {
       etiqueta: '− Gastos',
@@ -185,7 +194,7 @@ export function ResumenServicio() {
   const { servicio } = useOutletContext()
   const { abrirEditar } = usePanelServicio()
   const {
-    estado: { registros_servicio: todosLosRegistros, tareas: todasLasTareas },
+    estado: { registros_servicio: todosLosRegistros, tareas: todasLasTareas, personal },
   } = useData()
 
   // La mano de obra (personal con costo) sí suma al gastado, igual que
@@ -228,6 +237,18 @@ export function ResumenServicio() {
   const horasEquipos = registros
     .filter((r) => r.tipo_registro === 'equipo')
     .reduce((s, r) => s + (Number(r.cantidad_o_horas) || 0), 0)
+  const alertas = alertasServicio({
+    servicio,
+    consumo,
+    dias,
+    rentabilidad,
+    coberturaIncompleta: coberturaTareo(
+      registros.filter((r) => r.tipo_registro === 'personal'),
+      personal,
+      servicio.fecha_inicio,
+      servicio.fecha_fin_estimada,
+    ).filter((c) => !c.completo).length,
+  })
 
   return (
     <div className="space-y-6">
@@ -279,19 +300,20 @@ export function ResumenServicio() {
           </div>
         </div>
 
-        {(consumo.excedido || (dias !== null && dias < 0)) && (
+        {alertas.length > 0 && (
           <div className="mb-5 space-y-2">
-            {consumo.excedido && (
-              <p className="rounded-lg bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700">
-                El servicio superó su presupuesto.
+            {alertas.map((alerta) => (
+              <p
+                key={alerta.codigo}
+                className={`rounded-lg px-4 py-2.5 text-sm font-medium ${
+                  alerta.nivel === 'peligro'
+                    ? 'bg-red-50 text-red-700'
+                    : 'bg-amber-50 text-amber-800'
+                }`}
+              >
+                {alerta.mensaje}
               </p>
-            )}
-            {dias !== null && dias < 0 && (
-              <p className="rounded-lg bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700">
-                Plazo vencido hace {Math.abs(dias)} día(s). Fin estimado:{' '}
-                {formatearFecha(servicio.fecha_fin_estimada)}.
-              </p>
-            )}
+            ))}
           </div>
         )}
 
@@ -431,6 +453,7 @@ export function ResumenServicio() {
               presupuesto={consumo.presupuesto}
               materiales={desglose.material}
               manoObra={desglose.personal}
+              equipos={desglose.equipo}
               gastos={desglose.gasto}
               saldo={consumo.disponible}
             />

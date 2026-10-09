@@ -258,6 +258,13 @@ export const CATALOGO_EQUIPOS = {
         <span className="font-medium text-slate-900">{item.nombre}</span>
       ),
     },
+    {
+      etiqueta: 'Costo/h',
+      alinear: 'right',
+      render: (item) => (
+        <span className="tabular-nums">{formatearMoneda(item.costo_por_hora)}</span>
+      ),
+    },
   ],
 
   campos: [
@@ -269,14 +276,25 @@ export const CATALOGO_EQUIPOS = {
       ancho: 'completo',
       placeholder: 'Ej. Camioneta BSI-922, Mezcladora de concreto',
     },
+    {
+      name: 'costo_por_hora',
+      etiqueta: 'Costo por hora (S/)',
+      tipo: 'numero',
+      requerido: true,
+      min: 0,
+      paso: '0.01',
+      hint: 'Se sugiere al cargar uso en un servicio.',
+    },
   ],
 
   valoresIniciales: {
     nombre: '',
+    costo_por_hora: '',
   },
 
   normalizar: (valores) => ({
     nombre: valores.nombre.trim(),
+    costo_por_hora: Number(valores.costo_por_hora),
   }),
 }
 

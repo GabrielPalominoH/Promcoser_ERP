@@ -11,6 +11,7 @@ import { CronogramaServicio } from './pages/servicio/CronogramaServicio'
 import { OpcionesServicio } from './pages/servicio/OpcionesServicio'
 import { Personal } from './pages/Personal'
 import { Equipos } from './pages/Equipos'
+import { Oficina } from './pages/Oficina'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
         </Route>
         <Route path="personal" element={<Personal />} />
         <Route path="equipos" element={<Equipos />} />
+        <Route path="oficina" element={<Oficina />} />
         <Route path="*" element={<Navigate to="/servicios" replace />} />
       </Route>
     </Routes>

@@ -343,6 +343,61 @@ export function fechasDelMes(mesISO) {
   return fechas
 }
 
+// Cobertura de tareo por persona y mes: días con registro vs días
+// laborables esperados dentro del rango inicio→fin del servicio.
+// Solo incluye personas con al menos un registro.
+export function coberturaTareo(registrosPersonal, personal, fechaInicio, fechaFin) {
+  const porPersonaMes = new Map()
+  for (const r of registrosPersonal) {
+    if (!r.fecha || r.fecha.length < 7) continue
+    const mes = r.fecha.slice(0, 7)
+    const clave = `${r.referencia_id ?? 'x'}|${mes}`
+    if (!porPersonaMes.has(clave)) {
+      porPersonaMes.set(clave, { personaId: r.referencia_id ?? null, mes, fechas: new Set() })
+    }
+    porPersonaMes.get(clave).fechas.add(r.fecha)
+  }
+
+  const nombreDe = (id) => {
+    const p = (personal ?? []).find((x) => x.id === id)
+    return p
+      ? { nombre: `${p.nombre} ${p.apellido ?? ''}`.trim(), cargo: p.cargo ?? '' }
+      : { nombre: 'Personal eliminado', cargo: '' }
+  }
+
+  const diasEsperadosEn = (mesISO) => {
+    const [anio, numMes] = mesISO.split('-').map(Number)
+    const ultimoDia = `${mesISO}-${String(new Date(anio, numMes, 0).getDate()).padStart(2, '0')}`
+    let desde = `${mesISO}-01`
+    let hasta = ultimoDia
+    if (fechaInicio && fechaInicio.length >= 10 && fechaInicio.slice(0, 7) === mesISO && fechaInicio > desde) {
+      desde = fechaInicio
+    }
+    if (fechaFin && fechaFin.length >= 10 && fechaFin.slice(0, 7) === mesISO && fechaFin < hasta) {
+      hasta = fechaFin
+    }
+    if (hasta < desde) return 0
+    return diasLaborablesRango(desde, hasta)
+  }
+
+  return [...porPersonaMes.values()]
+    .map((g) => {
+      const { nombre, cargo } = nombreDe(g.personaId)
+      const esperados = diasEsperadosEn(g.mes)
+      const registrados = g.fechas.size
+      return {
+        personaId: g.personaId,
+        nombre,
+        cargo,
+        mes: g.mes,
+        diasRegistrados: registrados,
+        diasEsperados: esperados,
+        completo: esperados > 0 && registrados >= esperados,
+      }
+    })
+    .sort((a, b) => a.mes.localeCompare(b.mes) || a.nombre.localeCompare(b.nombre, 'es'))
+}
+
 // Fechas ISO de todos los días desde una fecha hasta fin de ese mes
 // (domingos incluidos: régimen mensual). Para la asignación mensual que
 // empieza a mitad de mes.
@@ -422,6 +477,58 @@ export function diasRestantes(fechaISO) {
 
 export function nombreServicio(servicios, servicioId) {
   return servicios.find((s) => s.id === servicioId)?.nombre_servicio ?? 'Servicio eliminado'
+}
+
+// Alertas del servicio: lista de {codigo, nivel: 'peligro'|'aviso', mensaje}.
+// Centraliza todas las condiciones para que Resumen las muestre igual siempre.
+export function alertasServicio({ servicio, consumo, dias, rentabilidad, coberturaIncompleta = 0 }) {
+  const alertas = []
+
+  if (consumo.excedido) {
+    alertas.push({
+      codigo: 'excedido',
+      nivel: 'peligro',
+      mensaje: 'El servicio superó su presupuesto.',
+    })
+  } else if (consumo.presupuesto > 0 && consumo.disponible / consumo.presupuesto < 0.1) {
+    alertas.push({
+      codigo: 'margen-bajo',
+      nivel: 'aviso',
+      mensaje: `Margen bajo: queda solo el ${((consumo.disponible / consumo.presupuesto) * 100).toFixed(1)}% del presupuesto.`,
+    })
+  }
+
+  if (rentabilidad.cpi != null && rentabilidad.cpi < 0.9) {
+    alertas.push({
+      codigo: 'cpi-critico',
+      nivel: 'peligro',
+      mensaje: `Ritmo de gasto crítico (${rentabilidad.cpi.toFixed(2)}): gastas más rápido de lo que avanzas.`,
+    })
+  }
+
+  if (dias !== null && dias < 0) {
+    alertas.push({
+      codigo: 'plazo-vencido',
+      nivel: 'peligro',
+      mensaje: `Plazo vencido hace ${Math.abs(dias)} día(s).`,
+    })
+  } else if (dias !== null && dias <= 15) {
+    alertas.push({
+      codigo: 'plazo-cercano',
+      nivel: 'aviso',
+      mensaje: dias === 0 ? 'El plazo vence hoy.' : `Quedan ${dias} día(s) de plazo.`,
+    })
+  }
+
+  if (coberturaIncompleta > 0) {
+    alertas.push({
+      codigo: 'tareo-incompleto',
+      nivel: 'aviso',
+      mensaje: `${coberturaIncompleta} mes(es) persona con tareo incompleto.`,
+    })
+  }
+
+  return alertas
 }
 
 // Rentabilidad del servicio con lo registrado (materiales + gastos):

@@ -78,13 +78,7 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
         </Td>
       )}
       <Td alinear="right" className="font-semibold text-slate-900 tabular-nums">
-        {registro.tipo_registro === 'equipo' ? (
-          <span className="font-normal text-slate-400" title="Sin costo, solo control de uso">
-            —
-          </span>
-        ) : (
-          formatearMoneda(registro.monto_calculado)
-        )}
+        {formatearMoneda(registro.monto_calculado)}
       </Td>
       <Td alinear="right">
         <Button variante="peligro" tamano="sm" onClick={() => onEliminar(registro)}>
@@ -203,7 +197,7 @@ export function SeccionRegistros({
                   </Td>
                 )}
                 <Td alinear="right" className="text-slate-900 tabular-nums">
-                  {tipo === 'equipo' ? '—' : formatearMoneda(totalMonto)}
+                  {formatearMoneda(totalMonto)}
                 </Td>
                 <Td />
               </TableRow>

@@ -3,7 +3,7 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
-import { formatearCantidad } from '../../utils/formatters'
+import { formatearCantidad, formatearMoneda, redondearMonto } from '../../utils/formatters'
 import {
   SeccionRegistros,
   fechaHoyISO,
@@ -26,9 +26,10 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm({
-    defaultValues: { horas: '', fecha: fechaHoyISO() },
+    defaultValues: { horas: '', costo: '', fecha: fechaHoyISO() },
   })
 
   useEffect(() => {
@@ -56,6 +57,9 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
     setBusqueda(item.nombre)
     setAbierto(false)
     setErrorEquipo(null)
+    if (Number(item.costo_por_hora) > 0) {
+      setValue('costo', item.costo_por_hora, { shouldValidate: false })
+    }
   }
 
   const alEscribir = (valor) => {
@@ -70,25 +74,26 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
   }
 
   const limpiar = () => {
-    reset({ horas: '', fecha: fechaHoyISO() })
+    reset({ horas: '', costo: '', fecha: fechaHoyISO() })
     setBusqueda('')
     setSeleccionadoId(null)
     setAbierto(false)
     setErrorEquipo(null)
   }
 
-  const enviar = ({ horas, fecha }) => {
+  const enviar = ({ horas, costo, fecha }) => {
     if (!seleccionadoId) {
       setErrorEquipo('Selecciona un equipo de la lista')
       setAbierto(true)
       return
     }
+    const horasNum = Number(horas)
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'equipo',
       referencia_id: Number(seleccionadoId),
-      cantidad_o_horas: Number(horas),
-      monto_calculado: 0,
+      cantidad_o_horas: horasNum,
+      monto_calculado: redondearMonto(costo),
       fecha,
     })
     limpiar()
@@ -145,11 +150,13 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
                         }`}
                       >
                         <span className="font-medium text-slate-900">{item.nombre}</span>
-                        {(item.placa || item.tipo_unidad) && (
-                          <span className="text-xs text-slate-500">
-                            {[item.tipo_unidad, item.placa].filter(Boolean).join(' · ')}
-                          </span>
-                        )}
+                        <span className="text-xs text-slate-500">
+                          {Number(item.costo_por_hora) > 0
+                            ? `${formatearMoneda(item.costo_por_hora)}/h`
+                            : 'Sin costo referencial'}
+                          {(item.placa || item.tipo_unidad) &&
+                            ` · ${[item.tipo_unidad, item.placa].filter(Boolean).join(' · ')}`}
+                        </span>
                       </button>
                     </li>
                   ))
@@ -165,6 +172,20 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
             step="0.25"
             placeholder="0"
             {...register('horas', reglasNumeroMayorACero('Ingresa las horas'))}
+          />
+        </Campo>
+        <Campo
+          label="Costo (S/)"
+          error={errors.costo?.message}
+          htmlFor="eq-costo"
+          hint="Se sugiere el de su ficha; puedes ajustarlo"
+        >
+          <Input
+            id="eq-costo"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            {...register('costo', reglasNumeroMayorACero('Ingresa el costo'))}
           />
         </Campo>
         <Campo label="Fecha" error={errors.fecha?.message} htmlFor="eq-fecha">
@@ -190,11 +211,11 @@ export function EquiposServicio() {
       servicio={servicio}
       tipo="equipo"
       titulo="Equipos"
-      descripcion="Uso de equipos en el servicio. Es solo control de uso, no suma al gastado."
+      descripcion="Uso de equipos en el servicio: horas por costo. Suma al gastado del presupuesto."
       columnaCantidad
       etiquetaCantidad="Horas"
       mensajeVacio="Este servicio todavía no tiene uso de equipos registrado."
-      mensajeExito={(datos) => `Uso de equipo registrado (${formatearCantidad(datos.cantidad_o_horas)} h).`}
+      mensajeExito={(datos) => `Uso de equipo registrado por ${formatearMoneda(datos.monto_calculado)} (${formatearCantidad(datos.cantidad_o_horas)} h).`}
     >
       {({ servicio, equipos, registrar }) => (
         <FormularioEquipo servicio={servicio} equipos={equipos} registrar={registrar} />

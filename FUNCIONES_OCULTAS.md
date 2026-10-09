@@ -4,9 +4,7 @@ Registro de lo que se ocultó temporalmente y cómo volver a mostrarlo.
 Estado al: commit `2c893b0`.
 
 ## 1. Módulo Oficina (`/oficina`)
-- **Estado:** código, datos (`costos_oficina`) y pruebas intactos.
-- **Oculto en:** `src/App.jsx` (ruta comentada/eliminada) y `src/components/layout/Sidebar.jsx` (enlace eliminado).
-- **Reactivar:** devolver la ruta `<Route path="oficina" element={<Oficina />} />` con su import, y el enlace `{ to: '/oficina', label: 'Oficina', icono: 'grid' }` en `SECCIONES_NAVEGACION`.
+- **Estado:** ✅ VISIBLE de nuevo (ruta, enlace y pruebas reactivados en Fase 1).
 
 ## 2. Pestaña Cronograma del servicio (`/servicios/:id/cronograma`)
 - **Estado:** ✅ VISIBLE de nuevo (ruta, enlace con contador y sección Planificación reactivados).

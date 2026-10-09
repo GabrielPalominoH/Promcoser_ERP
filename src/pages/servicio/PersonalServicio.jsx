@@ -15,7 +15,7 @@ import {
   Th,
 } from '../../components/ui/Table'
 import { formatearCantidad, formatearFecha, formatearMes, formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { agruparPersonalPorMes, fechasHastaFinDeMes, metricasCronograma, proyeccionLaboral } from '../../utils/calculadora'
+import { agruparPersonalPorMes, coberturaTareo, fechasHastaFinDeMes, metricasCronograma, proyeccionLaboral } from '../../utils/calculadora'
 import {
   SeccionRegistros,
   reglasNumeroMayorACero,
@@ -386,6 +386,8 @@ export function PersonalServicio() {
       .reduce((s, m) => s + m.monto, 0) + proyeccion.costoProyectado
 
   const tareas = todasLasTareas.filter((t) => t.servicio_id === servicio.id)
+  const cobertura = coberturaTareo(registros, personal, servicio.fecha_inicio, servicio.fecha_fin_estimada)
+  const incompletos = cobertura.filter((c) => !c.completo)
   const mesActual = new Date().toISOString().slice(0, 7)
   const costoMesActual = proyeccion.porMes.find((m) => m.mes === mesActual)?.monto ?? 0
   const mesSinCarga =
@@ -444,6 +446,62 @@ export function PersonalServicio() {
           />
         )}
       </SeccionRegistros>
+
+      <Card
+        titulo="Cobertura de tareo"
+        descripcion="Días con registro frente a días laborables esperados, por persona y mes."
+      >
+        {cobertura.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Sin tareo todavía. Al asignar personal aparecerá aquí su cobertura mensual.
+          </p>
+        ) : (
+          <>
+            {incompletos.length > 0 && (
+              <p className="mb-4 rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
+                {incompletos.length} mes(es) persona con tareo incompleto: revisa los días faltantes.
+              </p>
+            )}
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <Th>Personal</Th>
+                  <Th>Mes</Th>
+                  <Th alinear="right">Días</Th>
+                  <Th alinear="right">Estado</Th>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {cobertura.map((c) => (
+                  <TableRow key={`${c.personaId ?? 'x'}-${c.mes}`}>
+                    <Td>
+                      <span className="font-medium text-slate-900">{c.nombre}</span>
+                      {c.cargo && (
+                        <span className="block text-xs text-slate-500">{c.cargo}</span>
+                      )}
+                    </Td>
+                    <Td className="whitespace-nowrap capitalize">{formatearMes(c.mes)}</Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {c.diasRegistrados}/{c.diasEsperados}
+                    </Td>
+                    <Td alinear="right">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                          c.completo
+                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                            : 'bg-amber-50 text-amber-700 ring-amber-200'
+                        }`}
+                      >
+                        {c.completo ? 'Completo' : 'Incompleto'}
+                      </span>
+                    </Td>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </>
+        )}
+      </Card>
 
       <Card
         titulo="Proyección de mano de obra"
