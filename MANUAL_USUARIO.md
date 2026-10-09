@@ -47,7 +47,6 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
 | **Oficina** | Los gastos de la oficina (sueldos administrativos, alquiler, etc.), separados de las obras. |
-| **Almacén** | El control del depósito: qué materiales entraron, cuáles salieron a obra y cuánto queda en stock. |
 
 ---
 
@@ -60,19 +59,13 @@ La foto de la obra: presupuesto, gastado, saldo, fechas, alertas (por ejemplo,
 "presupuesto casi agotado") y si está ganando o perdiendo.
 
 ### Materiales (compras)
-Aquí se registran las **compras de materiales** para la obra. Al registrar una
-compra pasan dos cosas automáticamente:
+Aquí se registran las **compras de materiales** para la obra. Cada compra
+**suma al gastado de la obra** (porque la plata ya salió). No hay almacén ni
+control de stock: el sistema lleva los costos de los materiales por servicio.
 
-1. El dinero **suma al gastado de la obra** (porque la plata ya salió).
-2. El material **entra al almacén** (aumenta el stock).
-
-Por eso cada compra aparece marcada con la etiqueta verde **"en almacén"**.
-Si algún día borra una compra, su entrada al almacén también se borra, para
-que nunca queden datos sueltos sin pareja.
-
-Pasos: elija el material de la lista (si no existe, elija *Nuevo material* y
-escríbalo), ponga cantidad, precio, fecha y, si quiere, a qué partida
-pertenece. Pulse **"Comprar e ingresar a almacén"**.
+Pasos: escriba el nombre del material, ponga cantidad, costo total, fecha y,
+si quiere, a qué partida pertenece (escriba para buscarla). Pulse
+**"Agregar material"**.
 
 ### Personal
 Aquí se anota quién trabaja en la obra y cuántas horas o días. El sistema
@@ -102,7 +95,6 @@ cantidad y su precio. Aquí se ve, por cada partida:
   mes con el botón **"Agregar valorización"**).
 - **Avance:** qué porcentaje ya está hecho (medido de verdad, no a ojo).
 - **Costo:** cuánto se gastó en esa partida.
-- **Consumo:** cuánto material del almacén ya se usó en esa partida.
 - **Margen:** valorizado menos costo. Si sale en rojo, esa partida está
   perdiendo plata.
 
@@ -113,23 +105,14 @@ que pide escribir "Eliminar servicio" para confirmar que es en serio.
 
 ---
 
-## 5. El almacén conectado (cómo funciona)
+## 5. Cómo se llevan los materiales (sin almacén)
 
-El almacén y las obras están **conectados**:
+El sistema **no tiene almacén ni controla stock**. Los materiales se llevan
+como **costo de cada servicio**: cada compra que registra suma al gastado de
+esa obra y, si indica la partida, también al costo de esa partida.
 
-- **Comprar** (desde la obra) → entra material al almacén y suma gasto a la
-  obra, todo junto. Nunca uno sin el otro.
-- **Dar salida** (desde Almacén) → el material sale del depósito hacia una
-  obra y una partida. Esto **no suma gasto nuevo** (el gasto ya se contó al
-  comprar); solo dice dónde se usó el material.
-- El sistema **no deja sacar más de lo que hay**: si intenta registrar una
-  salida mayor al stock, le avisa y no la guarda.
-- El sistema **no deja borrar una compra si su material ya se usó**: primero
-  hay que eliminar las salidas. Así el stock nunca queda en negativo por un
-  borrado.
-
-En la página de Almacén verá el **stock por material** (en rojo si se acabó)
-y los **últimos movimientos** con su destino: obra, partida y documento.
+Consejo práctico: registre la compra el mismo día, con el nombre del material
+tal como figura en la factura, para poder ubicarla después.
 
 ---
 
@@ -145,8 +128,6 @@ y los **últimos movimientos** con su destino: obra, partida y documento.
 - **Valorización:** decir cuánto de cada partida ya se ejecutó en el mes,
   para cobrarlo. Es el avance "medido".
 - **Margen:** valorizado menos costo. Positivo = ganancia, negativo = pérdida.
-- **Kardex / stock:** el registro de entradas y salidas del depósito y lo
-  que queda.
 - **Respaldo:** el archivo con toda la información, para guardarla y
   recuperarla.
 
@@ -156,9 +137,6 @@ y los **últimos movimientos** con su destino: obra, partida y documento.
 
 **Cada vez que compra material:** regístrelo el mismo día en la pestaña
 Materiales de la obra, con su factura a la mano.
-
-**Cada vez que saca material del depósito:** registre la salida en Almacén
-indicando la obra y la partida.
 
 **Cada fin de mes:** registre la valorización de cada partida (cuánto se
 ejecutó) y revise el margen por partida. Lo que esté en rojo necesita
@@ -179,17 +157,9 @@ lleve su archivo de respaldo e impórtelo.
 No por ahora: es de un solo usuario. Si dos personas cargan datos en
 computadoras distintas, tendrán información diferente.
 
-**¿Por qué no me deja registrar una salida?**
-Porque quiere sacar más material del que hay en stock. Revise el stock del
-material o registre primero el ingreso (la compra).
-
-**¿Por qué no me deja borrar una compra?**
-Porque parte de ese material ya salió a obra. Elimine primero las salidas y
-luego la compra. Así se evita que las cuentas queden descuadradas.
-
 **¿Borrar una obra borra todo?**
-Sí: sus registros, tareas, partidas, valorizaciones y movimientos de almacén.
-Por eso pide confirmación escrita. Exporte un respaldo antes si tiene dudas.
+Sí: sus registros, tareas, partidas y valorizaciones. Por eso pide
+confirmación escrita. Exporte un respaldo antes si tiene dudas.
 
 **¿Se cayó internet, pierdo algo?**
 No: el sistema no usa internet para funcionar. Solo necesita internet si lo

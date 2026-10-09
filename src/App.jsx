@@ -14,7 +14,6 @@ import { OpcionesServicio } from './pages/servicio/OpcionesServicio'
 import { Personal } from './pages/Personal'
 import { Equipos } from './pages/Equipos'
 import { Oficina } from './pages/Oficina'
-import { Almacen } from './pages/Almacen'
 
 export default function App() {
   return (
@@ -35,7 +34,6 @@ export default function App() {
         <Route path="personal" element={<Personal />} />
         <Route path="equipos" element={<Equipos />} />
         <Route path="oficina" element={<Oficina />} />
-        <Route path="almacen" element={<Almacen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

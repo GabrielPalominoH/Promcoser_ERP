@@ -5,7 +5,7 @@ export function registrosDeServicio(registros, servicioId) {
 }
 
 // ------------------------------------------------------------
-//  Partidas, valorización y almacén (Fase 3)
+//  Partidas y valorización
 // ------------------------------------------------------------
 
 export function partidasDeServicio(partidas, servicioId) {
@@ -59,67 +59,6 @@ export function costoSinPartida(registros, servicioId) {
     .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
 }
 
-// Salidas de un servicio: qué material se usó en obra y en qué partida.
-// No generan costo (el costo se contó en la compra); sirven para ver el
-// consumo por partida.
-export function salidasDeServicio(servicioId, movimientos) {
-  return (movimientos ?? []).filter(
-    (m) => m.tipo === 'salida' && m.servicio_id === servicioId,
-  )
-}
-
-// Consumo de una partida por salidas: cantidad × costo unitario registrado.
-export function consumoPartidaPorSalidas(servicioId, partidaId, movimientos) {
-  return salidasDeServicio(servicioId, movimientos)
-    .filter((m) => m.partida_id === partidaId)
-    .reduce(
-      (total, m) => total + (Number(m.cantidad) || 0) * (Number(m.costo_unitario) || 0),
-      0,
-    )
-}
-
-// Compras de un servicio: ingresos vinculados a su registro de costo.
-export function comprasDeServicio(servicioId, movimientos) {
-  return (movimientos ?? []).filter(
-    (m) => m.tipo === 'ingreso' && m.servicio_id === servicioId,
-  )
-}
-
-// Un ingreso solo puede eliminarse si el stock resultante no queda negativo.
-export function puedeEliminarIngreso(ingreso, movimientos) {
-  if (ingreso.tipo !== 'ingreso') return { permitido: true, stockResultante: null }
-  const { stock } = kardexMaterial(ingreso.material_id, movimientos)
-  const stockResultante = stock - (Number(ingreso.cantidad) || 0)
-  return { permitido: stockResultante >= 0, stockResultante }
-}
-
-// Kardex por material: ingresos, salidas, stock y precio promedio ponderado.
-export function kardexMaterial(materialId, movimientos) {
-  const lista = (movimientos ?? []).filter((m) => m.material_id === materialId)
-  let ingresosCant = 0
-  let ingresosMonto = 0
-  let salidasCant = 0
-  for (const m of lista) {
-    const cant = Number(m.cantidad) || 0
-    const pu = Number(m.costo_unitario) || 0
-    if (m.tipo === 'ingreso') {
-      ingresosCant += cant
-      ingresosMonto += cant * pu
-    } else if (m.tipo === 'salida') {
-      salidasCant += cant
-    }
-  }
-  const stock = ingresosCant - salidasCant
-  const precioPromedio = ingresosCant > 0 ? ingresosMonto / ingresosCant : 0
-  return {
-    ingresos: ingresosCant,
-    salidas: salidasCant,
-    stock,
-    precioPromedio,
-    valorizado: stock * precioPromedio,
-  }
-}
-
 export function sumarMontos(registros) {
   return registros.reduce((total, registro) => total + (Number(registro.monto_calculado) || 0), 0)
 }
@@ -158,7 +97,7 @@ export function ordenarPorFechaDesc(registros) {
   })
 }
 
-export function nombreReferencia(registro, { personal, materiales, equipos = [] }) {
+export function nombreReferencia(registro, { personal, materiales = [], equipos = [] }) {
   if (registro.tipo_registro === 'gasto') return registro.concepto?.trim() || 'Gasto operativo'
   if (registro.tipo_registro === 'personal') {
     const persona = personal.find((p) => p.id === registro.referencia_id)

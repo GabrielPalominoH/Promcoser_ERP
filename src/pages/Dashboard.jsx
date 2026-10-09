@@ -94,7 +94,6 @@ export function Dashboard() {
 
   const {
     personal,
-    materiales,
     equipos,
     servicios,
     registros_servicio: registros,
@@ -286,12 +285,6 @@ export function Dashboard() {
 
           <dl className="mt-6 grid grid-cols-2 gap-3 border-t border-slate-200 pt-5 text-sm">
             <div>
-              <dt className="text-slate-500">Materiales en catálogo</dt>
-              <dd className="font-semibold text-slate-800">
-                {materiales.length}
-              </dd>
-            </div>
-            <div>
               <dt className="text-slate-500">Personal registrado</dt>
               <dd className="font-semibold text-slate-800">
                 {personal.length}
@@ -430,7 +423,7 @@ export function Dashboard() {
                     {servicios.find((s) => s.id === registro.servicio_id)?.nombre_servicio ??
                       'Servicio eliminado'}
                   </Td>
-                  <Td>{nombreReferencia(registro, { personal, materiales, equipos })}</Td>
+                  <Td>{nombreReferencia(registro, { personal, equipos })}</Td>
                   <Td>
                     <Badge variante={registro.tipo_registro === 'gasto' ? 'warning' : 'info'}>
                       {registro.tipo_registro}

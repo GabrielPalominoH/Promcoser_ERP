@@ -144,65 +144,6 @@ export const personal = [
   { id: 104, nombre: 'Jhonatan', apellido: 'Zulueta Lozada', cargo: 'Supervisor Operativo', dni: '71689937', tarifa_por_hora: 48, ambito: 'Obra' },
 ]
 
-export const materiales = [
-  {
-    id: 1,
-    nombre: 'Cemento Portland Tipo I',
-    unidad_medida: 'saco',
-    costo_unitario: 38.5,
-    activo: true,
-  },
-  {
-    id: 2,
-    nombre: 'Ladrillo Kingsize de arcilla',
-    unidad_medida: 'unidad',
-    costo_unitario: 3.2,
-    activo: true,
-  },
-  {
-    id: 3,
-    nombre: 'Acero de refuerzo 1/2 pulg',
-    unidad_medida: 'metro',
-    costo_unitario: 24.9,
-    activo: true,
-  },
-  {
-    id: 4,
-    nombre: 'Arena gruesa',
-    unidad_medida: 'm3',
-    costo_unitario: 62,
-    activo: true,
-  },
-  {
-    id: 5,
-    nombre: 'Pintura acrílica blanco',
-    unidad_medida: 'galón',
-    costo_unitario: 96,
-    activo: true,
-  },
-  {
-    id: 6,
-    nombre: 'Cables THHN calibre 12',
-    unidad_medida: 'rollo',
-    costo_unitario: 410,
-    activo: true,
-  },
-  {
-    id: 7,
-    nombre: 'Casetón de hormigón',
-    unidad_medida: 'unidad',
-    costo_unitario: 18.75,
-    activo: true,
-  },
-  {
-    id: 8,
-    nombre: 'Tubería PVC Corrugado 4 pulg',
-    unidad_medida: 'metro',
-    costo_unitario: 27.4,
-    activo: false,
-  },
-]
-
 export const equipos = [
   { id: 1, nombre: 'Camioneta BSI-922', costo_por_hora: 60 },
   { id: 2, nombre: 'Cisterna de Agua BEA-747', costo_por_hora: 150 },
@@ -254,10 +195,9 @@ export const registros_servicio = [
     id: 19,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: 1,
+    referencia_id: null,
     nombre_material: 'Cemento Portland Tipo I',
     partida_id: 2,
-    movimiento_id: 1,
     cantidad_o_horas: 200,
     monto_calculado: 7700,
     fecha: '2026-07-08',
@@ -276,10 +216,9 @@ export const registros_servicio = [
     id: 21,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: 3,
+    referencia_id: null,
     nombre_material: 'Acero de refuerzo 1/2 pulg',
     partida_id: 3,
-    movimiento_id: 7,
     cantidad_o_horas: 120,
     monto_calculado: 2988,
     fecha: '2026-07-15',
@@ -297,10 +236,9 @@ export const registros_servicio = [
     id: 23,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: 4,
+    referencia_id: null,
     nombre_material: 'Arena gruesa',
     partida_id: 2,
-    movimiento_id: 8,
     cantidad_o_horas: 30,
     monto_calculado: 1860,
     fecha: '2026-07-22',
@@ -328,10 +266,9 @@ export const registros_servicio = [
     id: 26,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: 2,
+    referencia_id: null,
     nombre_material: 'Ladrillo Kingsize de arcilla',
     partida_id: 2,
-    movimiento_id: 3,
     cantidad_o_horas: 5000,
     monto_calculado: 16000,
     fecha: '2026-08-10',
@@ -349,10 +286,9 @@ export const registros_servicio = [
     id: 28,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: 5,
+    referencia_id: null,
     nombre_material: 'Pintura acrílica blanco',
     partida_id: 5,
-    movimiento_id: 6,
     cantidad_o_horas: 18,
     monto_calculado: 1728,
     fecha: '2026-09-05',
@@ -440,31 +376,11 @@ export const valorizaciones = [
 ]
 
 // ------------------------------------------------------------
-//  6. Almacén: kardex de ingresos y salidas por material
-// ------------------------------------------------------------
-
-// Cada compra de un servicio genera un ingreso vinculado a su registro
-// de costo (registro_id); las salidas descuentan stock e indican en qué
-// partida se usó el material, sin generar costo nuevo (el costo se contó
-// en la compra).
-export const movimientos_almacen = [
-  { id: 1, material_id: 1, tipo: 'ingreso', cantidad: 200, costo_unitario: 38.5, fecha: '2026-07-08', documento: 'FAC-001', servicio_id: 6, partida_id: 2, registro_id: 19 },
-  { id: 2, material_id: 1, tipo: 'salida', cantidad: 120, costo_unitario: 38.5, fecha: '2026-07-15', documento: 'SAL-001', servicio_id: 6, partida_id: 2, registro_id: null },
-  { id: 7, material_id: 3, tipo: 'ingreso', cantidad: 120, costo_unitario: 24.9, fecha: '2026-07-15', documento: 'FAC-003', servicio_id: 6, partida_id: 3, registro_id: 21 },
-  { id: 8, material_id: 4, tipo: 'ingreso', cantidad: 30, costo_unitario: 62, fecha: '2026-07-22', documento: 'FAC-004', servicio_id: 6, partida_id: 2, registro_id: 23 },
-  { id: 3, material_id: 2, tipo: 'ingreso', cantidad: 5000, costo_unitario: 3.2, fecha: '2026-08-10', documento: 'FAC-002', servicio_id: 6, partida_id: 2, registro_id: 26 },
-  { id: 4, material_id: 2, tipo: 'ingreso', cantidad: 2000, costo_unitario: 3.4, fecha: '2026-08-20', documento: 'FAC-005', servicio_id: null, partida_id: null, registro_id: null },
-  { id: 5, material_id: 2, tipo: 'salida', cantidad: 2000, costo_unitario: 3.2, fecha: '2026-08-18', documento: 'SAL-002', servicio_id: 6, partida_id: 2, registro_id: null },
-  { id: 6, material_id: 5, tipo: 'ingreso', cantidad: 18, costo_unitario: 96, fecha: '2026-09-05', documento: 'FAC-009', servicio_id: 6, partida_id: 5, registro_id: 28 },
-]
-
-// ------------------------------------------------------------
 //  Estado inicial consolidado
 // ------------------------------------------------------------
 
 export const ESTADO_INICIAL = {
   personal,
-  materiales,
   equipos,
   servicios,
   registros_servicio,
@@ -472,7 +388,6 @@ export const ESTADO_INICIAL = {
   costos_oficina,
   partidas,
   valorizaciones,
-  movimientos_almacen,
 }
 
 export const COLECCIONES = Object.keys(ESTADO_INICIAL)

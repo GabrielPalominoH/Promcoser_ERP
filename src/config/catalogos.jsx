@@ -1,8 +1,5 @@
-import {
-  ESTATUS_SERVICIO,
-  UNIDADES_MEDIDA,
-} from '../data/mockData'
-import { BadgeActivo, BadgeEstatus } from '../components/ui/Badge'
+import { ESTATUS_SERVICIO } from '../data/mockData'
+import { BadgeEstatus } from '../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../utils/formatters'
 import { consumoPresupuesto, rentabilidadServicio } from '../utils/calculadora'
 import { Link } from 'react-router-dom'
@@ -11,96 +8,6 @@ import { Link } from 'react-router-dom'
 // CatalogoCRUD usa esta configuración para pintar tabla, formulario y validaciones.
 
 const opciones = (lista) => lista.map((texto) => ({ valor: texto, texto }))
-
-// ------------------------------------------------------------
-//  Materiales
-// ------------------------------------------------------------
-
-export const CATALOGO_MATERIALES = {
-  coleccion: 'materiales',
-  titulo: 'Materiales',
-  descripcion: 'Catálogo maestro de materiales con unidad de medida y costo unitario.',
-  nombreSingular: 'material',
-  etiquetaContador: 'materiales',
-  claveBusqueda: (item) => `${item.nombre} ${item.unidad_medida}`,
-  placeholderBusqueda: 'Buscar por nombre o unidad…',
-  mensajeVacio: 'No hay materiales que coincidan con la búsqueda.',
-  mensajeSinRegistros: 'Aún no hay materiales registrados.',
-  tieneActivo: true,
-
-  columnas: [
-    {
-      etiqueta: 'Material',
-      render: (item) => (
-        <span className="font-medium text-slate-900">{item.nombre}</span>
-      ),
-    },
-    {
-      etiqueta: 'Unidad',
-      render: (item) => item.unidad_medida,
-      clase: 'text-slate-500',
-    },
-    {
-      etiqueta: 'Costo unitario',
-      alinear: 'right',
-      render: (item) => (
-        <span className="tabular-nums">{formatearMoneda(item.costo_unitario)}</span>
-      ),
-    },
-    {
-      etiqueta: 'Estado',
-      render: (item) => <BadgeActivo activo={item.activo} />,
-    },
-  ],
-
-  campos: [
-    {
-      name: 'nombre',
-      etiqueta: 'Nombre del material',
-      tipo: 'texto',
-      requerido: true,
-      ancho: 'completo',
-      placeholder: 'Ej. Cemento Portland Tipo I',
-    },
-    {
-      name: 'unidad_medida',
-      etiqueta: 'Unidad de medida',
-      tipo: 'select',
-      requerido: true,
-      opciones: opciones(UNIDADES_MEDIDA),
-    },
-    {
-      name: 'costo_unitario',
-      etiqueta: 'Costo unitario (S/)',
-      tipo: 'numero',
-      requerido: true,
-      min: 0,
-      paso: '0.01',
-      hint: 'Se muestra como referencia. Los montos de servicio se capturan manualmente.',
-    },
-    {
-      name: 'activo',
-      etiqueta: 'Material activo',
-      descripcion: 'Solo los materiales activos se ofrecen en el módulo operativo.',
-      tipo: 'booleano',
-      ancho: 'completo',
-    },
-  ],
-
-  valoresIniciales: {
-    nombre: '',
-    unidad_medida: '',
-    costo_unitario: '',
-    activo: false,
-  },
-
-  normalizar: (valores) => ({
-    nombre: valores.nombre.trim(),
-    unidad_medida: valores.unidad_medida,
-    costo_unitario: Number(valores.costo_unitario),
-    activo: Boolean(valores.activo),
-  }),
-}
 
 // ------------------------------------------------------------
 //  Personal

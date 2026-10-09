@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, coberturaTareo, comprasDeServicio, consumoPresupuesto, consumoPartidaPorSalidas, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, kardexMaterial, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, puedeEliminarIngreso, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, salidasDeServicio, valorizadoPartida } from '../src/utils/calculadora'
+import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, coberturaTareo, consumoPresupuesto, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoPartida } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
@@ -26,26 +26,27 @@ function comprobar(descripcion, condicion, detalle = '') {
 
 console.log('\n[ reducer ]')
 
-const conMaterial = dataReducer(ESTADO_INICIAL, {
+const conEquipo = dataReducer(ESTADO_INICIAL, {
   type: 'AGREGAR_ITEM',
-  payload: { coleccion: 'materiales', item: { id: 99, nombre: 'Prueba', unidad_medida: 'kg', costo_unitario: 10, activo: true } },
+  payload: { coleccion: 'equipos', item: { id: 99, nombre: 'Prueba', costo_por_hora: 10 } },
 })
-comprobar('AGREGAR_ITEM agrega al final', conMaterial.materiales.length === ESTADO_INICIAL.materiales.length + 1)
-comprobar('las demás colecciones no se tocan', conMaterial.servicios === ESTADO_INICIAL.servicios)
+comprobar('AGREGAR_ITEM agrega al final', conEquipo.equipos.length === ESTADO_INICIAL.equipos.length + 1)
+comprobar('las demás colecciones no se tocan', conEquipo.servicios === ESTADO_INICIAL.servicios)
 
-const editado = dataReducer(conMaterial, {
+const editado = dataReducer(conEquipo, {
   type: 'ACTUALIZAR_ITEM',
-  payload: { coleccion: 'materiales', item: { id: 99, nombre: 'Prueba editada' } },
+  payload: { coleccion: 'equipos', item: { id: 99, nombre: 'Prueba editada' } },
 })
-comprobar('ACTUALIZAR_ITEM hace merge parcial', editado.materiales.at(-1).nombre === 'Prueba editada')
-comprobar('ACTUALIZAR_ITEM conserva el resto', editado.materiales.at(-1).costo_unitario === 10)
+comprobar('ACTUALIZAR_ITEM hace merge parcial', editado.equipos.at(-1).nombre === 'Prueba editada')
+comprobar('ACTUALIZAR_ITEM conserva el resto', editado.equipos.at(-1).costo_por_hora === 10)
 
-const alternado = dataReducer(ESTADO_INICIAL, {
+// Ninguna colección restante usa `activo`: se prueba con un estado mínimo.
+const alternado = dataReducer({ cosas: [{ id: 1, activo: true }, { id: 2, activo: true }] }, {
   type: 'ALTERNAR_ACTIVO',
-  payload: { coleccion: 'materiales', id: 1 },
+  payload: { coleccion: 'cosas', id: 1 },
 })
-comprobar('ALTERNAR_ACTIVO invierte activo', alternado.materiales.find((p) => p.id === 1).activo === false)
-comprobar('ALTERNAR_ACTIVO no toca otros', alternado.materiales.find((p) => p.id === 2).activo === true)
+comprobar('ALTERNAR_ACTIVO invierte activo', alternado.cosas.find((p) => p.id === 1).activo === false)
+comprobar('ALTERNAR_ACTIVO no toca otros', alternado.cosas.find((p) => p.id === 2).activo === true)
 
 const sinServicio = dataReducer(ESTADO_INICIAL, {
   type: 'ELIMINAR_ITEM',
@@ -82,15 +83,14 @@ const sinAbuelo = dataReducer(conArbol, { type: 'ELIMINAR_ITEM', payload: { cole
 comprobar('cascada multinivel borra todo el árbol', ![91, 92, 93].some((id) => sinAbuelo.tareas.some((t) => t.id === id)))
 
 const restaurado = dataReducer(sinServicio, { type: 'RESTABLECER' })
-comprobar('RESTABLECER vuelve a los mocks', restaurado.materiales.length === ESTADO_INICIAL.materiales.length)
+comprobar('RESTABLECER vuelve a los mocks', restaurado.equipos.length === ESTADO_INICIAL.equipos.length)
 
-comprobar('siguienteId materiales = 9', siguienteId(ESTADO_INICIAL.materiales) === 9, String(siguienteId(ESTADO_INICIAL.materiales)))
 comprobar('siguienteId equipos = 26', siguienteId(ESTADO_INICIAL.equipos) === 26, String(siguienteId(ESTADO_INICIAL.equipos)))
 comprobar('siguienteId arreglo vacío = 1', siguienteId([]) === 1, String(siguienteId([])))
 
 // El id debe quedar siempre por encima del máximo, aunque se borre el último.
-const sinUltimo = ESTADO_INICIAL.materiales.slice(0, -1)
-comprobar('siguienteId tras borrado = 8', siguienteId(sinUltimo) === 8, String(siguienteId(sinUltimo)))
+const sinUltimo = ESTADO_INICIAL.equipos.slice(0, -1)
+comprobar('siguienteId tras borrado = 25', siguienteId(sinUltimo) === 25, String(siguienteId(sinUltimo)))
 
 const desconocido = dataReducer(ESTADO_INICIAL, { type: 'NO_EXISTE' })
 comprobar('acción desconocida devuelve el estado igual', desconocido === ESTADO_INICIAL)
@@ -292,9 +292,9 @@ const soloObra = ESTADO_INICIAL.personal.filter((p) => (p.ambito ?? 'Obra') !== 
 comprobar('personal de obra > 0 y < total', soloObra.length > 0 && soloObra.length < ESTADO_INICIAL.personal.length, String(soloObra.length))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
-console.log('\n[ partidas / valorización / almacén ]')
+console.log('\n[ partidas / valorización ]')
 
-const { partidas, valorizaciones, movimientos_almacen: movimientos, registros_servicio: regs } = ESTADO_INICIAL
+const { partidas, valorizaciones, registros_servicio: regs } = ESTADO_INICIAL
 comprobar('serv. 6 tiene 5 partidas', partidasDeServicio(partidas, 6).length === 5)
 comprobar('presupuesto por partidas = 120000', presupuestoPartidas(partidas, 6) === 120000, String(presupuestoPartidas(partidas, 6)))
 comprobar('presupuesto partida cimentación = 21600', presupuestoPartida(partidas.find((p) => p.id === 2)) === 21600)
@@ -307,45 +307,8 @@ comprobar(
   'costo total = por partida + sin partida',
   costoPorPartida(regs, 6, 1) + costoPorPartida(regs, 6, 2) + costoPorPartida(regs, 6, 3) + costoPorPartida(regs, 6, 4) + costoPorPartida(regs, 6, 5) + costoSinPartida(regs, 6) === sumarMontos(registrosDeServicio(regs, 6)),
 )
-const kardexCemento = kardexMaterial(1, movimientos)
-comprobar('kardex cemento stock = 80', kardexCemento.stock === 80, String(kardexCemento.stock))
-comprobar('kardex cemento valorizado = 3080', kardexCemento.valorizado === 3080, String(kardexCemento.valorizado))
-const kardexLadrillo = kardexMaterial(2, movimientos)
-comprobar('kardex ladrillo stock = 5000', kardexLadrillo.stock === 5000, String(kardexLadrillo.stock))
-comprobar('kardex ladrillo promedio = 22800/7000', Math.abs(kardexLadrillo.precioPromedio - 22800 / 7000) < 1e-9, String(kardexLadrillo.precioPromedio))
 comprobar('cascada servicio borra partidas', !sinServicio.partidas.some((p) => p.servicio_id === 6))
 comprobar('cascada servicio borra valorizaciones', !sinServicio.valorizaciones.some((v) => v.servicio_id === 6))
-comprobar('cascada servicio borra movimientos', !(sinServicio.movimientos_almacen ?? []).some((m) => m.servicio_id === 6))
-
-console.log('\n[ almacén conectado ]')
-
-comprobar('serv. 6 tiene 5 compras vinculadas', comprasDeServicio(6, movimientos).length === 5)
-comprobar('serv. 6 tiene 2 salidas', salidasDeServicio(6, movimientos).length === 2)
-comprobar(
-  'toda compra vinculada tiene su costo de vuelta',
-  comprasDeServicio(6, movimientos)
-    .filter((m) => m.registro_id != null)
-    .every((m) => {
-      const r = regs.find((x) => x.id === m.registro_id)
-      return r && r.movimiento_id === m.id && r.cantidad_o_horas === m.cantidad
-    }),
-)
-comprobar('consumo cimentación por salidas = 11020', consumoPartidaPorSalidas(6, 2, movimientos) === 11020, String(consumoPartidaPorSalidas(6, 2, movimientos)))
-const ingresoCemento = movimientos.find((m) => m.id === 1)
-const guardaCemento = puedeEliminarIngreso(ingresoCemento, movimientos)
-comprobar('borrar compra de cemento deja stock negativo: bloqueado', guardaCemento.permitido === false && guardaCemento.stockResultante === -120, JSON.stringify(guardaCemento))
-const ingresoArena = movimientos.find((m) => m.id === 8)
-comprobar('borrar compra de arena deja stock en cero: permitido', puedeEliminarIngreso(ingresoArena, movimientos).permitido === true)
-const sinRegistro = dataReducer(ESTADO_INICIAL, {
-  type: 'ELIMINAR_ITEM',
-  payload: { coleccion: 'registros_servicio', id: 19 },
-})
-comprobar('borrar costo borra su ingreso', !sinRegistro.movimientos_almacen.some((m) => m.id === 1))
-const sinIngreso = dataReducer(ESTADO_INICIAL, {
-  type: 'ELIMINAR_ITEM',
-  payload: { coleccion: 'movimientos_almacen', id: 3 },
-})
-comprobar('borrar ingreso borra su costo', !sinIngreso.registros_servicio.some((r) => r.id === 26))
 const sinPartida = dataReducer(ESTADO_INICIAL, {
   type: 'ELIMINAR_ITEM',
   payload: { coleccion: 'partidas', id: 2 },
@@ -398,7 +361,7 @@ const rutas = [
   { ruta: '/personal', etiqueta: 'Personal', monto: true },
   { ruta: '/equipos', etiqueta: 'Equipos', monto: false },
   { ruta: '/oficina', etiqueta: 'Oficina', monto: true },
-  { ruta: '/almacen', etiqueta: 'Almacén', monto: false },
+  { ruta: '/almacen', etiqueta: 'Almacén redirige', monto: false },
   { ruta: '/materiales', etiqueta: 'Materiales redirige', monto: false },
   { ruta: '/ruta-inexistente', etiqueta: 'Fallback 404', monto: false },
 ]

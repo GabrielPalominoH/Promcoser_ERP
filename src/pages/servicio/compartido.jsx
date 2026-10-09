@@ -78,11 +78,7 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
               <span className="block text-xs text-slate-500">{partida.nombre}</span>
             ) : null
           })()}
-        {registro.movimiento_id != null && (
-          <span className="mt-0.5 inline-block rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800">
-            en almacén
-          </span>
-        )}
+
       </Td>
       {conCantidad && (
         <Td alinear="right" className="tabular-nums">
@@ -118,14 +114,13 @@ export function SeccionRegistros({
   children,
 }) {
   const { estado, agregarItem, eliminarItem } = useData()
-  const { personal, materiales, equipos, registros_servicio: todos, partidas: todasPartidas } = estado
+  const { personal, equipos, registros_servicio: todos, partidas: todasPartidas } = estado
 
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
 
   const refs = {
     personal,
-    materiales,
     equipos,
     partidas: (todasPartidas ?? []).filter((p) => p.servicio_id === servicio.id),
   }
@@ -172,7 +167,7 @@ export function SeccionRegistros({
   return (
     <div className="space-y-6">
       <Card titulo={titulo} descripcion={descripcion}>
-        {children({ servicio, personal, materiales, equipos, registrar, registrarLote, notificar })}
+        {children({ servicio, personal, equipos, registrar, registrarLote, notificar })}
       </Card>
 
       <Card titulo={`Registros de ${titulo.toLowerCase()}`}>
@@ -265,12 +260,6 @@ export function SeccionRegistros({
                 </span>{' '}
                 del {formatearFecha(porEliminar.fecha)}. El presupuesto del servicio se
                 actualiza automáticamente.
-                {porEliminar.movimiento_id != null && (
-                  <>
-                    {' '}
-                    Su ingreso vinculado también se quitará del almacén.
-                  </>
-                )}
               </>
             )}
           </p>
