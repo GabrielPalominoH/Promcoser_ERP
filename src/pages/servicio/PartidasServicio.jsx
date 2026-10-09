@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
-import { Input } from '../../components/ui/Field'
+import { Button } from '../../components/ui/Button'
+import { Campo, Input } from '../../components/ui/Field'
+import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import {
   Table,
@@ -25,14 +27,10 @@ import {
   valorizadoTarea,
 } from '../../utils/calculadora'
 
-// Monto editable en línea: las hojas se escriben a mano; los padres con
-// hijas muestran la suma automática (solo lectura).
-function CeldaMonto({ tarea, tareas, onGuardar }) {
-  const automatico = tieneHijas(tarea.id, tareas)
-  const [texto, setTexto] = useState(null)
-  const mostrado = texto ?? String(Number(tarea.monto) || 0)
-
-  if (automatico) {
+// Monto con modal: las hojas se editan en ventana; los padres con hijas
+// muestran la suma automática (solo lectura).
+function CeldaMonto({ tarea, tareas, onEditar }) {
+  if (tieneHijas(tarea.id, tareas)) {
     return (
       <span className="tabular-nums" title="Suma automática de sus hijas">
         {formatearMoneda(montoTarea(tarea, tareas))}
@@ -40,29 +38,68 @@ function CeldaMonto({ tarea, tareas, onGuardar }) {
     )
   }
 
+  return (
+    <button
+      type="button"
+      onClick={() => onEditar(tarea)}
+      title="Clic para editar el monto"
+      className="rounded-lg px-2 py-1 tabular-nums transition-colors hover:bg-primary-50 hover:text-primary-700"
+    >
+      {formatearMoneda(Number(tarea.monto) || 0)}
+    </button>
+  )
+}
+
+function ModalMonto({ tarea, onCerrar, onGuardar }) {
+  const [texto, setTexto] = useState(String(Number(tarea?.monto) || 0))
+  const [error, setError] = useState(null)
+
+  if (!tarea) return null
+  const valor = Number(texto)
+
   const guardar = () => {
-    if (texto == null) return
-    const valor = Number(texto)
-    setTexto(null)
-    if (Number.isNaN(valor) || valor < 0) return
+    if (texto.trim() === '' || Number.isNaN(valor) || valor < 0) {
+      setError('Ingresa un monto válido mayor o igual a cero')
+      return
+    }
     onGuardar(tarea.id, valor)
+    onCerrar()
   }
 
   return (
-    <Input
-      key={`${tarea.id}-${Number(tarea.monto) || 0}`}
-      type="number"
-      step="0.01"
-      min="0"
-      aria-label={`Monto de ${tarea.nombre}`}
-      className="w-32 py-1 text-right tabular-nums"
-      defaultValue={mostrado}
-      onChange={(e) => setTexto(e.target.value)}
-      onBlur={guardar}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur()
-      }}
-    />
+    <Modal
+      abierto
+      ancho="sm"
+      titulo="Monto de la tarea"
+      descripcion={tarea.nombre}
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button onClick={guardar}>Guardar monto</Button>
+        </>
+      }
+    >
+      <Campo label="Monto (S/)" error={error} htmlFor="monto-valor">
+        <Input
+          id="monto-valor"
+          type="number"
+          step="0.01"
+          min="0"
+          autoFocus
+          value={texto}
+          onChange={(e) => {
+            setTexto(e.target.value)
+            setError(null)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') guardar()
+          }}
+        />
+      </Campo>
+    </Modal>
   )
 }
 
@@ -72,6 +109,7 @@ export function PartidasServicio() {
   // Las tareas se crean en el Cronograma; aquí solo se les pone monto.
   const { estado, actualizarItem } = useData()
   const [aviso, setAviso] = useState(null)
+  const [montoEditando, setMontoEditando] = useState(null)
 
   const tareas = useMemo(
     () =>
@@ -168,7 +206,7 @@ export function PartidasServicio() {
                       </span>
                     </Td>
                     <Td alinear="right">
-                      <CeldaMonto tarea={tarea} tareas={tareas} onGuardar={guardarMonto} />
+                      <CeldaMonto tarea={tarea} tareas={tareas} onEditar={setMontoEditando} />
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {formatearMoneda(val)}
@@ -220,6 +258,15 @@ export function PartidasServicio() {
           </TableBody>
         </Table>
       </Card>
+
+      {montoEditando && (
+        <ModalMonto
+          key={montoEditando.id}
+          tarea={montoEditando}
+          onCerrar={() => setMontoEditando(null)}
+          onGuardar={guardarMonto}
+        />
+      )}
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
     </div>
