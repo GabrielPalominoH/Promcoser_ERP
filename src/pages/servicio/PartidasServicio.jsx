@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input, Select } from '../../components/ui/Field'
+import { Campo, Input } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import {
@@ -110,6 +111,7 @@ function FormularioValorizacion({ servicio, partidas, onGuardar }) {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: { partida_id: '', mes: '', metrado_ejecutado: '' },
@@ -141,19 +143,17 @@ function FormularioValorizacion({ servicio, partidas, onGuardar }) {
           error={errors.partida_id?.message}
           htmlFor="val-partida"
         >
-          <Select
+          <CampoComboBox
             id="val-partida"
-            {...register('partida_id', { required: 'Selecciona una partida' })}
-          >
-            <option value="" disabled>
-              Selecciona…
-            </option>
-            {partidas.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre} ({formatearMoneda(presupuestoPartida(p))})
-              </option>
-            ))}
-          </Select>
+            control={control}
+            name="partida_id"
+            rules={{ required: 'Selecciona una partida' }}
+            placeholder="Escribe para buscar…"
+            opciones={partidas.map((p) => ({
+              valor: String(p.id),
+              etiqueta: `${p.nombre} (${formatearMoneda(presupuestoPartida(p))})`,
+            }))}
+          />
         </Campo>
         <Campo label="Mes" error={errors.mes?.message} htmlFor="val-mes">
           <Input

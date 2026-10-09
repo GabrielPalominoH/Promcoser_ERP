@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input, Select } from '../../components/ui/Field'
+import { Campo, Input } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearCantidad, formatearMoneda, redondearMonto } from '../../utils/formatters'
 import { kardexMaterial, partidasDeServicio } from '../../utils/calculadora'
@@ -23,6 +24,7 @@ function FormularioMaterial({ servicio, notificar }) {
     reset,
     setValue,
     watch,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -131,20 +133,20 @@ function FormularioMaterial({ servicio, notificar }) {
           htmlFor="mat-material"
           className="sm:col-span-2"
         >
-          <Select
+          <CampoComboBox
             id="mat-material"
-            {...register('material_id', { required: 'Selecciona un material' })}
-          >
-            <option value="" disabled>
-              Selecciona…
-            </option>
-            {activos.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nombre ?? m.nombre_material} ({m.unidad_medida})
-              </option>
-            ))}
-            <option value={NUEVO_MATERIAL}>＋ Nuevo material…</option>
-          </Select>
+            control={control}
+            name="material_id"
+            rules={{ required: 'Selecciona un material' }}
+            placeholder="Escribe para buscar…"
+            opciones={[
+              ...activos.map((m) => ({
+                valor: String(m.id),
+                etiqueta: `${m.nombre ?? m.nombre_material} (${m.unidad_medida})`,
+              })),
+              { valor: NUEVO_MATERIAL, etiqueta: '＋ Nuevo material…' },
+            ]}
+          />
         </Campo>
         <Campo label="Fecha" error={errors.fecha?.message} htmlFor="mat-fecha">
           <Input
@@ -221,14 +223,13 @@ function FormularioMaterial({ servicio, notificar }) {
             hint="Para el costo por partida"
             className="sm:col-span-3"
           >
-            <Select id="mat-partida" {...register('partida_id')}>
-              <option value="">Sin partida</option>
-              {partidas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </Select>
+            <CampoComboBox
+              id="mat-partida"
+              control={control}
+              name="partida_id"
+              placeholder="Sin partida — escribe para buscar…"
+              opciones={partidas.map((p) => ({ valor: String(p.id), etiqueta: p.nombre }))}
+            />
           </Campo>
         )}
       </div>

@@ -1,7 +1,8 @@
 import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input, Select } from '../../components/ui/Field'
+import { Campo, Input } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
 import { partidasDeServicio } from '../../utils/calculadora'
@@ -16,6 +17,7 @@ function FormularioGasto({ servicio, registrar }) {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), partida_id: '' },
@@ -77,14 +79,13 @@ function FormularioGasto({ servicio, registrar }) {
             htmlFor="gasto-partida"
             hint="Para el costo por partida"
           >
-            <Select id="gasto-partida" {...register('partida_id')}>
-              <option value="">Sin partida</option>
-              {partidas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </Select>
+            <CampoComboBox
+              id="gasto-partida"
+              control={control}
+              name="partida_id"
+              placeholder="Sin partida — escribe para buscar…"
+              opciones={partidas.map((p) => ({ valor: String(p.id), etiqueta: p.nombre }))}
+            />
           </Campo>
         )}
         <div className="flex items-end">

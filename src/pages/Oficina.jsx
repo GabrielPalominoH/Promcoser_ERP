@@ -3,7 +3,8 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../context/useData'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Campo, Input, Select } from '../components/ui/Field'
+import { Campo, Input } from '../components/ui/Field'
+import { CampoComboBox } from '../components/ui/ComboBox'
 import { Modal } from '../components/ui/Modal'
 import { Aviso } from '../components/ui/Aviso'
 import {
@@ -48,6 +49,7 @@ function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: { personal_id: '', mes: mesFijo, monto: '' },
@@ -78,19 +80,17 @@ function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
           error={errors.personal_id?.message}
           htmlFor="ofi-persona"
         >
-          <Select
+          <CampoComboBox
             id="ofi-persona"
-            {...register('personal_id', { required: 'Selecciona a una persona' })}
-          >
-            <option value="" disabled>
-              Selecciona…
-            </option>
-            {elegibles.map((item) => (
-              <option key={item.id} value={item.id}>
-                {nombreCompleto(item)} — {item.cargo}
-              </option>
-            ))}
-          </Select>
+            control={control}
+            name="personal_id"
+            rules={{ required: 'Selecciona a una persona' }}
+            placeholder="Escribe para buscar…"
+            opciones={elegibles.map((item) => ({
+              valor: String(item.id),
+              etiqueta: `${nombreCompleto(item)} — ${item.cargo}`,
+            }))}
+          />
         </Campo>
         <Campo label="Mes" error={errors.mes?.message} htmlFor="ofi-mes">
           <Input

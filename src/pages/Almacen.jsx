@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Campo, Input, Select } from '../components/ui/Field'
+import { CampoComboBox } from '../components/ui/ComboBox'
 import { Modal } from '../components/ui/Modal'
 import { Aviso } from '../components/ui/Aviso'
 import {
@@ -35,6 +36,7 @@ function FormularioMovimiento({ materiales, servicios, partidas, onGuardar }) {
     handleSubmit,
     reset,
     watch,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -95,19 +97,17 @@ function FormularioMovimiento({ materiales, servicios, partidas, onGuardar }) {
           error={errors.material_id?.message}
           htmlFor="alm-material"
         >
-          <Select
+          <CampoComboBox
             id="alm-material"
-            {...register('material_id', { required: 'Selecciona un material' })}
-          >
-            <option value="" disabled>
-              Selecciona…
-            </option>
-            {materiales.map((m) => (
-              <option key={m.id} value={m.id}>
-                {nombreMaterial(m)} ({m.unidad_medida})
-              </option>
-            ))}
-          </Select>
+            control={control}
+            name="material_id"
+            rules={{ required: 'Selecciona un material' }}
+            placeholder="Escribe para buscar…"
+            opciones={materiales.map((m) => ({
+              valor: String(m.id),
+              etiqueta: `${nombreMaterial(m)} (${m.unidad_medida})`,
+            }))}
+          />
         </Campo>
         <Campo label="Tipo" error={errors.tipo?.message} htmlFor="alm-tipo">
           <Select id="alm-tipo" {...register('tipo', { required: true })}>
@@ -159,19 +159,17 @@ function FormularioMovimiento({ materiales, servicios, partidas, onGuardar }) {
               error={errors.servicio_id?.message}
               htmlFor="alm-servicio"
             >
-              <Select
+              <CampoComboBox
                 id="alm-servicio"
-                {...register('servicio_id', { required: 'Indica el servicio' })}
-              >
-                <option value="" disabled>
-                  Selecciona…
-                </option>
-                {servicios.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre_servicio}
-                  </option>
-                ))}
-              </Select>
+                control={control}
+                name="servicio_id"
+                rules={{ required: 'Indica el servicio' }}
+                placeholder="Escribe para buscar…"
+                opciones={servicios.map((s) => ({
+                  valor: String(s.id),
+                  etiqueta: s.nombre_servicio,
+                }))}
+              />
             </Campo>
             {partidasDelServicio.length > 0 && (
               <Campo
@@ -179,14 +177,16 @@ function FormularioMovimiento({ materiales, servicios, partidas, onGuardar }) {
                 error={errors.partida_id?.message}
                 htmlFor="alm-partida"
               >
-                <Select id="alm-partida" {...register('partida_id')}>
-                  <option value="">Sin partida</option>
-                  {partidasDelServicio.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nombre}
-                    </option>
-                  ))}
-                </Select>
+                <CampoComboBox
+                  id="alm-partida"
+                  control={control}
+                  name="partida_id"
+                  placeholder="Sin partida — escribe para buscar…"
+                  opciones={partidasDelServicio.map((p) => ({
+                    valor: String(p.id),
+                    etiqueta: p.nombre,
+                  }))}
+                />
               </Campo>
             )}
           </>

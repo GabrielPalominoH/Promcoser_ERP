@@ -4,6 +4,7 @@ import { DataProvider, dataReducer, siguienteId } from '../src/context/DataConte
 import { ESTADO_INICIAL } from '../src/data/mockData'
 import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, coberturaTareo, comprasDeServicio, consumoPresupuesto, consumoPartidaPorSalidas, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, kardexMaterial, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, puedeEliminarIngreso, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, salidasDeServicio, valorizadoPartida } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
+import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
 
 let fallos = 0
@@ -361,6 +362,20 @@ comprobar('redondeo 3.005 -> 3.01', redondearMonto(3.005) === 3.01, String(redon
 comprobar('redondeo 0.1+0.2 -> 0.3', redondearMonto(0.1 + 0.2) === 0.3, String(redondearMonto(0.1 + 0.2)))
 comprobar('redondeo ignora basura', redondearMonto('abc') === 0)
 comprobar('moneda formatea miles', formatearMoneda(48500).includes('48,500'), formatearMoneda(48500))
+
+console.log('\n[ combobox ]')
+
+const OPCIONES = [
+  { valor: '1', etiqueta: 'Cimentación (m3)' },
+  { valor: '2', etiqueta: 'Cobertura metálica (m2)' },
+  { valor: '3', etiqueta: 'Acero de refuerzo' },
+]
+comprobar('normalizar quita tildes', normalizar('Cimentación') === 'cimentacion')
+comprobar('vacío devuelve todo', filtrarOpciones(OPCIONES, '').length === 3)
+comprobar('filtra sin tildes', filtrarOpciones(OPCIONES, 'cimentacion').length === 1)
+comprobar('filtra sin mayúsculas', filtrarOpciones(OPCIONES, 'ACERO').length === 1)
+comprobar('filtra parcial', filtrarOpciones(OPCIONES, 'er').length === 2)
+comprobar('sin coincidencias = []', filtrarOpciones(OPCIONES, 'zzz').length === 0)
 
 // ============================================================
 //  4. Render de rutas
