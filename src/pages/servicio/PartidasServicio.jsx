@@ -27,26 +27,19 @@ import {
   valorizadoTarea,
 } from '../../utils/calculadora'
 
-// Monto con modal: las hojas se editan en ventana; los padres con hijas
-// muestran la suma automática (solo lectura).
-function CeldaMonto({ tarea, tareas, onEditar }) {
-  if (tieneHijas(tarea.id, tareas)) {
-    return (
-      <span className="tabular-nums" title="Suma automática de sus hijas">
-        {formatearMoneda(montoTarea(tarea, tareas))}
-      </span>
-    )
-  }
-
+// Monto en texto: las hojas se editan con el botón Editar de la fila;
+// los padres con hijas muestran la suma automática (solo lectura).
+function CeldaMonto({ tarea, tareas }) {
+  const valor = tieneHijas(tarea.id, tareas)
+    ? montoTarea(tarea, tareas)
+    : Number(tarea.monto) || 0
   return (
-    <button
-      type="button"
-      onClick={() => onEditar(tarea)}
-      title="Clic para editar el monto"
-      className="rounded-lg px-2 py-1 tabular-nums transition-colors hover:bg-primary-50 hover:text-primary-700"
+    <span
+      className="tabular-nums"
+      title={tieneHijas(tarea.id, tareas) ? 'Suma automática de sus hijas' : undefined}
     >
-      {formatearMoneda(Number(tarea.monto) || 0)}
-    </button>
+      {formatearMoneda(valor)}
+    </span>
   )
 }
 
@@ -196,17 +189,26 @@ export function PartidasServicio() {
                 return (
                   <TableRow key={tarea.id}>
                     <Td>
-                      <span style={{ paddingLeft: `${nivel * 1.25}rem` }} className="block">
+                      <span style={{ paddingLeft: `${nivel * 1.25}rem` }} className="flex items-center gap-2">
                         <span className="mr-1.5 text-xs font-bold text-slate-400 tabular-nums">
                           {numero}
                         </span>
-                        <span className={`text-slate-900 ${nivel === 0 ? 'font-semibold' : ''}`}>
+                        <span className={`min-w-0 flex-1 text-slate-900 ${nivel === 0 ? 'font-semibold' : ''}`}>
                           {tarea.nombre}
                         </span>
+                        {!tieneHijas(tarea.id, tareas) && (
+                          <Button
+                            variante="secundario"
+                            tamano="sm"
+                            onClick={() => setMontoEditando(tarea)}
+                          >
+                            Editar
+                          </Button>
+                        )}
                       </span>
                     </Td>
                     <Td alinear="right">
-                      <CeldaMonto tarea={tarea} tareas={tareas} onEditar={setMontoEditando} />
+                      <CeldaMonto tarea={tarea} tareas={tareas} />
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {formatearMoneda(val)}
