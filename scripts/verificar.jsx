@@ -326,6 +326,21 @@ comprobar(
   'borrar tarea no mueve la plata de la partida',
   costoPorPartida(sinTarea15.registros_servicio, 6, 2, sinTarea15.tareas) === 38110,
 )
+const sinRaiz = dataReducer(ESTADO_INICIAL, {
+  type: 'ELIMINAR_ITEM',
+  payload: { coleccion: 'tareas', id: 14 },
+})
+comprobar(
+  'borrar raíz borra sus subtareas',
+  ![14, 15, 16].some((id) => sinRaiz.tareas.some((t) => t.id === id)),
+)
+comprobar(
+  'costos de la raíz quedan con partida y sin tarea',
+  [19, 22, 23].every((id) => {
+    const r = sinRaiz.registros_servicio.find((x) => x.id === id)
+    return r.tarea_id == null && r.partida_id === 2
+  }),
+)
 comprobar('cascada servicio borra partidas', !sinServicio.partidas.some((p) => p.servicio_id === 6))
 comprobar('cascada servicio borra valorizaciones', !sinServicio.valorizaciones.some((v) => v.servicio_id === 6))
 const sinPartida = dataReducer(ESTADO_INICIAL, {

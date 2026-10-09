@@ -35,80 +35,6 @@ import {
   reglasNumeroMayorACero,
 } from './compartido'
 
-function FormularioPartida({ servicio, onGuardar }) {
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm({
-    defaultValues: { nombre: '', unidad: 'glb', metrado: '', precio_unitario: '' },
-  })
-
-  const enviar = ({ nombre, unidad, metrado, precio_unitario }) => {
-    onGuardar({
-      servicio_id: servicio.id,
-      nombre: nombre.trim(),
-      unidad: unidad.trim() || 'glb',
-      metrado: Number(metrado),
-      precio_unitario: Number(precio_unitario),
-    })
-    reset()
-  }
-
-  return (
-    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <Campo
-          label="Nombre de la partida"
-          error={errors.nombre?.message}
-          htmlFor="part-nombre"
-          className="sm:col-span-2"
-        >
-          <Input
-            id="part-nombre"
-            placeholder="Ej. Cimentación"
-            {...register('nombre', { required: 'Ingresa el nombre' })}
-          />
-        </Campo>
-        <Campo label="Unidad" error={errors.unidad?.message} htmlFor="part-unidad">
-          <Input
-            id="part-unidad"
-            placeholder="m3, m2, glb…"
-            {...register('unidad', { required: 'Indica la unidad' })}
-          />
-        </Campo>
-        <div />
-        <Campo label="Metrado" error={errors.metrado?.message} htmlFor="part-metrado">
-          <Input
-            id="part-metrado"
-            type="number"
-            step="0.01"
-            placeholder="0"
-            {...register('metrado', reglasNumeroMayorACero('Ingresa el metrado'))}
-          />
-        </Campo>
-        <Campo
-          label="Precio unitario (S/)"
-          error={errors.precio_unitario?.message}
-          htmlFor="part-pu"
-        >
-          <Input
-            id="part-pu"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            {...register('precio_unitario', reglasNumeroMayorACero('Ingresa el precio'))}
-          />
-        </Campo>
-      </div>
-      <div className="flex justify-end">
-        <Button type="submit">Agregar partida</Button>
-      </div>
-    </form>
-  )
-}
-
 function FormularioValorizacion({ servicio, partidas, onGuardar }) {
   const {
     register,
@@ -188,6 +114,8 @@ function FormularioValorizacion({ servicio, partidas, onGuardar }) {
 
 export function PartidasServicio() {
   const { servicio } = useOutletContext()
+  // Tablero de solo lectura: las partidas se crean, editan y eliminan
+  // desde el Cronograma, en sus tareas principales.
   const { estado, agregarItem, eliminarItem } = useData()
   const {
     partidas: todasPartidas,
@@ -203,24 +131,14 @@ export function PartidasServicio() {
   const partidas = partidasDeServicio(todasPartidas, servicio.id).sort((a, b) => a.id - b.id)
   const medido = avanceMedido(servicio.id, todasPartidas, todasValorizaciones)
 
-  const guardarPartida = (datos) => {
-    agregarItem('partidas', datos)
-    setAviso({ tipo: 'exito', mensaje: `Partida «${datos.nombre}» agregada.` })
-  }
-
   const guardarValorizacion = (datos) => {
     agregarItem('valorizaciones', datos)
     setAviso({ tipo: 'exito', mensaje: 'Valorización agregada.' })
   }
 
   const confirmarEliminar = () => {
-    if (porEliminar.tipo === 'partida') {
-      eliminarItem('partidas', porEliminar.id)
-      setAviso({ tipo: 'info', mensaje: 'Partida eliminada junto con sus valorizaciones.' })
-    } else {
-      eliminarItem('valorizaciones', porEliminar.id)
-      setAviso({ tipo: 'info', mensaje: 'Valorización eliminada.' })
-    }
+    eliminarItem('valorizaciones', porEliminar.id)
+    setAviso({ tipo: 'info', mensaje: 'Valorización eliminada.' })
     setPorEliminar(null)
   }
 
@@ -261,13 +179,6 @@ export function PartidasServicio() {
   return (
     <div className="space-y-6">
       <Card
-        titulo="Partidas del servicio"
-        descripcion="El presupuesto por partidas convive con el presupuesto global como tope."
-      >
-        <FormularioPartida servicio={servicio} onGuardar={guardarPartida} />
-      </Card>
-
-      <Card
         titulo="Valorización mensual"
         descripcion="Metrado ejecutado por partida en cada mes."
       >
@@ -296,12 +207,11 @@ export function PartidasServicio() {
               <Th alinear="right">Tiempo</Th>
               <Th alinear="right">Costo</Th>
               <Th alinear="right">Margen</Th>
-              <Th alinear="right">Acción</Th>
             </TableRow>
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={8} mensaje="Aún no hay partidas registradas." />
+              <TableEmpty colSpan={7} mensaje="Aún no hay partidas registradas. Créalas en el Cronograma, en sus tareas principales." />
             ) : (
               filas.map(({ partida, presupuesto, valorizado, avance, costo, margen, tareasVinculadas, avanceTareas, difieren }) => {
                 return (
@@ -355,15 +265,6 @@ export function PartidasServicio() {
                     >
                       {formatearMoneda(margen)}
                     </Td>
-                    <Td alinear="right">
-                      <Button
-                        variante="peligro"
-                        tamano="sm"
-                        onClick={() => setPorEliminar({ tipo: 'partida', id: partida.id, nombre: partida.nombre })}
-                      >
-                        Eliminar
-                      </Button>
-                    </Td>
                   </TableRow>
                 )
               })
@@ -397,7 +298,6 @@ export function PartidasServicio() {
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(filas.reduce((s, f) => s + f.margen, 0))}
                 </Td>
-                <Td />
               </TableRow>
             )}
           </TableBody>
@@ -445,7 +345,7 @@ export function PartidasServicio() {
         <Modal
           abierto
           ancho="sm"
-          titulo={porEliminar.tipo === 'partida' ? 'Eliminar partida' : 'Eliminar valorización'}
+          titulo="Eliminar valorización"
           descripcion="Esta acción no se puede deshacer."
           onCerrar={() => setPorEliminar(null)}
           pie={
@@ -460,16 +360,7 @@ export function PartidasServicio() {
           }
         >
           <p className="text-sm text-slate-600">
-            {porEliminar.tipo === 'partida' ? (
-              <>
-                Se eliminará la partida{' '}
-                <span className="font-semibold text-slate-900">{porEliminar.nombre}</span>{' '}
-                junto con sus valorizaciones. Los registros de costo y las tareas
-                vinculados quedarán como “sin partida”.
-              </>
-            ) : (
-              <>Se eliminará la valorización seleccionada.</>
-            )}
+            Se eliminará la valorización seleccionada.
           </p>
         </Modal>
       )}

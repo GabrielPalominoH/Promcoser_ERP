@@ -95,6 +95,11 @@ puede elegir su **partida** (opcional): así ese trabajo queda vinculado con
 su parte del presupuesto, y la tarea muestra el nombre de su partida. Al
 editar una tarea también verá **sus costos asignados y su total**: los costos
 se asignan desde Materiales, Personal, Equipos o Gastos eligiendo la tarea.
+**Crear una partida:** solo en tareas principales (sin padre), marcando
+*"Crear partida nueva del presupuesto"* e indicando el monto. La partida se
+puede renombrar y re-presupuestar editando la tarea. **Borrar una tarea
+principal** borra también su partida (el sistema lo avisa); sus costos y
+subtareas quedan a salvo.
 
 ### Partidas
 Una **partida es un pedazo del presupuesto de la obra**. En vez de manejar
@@ -109,12 +114,15 @@ gastar menos de lo presupuestado, no recibir más dinero.
 
 El módulo tiene 3 bloques:
 
-**1. Crear las partidas (una sola vez, al inicio de la obra).**
-Cada partida lleva 4 datos: nombre, unidad (m³, m² o glb = global, o sea un
-trabajo cobrado como paquete completo), metrado (cuánto hay que hacer) y
-precio unitario (a cuánto se cobra cada unidad). El sistema multiplica solo:
-por ejemplo, Cimentación con 120 m³ × S/ 180 = S/ 21,600 de presupuesto. La
-suma de todas las partidas debería acercarse al monto contratado de la obra.
+**1. Crear las partidas (en el Cronograma, una sola vez).**
+Las partidas no se crean aquí: nacen en el Cronograma, al crear una tarea
+principal, marcando *"Crear partida nueva del presupuesto"* e indicando su
+presupuesto en soles. La partida toma el nombre de la tarea y ambas quedan
+vinculadas. La suma de todas las partidas debería acercarse al monto
+contratado de la obra. Esta pantalla es un tablero de solo lectura: no se
+crea ni se elimina nada en ella (para corregir nombre o presupuesto, edite la
+tarea principal en el Cronograma; para eliminar una partida, borre su tarea
+principal).
 
 **2. Valorización mensual (el avance medido).**
 Cada fin de mes se indica cuánto de cada partida **realmente se ejecutó**:

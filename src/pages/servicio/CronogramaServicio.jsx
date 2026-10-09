@@ -58,15 +58,20 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, partidas, costos, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
+function ModalTarea({ servicio, tarea, padre, partidas, partida, costos, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
   const esGrupo = enEdicion && tieneHijos
+  // Solo las tareas principales (sin padre) pueden crear o editar partidas:
+  // todo nace en el Cronograma.
+  const esRaiz = (tarea?.padre_id ?? padre?.id ?? null) == null
+  const arrastraPartida = enEdicion && esRaiz && tarea.partida_id != null
 
   const {
     register,
     handleSubmit,
     getValues,
+    watch,
     control,
     formState: { errors },
   } = useForm({
@@ -77,18 +82,46 @@ function ModalTarea({ servicio, tarea, padre, partidas, costos, tieneHijos, avan
           fecha_fin: tarea.fecha_fin,
           avance: tarea.avance ?? 0,
           partida_id: tarea.partida_id != null ? String(tarea.partida_id) : '',
+          crear_partida: false,
+          presupuesto_nuevo: '',
+          partida_nombre: partida?.nombre ?? '',
+          partida_presupuesto: partida?.precio_unitario ?? '',
         }
-      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0, partida_id: '' },
+      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0, partida_id: '', crear_partida: false, presupuesto_nuevo: '' },
     mode: 'onBlur',
   })
+  const crearNueva = watch('crear_partida')
 
   const enviar = (valores) => {
+    const nombreTarea = valores.nombre.trim()
+    let partidaId = valores.partida_id ? Number(valores.partida_id) : null
+    let nuevaPartida = null
+    let partidaEditada = null
+    if (esRaiz && valores.crear_partida) {
+      // La partida nace aquí con el nombre de la tarea y monto directo.
+      nuevaPartida = {
+        nombre: nombreTarea,
+        presupuesto: Number(valores.presupuesto_nuevo),
+      }
+      partidaId = 'NUEVA'
+    } else if (enEdicion && partida && partida.id === partidaId) {
+      const nombreP = (valores.partida_nombre ?? '').trim()
+      const presupuestoP = Number(valores.partida_presupuesto)
+      if (nombreP && nombreP !== partida.nombre) {
+        partidaEditada = { id: partida.id, nombre: nombreP }
+      }
+      if (presupuestoP > 0 && presupuestoP !== Number(partida.precio_unitario)) {
+        partidaEditada = { ...(partidaEditada ?? { id: partida.id }), precio_unitario: presupuestoP }
+      }
+    }
     onGuardar({
       id: tarea?.id,
       servicio_id: servicio.id,
       padre_id: tarea?.padre_id ?? padre?.id ?? null,
-      partida_id: valores.partida_id ? Number(valores.partida_id) : null,
-      nombre: valores.nombre.trim(),
+      partida_id: partidaId,
+      nuevaPartida,
+      partidaEditada,
+      nombre: nombreTarea,
       fecha_inicio: valores.fecha_inicio,
       fecha_fin: valores.fecha_fin,
       // Con hijas, el avance se calcula solo desde las subtareas.
@@ -142,11 +175,18 @@ function ModalTarea({ servicio, tarea, padre, partidas, costos, tieneHijos, avan
       }
     >
       {confirmando ? (
-        <p className="text-sm text-slate-600">
-          Se eliminará la tarea{' '}
-          <span className="font-semibold text-slate-900">{tarea.nombre}</span>{' '}
-          del cronograma.
-        </p>
+          <p className="text-sm text-slate-600">
+            Se eliminará la tarea{' '}
+            <span className="font-semibold text-slate-900">{tarea.nombre}</span>{' '}
+            del cronograma.
+            {arrastraPartida && (
+              <>
+                {' '}
+                También se eliminará su partida del presupuesto (sus costos y
+                subtareas quedan a salvo como “sin partida”).
+              </>
+            )}
+          </p>
       ) : (
         <form id="form-tarea" onSubmit={handleSubmit(enviar)} noValidate>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -197,12 +237,12 @@ function ModalTarea({ servicio, tarea, padre, partidas, costos, tieneHijos, avan
                 })}
               />
             </Campo>
-            {partidas.length > 0 && (
+            {(partidas.length > 0 || esRaiz) && (
               <Campo
-                label="Partida (opcional)"
+                label="Partida del presupuesto (opcional)"
                 error={errors.partida_id?.message}
                 htmlFor="tarea-partida"
-                hint="Vincula este trabajo con su partida del presupuesto"
+                hint="Vincula este trabajo con su parte del presupuesto"
                 className="sm:col-span-3"
               >
                 <CampoComboBox
@@ -213,6 +253,69 @@ function ModalTarea({ servicio, tarea, padre, partidas, costos, tieneHijos, avan
                   opciones={partidas.map((p) => ({ valor: String(p.id), etiqueta: p.nombre }))}
                 />
               </Campo>
+            )}
+            {esRaiz && !enEdicion && (
+              <div className="sm:col-span-3 rounded-lg bg-slate-50 px-4 py-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                  <input type="checkbox" {...register('crear_partida')} className="size-4" />
+                  Crear partida nueva del presupuesto
+                </label>
+                {crearNueva && (
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Campo
+                      label="Presupuesto (S/)"
+                      error={errors.presupuesto_nuevo?.message}
+                      htmlFor="tarea-presupuesto"
+                      hint="La partida nace con el nombre de la tarea"
+                    >
+                      <Input
+                        id="tarea-presupuesto"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...register('presupuesto_nuevo', {
+                          required: 'Ingresa el presupuesto',
+                          validate: (v) => Number(v) > 0 ? true : 'Debe ser mayor que cero',
+                        })}
+                      />
+                    </Campo>
+                  </div>
+                )}
+              </div>
+            )}
+            {esRaiz && enEdicion && partida && (
+              <div className="sm:col-span-3 rounded-lg bg-slate-50 px-4 py-3">
+                <p className="mb-3 text-sm font-medium text-slate-700">
+                  Partida vinculada: se edita aquí mismo
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Campo
+                    label="Nombre de la partida"
+                    error={errors.partida_nombre?.message}
+                    htmlFor="tarea-partida-nombre"
+                  >
+                    <Input
+                      id="tarea-partida-nombre"
+                      {...register('partida_nombre', { required: 'Ingresa el nombre' })}
+                    />
+                  </Campo>
+                  <Campo
+                    label="Presupuesto (S/)"
+                    error={errors.partida_presupuesto?.message}
+                    htmlFor="tarea-partida-presupuesto"
+                  >
+                    <Input
+                      id="tarea-partida-presupuesto"
+                      type="number"
+                      step="0.01"
+                      {...register('partida_presupuesto', {
+                        required: 'Ingresa el presupuesto',
+                        validate: (v) => Number(v) > 0 ? true : 'Debe ser mayor que cero',
+                      })}
+                    />
+                  </Campo>
+                </div>
+              </div>
             )}
             {esGrupo ? (
               <Campo label="Avance (%)" htmlFor="tarea-avance-grupo">
@@ -378,17 +481,34 @@ export function CronogramaServicio() {
 
   const guardar = (valores) => {
     registrarPaso()
-    if (valores.id == null) {
-      agregarItem('tareas', valores)
+    const { nuevaPartida, partidaEditada, ...tarea } = valores
+    if (nuevaPartida) {
+      // La partida nace aquí con monto directo (unidad global × 1).
+      const partida = agregarItem('partidas', {
+        servicio_id: servicio.id,
+        nombre: nuevaPartida.nombre,
+        unidad: 'glb',
+        metrado: 1,
+        precio_unitario: nuevaPartida.presupuesto,
+      })
+      tarea.partida_id = partida.id
+    }
+    if (partidaEditada) {
+      actualizarItem('partidas', partidaEditada)
+    }
+    if (tarea.id == null) {
+      agregarItem('tareas', tarea)
       setAviso({
         tipo: 'exito',
         mensaje:
-          valores.padre_id != null
+          tarea.padre_id != null
             ? 'Subtarea agregada al cronograma.'
-            : 'Tarea agregada al cronograma.',
+            : nuevaPartida
+              ? 'Tarea y partida agregadas al servicio.'
+              : 'Tarea agregada al cronograma.',
       })
     } else {
-      actualizarItem('tareas', valores)
+      actualizarItem('tareas', tarea)
       setAviso({ tipo: 'exito', mensaje: 'Tarea actualizada.' })
     }
     setModal(null)
@@ -396,6 +516,10 @@ export function CronogramaServicio() {
 
   const eliminar = (tarea) => {
     registrarPaso()
+    // Borrar una tarea principal arrastra su partida del presupuesto.
+    if (tarea.padre_id == null && tarea.partida_id != null) {
+      eliminarItem('partidas', tarea.partida_id)
+    }
     eliminarItem('tareas', tarea.id)
     setAviso({ tipo: 'info', mensaje: `Tarea «${tarea.nombre}» eliminada.` })
     setModal(null)
@@ -969,6 +1093,11 @@ export function CronogramaServicio() {
           tarea={modal.modo === 'editar' ? modal.tarea : null}
           padre={modal.modo === 'crear' ? modal.padre ?? null : null}
           partidas={partidas}
+          partida={
+            modal.modo === 'editar' && modal.tarea.partida_id != null
+              ? (partidaDe(modal.tarea.partida_id) ?? null)
+              : null
+          }
           costos={
             modal.modo === 'editar'
               ? registros
