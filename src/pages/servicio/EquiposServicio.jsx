@@ -6,7 +6,6 @@ import { Campo, Input } from '../../components/ui/Field'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearCantidad, formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { partidasDeServicio } from '../../utils/calculadora'
 import {
   SeccionRegistros,
   fechaHoyISO,
@@ -33,16 +32,14 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { horas: '', costo: '', fecha: fechaHoyISO(), tarea_id: '', partida_id: '' },
+    defaultValues: { horas: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' },
   })
   const {
-    estado: { partidas: todasPartidas, tareas: todasTareas },
+    estado: { tareas: todasTareas },
   } = useData()
-  const partidas = partidasDeServicio(todasPartidas, servicio.id)
   const tareas = (todasTareas ?? [])
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-  const partidaDeTarea = (id) => (todasTareas ?? []).find((t) => String(t.id) === String(id))?.partida_id ?? null
 
   useEffect(() => {
     const alPresionarFuera = (evento) => {
@@ -86,14 +83,14 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
   }
 
   const limpiar = () => {
-    reset({ horas: '', costo: '', fecha: fechaHoyISO(), tarea_id: '', partida_id: '' })
+    reset({ horas: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' })
     setBusqueda('')
     setSeleccionadoId(null)
     setAbierto(false)
     setErrorEquipo(null)
   }
 
-  const enviar = ({ horas, costo, fecha, tarea_id, partida_id }) => {
+  const enviar = ({ horas, costo, fecha, tarea_id }) => {
     if (!seleccionadoId) {
       setErrorEquipo('Selecciona un equipo de la lista')
       setAbierto(true)
@@ -108,7 +105,6 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
       monto_calculado: redondearMonto(costo),
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
-      partida_id: tarea_id ? partidaDeTarea(tarea_id) : partida_id ? Number(partida_id) : null,
     })
     limpiar()
   }
@@ -214,7 +210,7 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
             label="Tarea (opcional)"
             error={errors.tarea_id?.message}
             htmlFor="eq-tarea"
-            hint="El costo sube solo a la partida de la tarea"
+            hint="A qué trabajo corresponde este costo"
             className="sm:col-span-2"
           >
             <CampoComboBox
@@ -222,30 +218,7 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
               control={control}
               name="tarea_id"
               placeholder="Sin tarea — escribe para buscar…"
-              opciones={tareas.map((t) => {
-                const partida = partidas.find((p) => p.id === t.partida_id)
-                return {
-                  valor: String(t.id),
-                  etiqueta: partida ? `${t.nombre} (${partida.nombre})` : t.nombre,
-                }
-              })}
-            />
-          </Campo>
-        )}
-        {partidas.length > 0 && (
-          <Campo
-            label="Partida directa (opcional)"
-            error={errors.partida_id?.message}
-            htmlFor="eq-partida"
-            hint="Solo si no eliges tarea"
-            className="sm:col-span-2"
-          >
-            <CampoComboBox
-              id="eq-partida"
-              control={control}
-              name="partida_id"
-              placeholder="Sin partida — escribe para buscar…"
-              opciones={partidas.map((p) => ({ valor: String(p.id), etiqueta: p.nombre }))}
+              opciones={tareas.map((t) => ({ valor: String(t.id), etiqueta: t.nombre }))}
             />
           </Campo>
         )}

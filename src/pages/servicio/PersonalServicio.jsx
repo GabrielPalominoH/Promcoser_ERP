@@ -15,7 +15,7 @@ import {
   Th,
 } from '../../components/ui/Table'
 import { formatearCantidad, formatearFecha, formatearMes, formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { agruparPersonalPorMes, coberturaTareo, fechasHastaFinDeMes, metricasCronograma, partidasDeServicio, proyeccionLaboral } from '../../utils/calculadora'
+import { agruparPersonalPorMes, coberturaTareo, fechasHastaFinDeMes, metricasCronograma, proyeccionLaboral } from '../../utils/calculadora'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import {
   SeccionRegistros,
@@ -136,16 +136,12 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
       tarifa: '',
       fecha_desde: servicio.fecha_inicio || '',
       tarea_id: '',
-      partida_id: '',
     },
   })
   const { estado: estadoGlobal } = useData()
-  const partidas = partidasDeServicio(estadoGlobal.partidas, servicio.id)
   const tareas = (estadoGlobal.tareas ?? [])
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-  const partidaDeTarea = (id) =>
-    (estadoGlobal.tareas ?? []).find((t) => String(t.id) === String(id))?.partida_id ?? null
 
   const horasVista = Number(watch('horas')) || 0
   const tarifaVista = Number(watch('tarifa')) || 0
@@ -200,7 +196,6 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
       tarifa: '',
       fecha_desde: servicio.fecha_inicio || '',
       tarea_id: '',
-      partida_id: '',
     })
     setBusqueda('')
     setSeleccionadoId(null)
@@ -209,7 +204,7 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
     setAvisoRango(null)
   }
 
-  const baseRegistro = (horasNum, tarifaNum, fecha, tareaId, partidaId) => ({
+  const baseRegistro = (horasNum, tarifaNum, fecha, tareaId) => ({
     servicio_id: servicio.id,
     tipo_registro: 'personal',
     modalidad: 'mensual',
@@ -218,10 +213,9 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
     monto_calculado: redondearMonto(horasNum * tarifaNum),
     fecha,
     tarea_id: tareaId ? Number(tareaId) : null,
-    partida_id: tareaId ? partidaDeTarea(tareaId) : partidaId ? Number(partidaId) : null,
   })
 
-  const enviar = ({ horas, tarifa, fecha_desde, tarea_id, partida_id }) => {
+  const enviar = ({ horas, tarifa, fecha_desde, tarea_id }) => {
     if (!seleccionadoId) {
       setErrorPersona('Selecciona a una persona de la lista')
       setAbierto(true)
@@ -236,7 +230,7 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
       return
     }
     registrarLote(
-      fechas.map((f) => baseRegistro(horasNum, tarifaNum, f, tarea_id, partida_id)),
+      fechas.map((f) => baseRegistro(horasNum, tarifaNum, f, tarea_id)),
       `${nombreCompleto(ordenados.find((p) => p.id === seleccionadoId))}: ` +
         `${fechas.length} días × ${formatearCantidad(horasNum)} h × ${formatearMoneda(tarifaNum)} = ` +
         `${formatearMoneda(redondearMonto(fechas.length * horasNum * tarifaNum))} ` +
@@ -356,7 +350,7 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
             label="Tarea (opcional)"
             error={errors.tarea_id?.message}
             htmlFor="per-tarea"
-            hint="El costo sube solo a la partida de la tarea"
+            hint="A qué trabajo corresponde este costo"
             className="sm:col-span-3"
           >
             <CampoComboBox
@@ -364,30 +358,7 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
               control={control}
               name="tarea_id"
               placeholder="Sin tarea — escribe para buscar…"
-              opciones={tareas.map((t) => {
-                const partida = partidas.find((p) => p.id === t.partida_id)
-                return {
-                  valor: String(t.id),
-                  etiqueta: partida ? `${t.nombre} (${partida.nombre})` : t.nombre,
-                }
-              })}
-            />
-          </Campo>
-        )}
-        {partidas.length > 0 && (
-          <Campo
-            label="Partida directa (opcional)"
-            error={errors.partida_id?.message}
-            htmlFor="per-partida"
-            hint="Solo si no eliges tarea"
-            className="sm:col-span-3"
-          >
-            <CampoComboBox
-              id="per-partida"
-              control={control}
-              name="partida_id"
-              placeholder="Sin partida — escribe para buscar…"
-              opciones={partidas.map((p) => ({ valor: String(p.id), etiqueta: p.nombre }))}
+              opciones={tareas.map((t) => ({ valor: String(t.id), etiqueta: t.nombre }))}
             />
           </Campo>
         )}

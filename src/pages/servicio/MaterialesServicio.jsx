@@ -5,7 +5,6 @@ import { Campo, Input } from '../../components/ui/Field'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { partidasDeServicio } from '../../utils/calculadora'
 import {
   SeccionRegistros,
   fechaHoyISO,
@@ -22,18 +21,16 @@ function FormularioMaterial({ servicio, registrar }) {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), tarea_id: '', partida_id: '' },
+    defaultValues: { nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' },
   })
   const {
-    estado: { partidas: todasPartidas, tareas: todasTareas },
+    estado: { tareas: todasTareas },
   } = useData()
-  const partidas = partidasDeServicio(todasPartidas, servicio.id)
   const tareas = (todasTareas ?? [])
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-  const partidaDeTarea = (id) => (todasTareas ?? []).find((t) => String(t.id) === String(id))?.partida_id ?? null
 
-  const enviar = ({ nombre_material, cantidad, costo, fecha, tarea_id, partida_id }) => {
+  const enviar = ({ nombre_material, cantidad, costo, fecha, tarea_id }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'material',
@@ -43,9 +40,8 @@ function FormularioMaterial({ servicio, registrar }) {
       monto_calculado: redondearMonto(costo),
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
-      partida_id: tarea_id ? partidaDeTarea(tarea_id) : partida_id ? Number(partida_id) : null,
     })
-    reset({ nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), tarea_id: '', partida_id: '' })
+    reset({ nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' })
   }
 
   return (
@@ -93,7 +89,7 @@ function FormularioMaterial({ servicio, registrar }) {
             label="Tarea (opcional)"
             error={errors.tarea_id?.message}
             htmlFor="mat-tarea"
-            hint="El costo sube solo a la partida de la tarea"
+            hint="A qué trabajo corresponde este costo"
             className="sm:col-span-3"
           >
             <CampoComboBox
@@ -101,30 +97,7 @@ function FormularioMaterial({ servicio, registrar }) {
               control={control}
               name="tarea_id"
               placeholder="Sin tarea — escribe para buscar…"
-              opciones={tareas.map((t) => {
-                const partida = partidas.find((p) => p.id === t.partida_id)
-                return {
-                  valor: String(t.id),
-                  etiqueta: partida ? `${t.nombre} (${partida.nombre})` : t.nombre,
-                }
-              })}
-            />
-          </Campo>
-        )}
-        {partidas.length > 0 && (
-          <Campo
-            label="Partida directa (opcional)"
-            error={errors.partida_id?.message}
-            htmlFor="mat-partida"
-            hint="Solo si no eliges tarea (ej. costos generales)"
-            className="sm:col-span-3"
-          >
-            <CampoComboBox
-              id="mat-partida"
-              control={control}
-              name="partida_id"
-              placeholder="Sin partida — escribe para buscar…"
-              opciones={partidas.map((p) => ({ valor: String(p.id), etiqueta: p.nombre }))}
+              opciones={tareas.map((t) => ({ valor: String(t.id), etiqueta: t.nombre }))}
             />
           </Campo>
         )}

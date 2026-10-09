@@ -198,7 +198,6 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Cemento Portland Tipo I',
-    partida_id: 2,
     cantidad_o_horas: 200,
     monto_calculado: 7700,
     fecha: '2026-07-08',
@@ -220,7 +219,6 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Acero de refuerzo 1/2 pulg',
-    partida_id: 3,
     cantidad_o_horas: 120,
     monto_calculado: 2988,
     fecha: '2026-07-15',
@@ -230,7 +228,6 @@ export const registros_servicio = [
     servicio_id: 6,
     tipo_registro: 'equipo',
     tarea_id: 15,
-    partida_id: 2,
     referencia_id: 11,
     cantidad_o_horas: 45,
     monto_calculado: 6750,
@@ -243,7 +240,6 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Arena gruesa',
-    partida_id: 2,
     cantidad_o_horas: 30,
     monto_calculado: 1860,
     fecha: '2026-07-22',
@@ -254,7 +250,6 @@ export const registros_servicio = [
     tipo_registro: 'gasto',
     referencia_id: null,
     tarea_id: 18,
-    partida_id: 3,
     concepto: 'Alquiler de andamios',
     cantidad_o_horas: 1,
     monto_calculado: 1500,
@@ -265,7 +260,6 @@ export const registros_servicio = [
     servicio_id: 6,
     tipo_registro: 'equipo',
     tarea_id: 16,
-    partida_id: 2,
     referencia_id: 23,
     cantidad_o_horas: 60,
     monto_calculado: 4800,
@@ -277,7 +271,7 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Ladrillo Kingsize de arcilla',
-    partida_id: 2,
+    tarea_id: 14,
     cantidad_o_horas: 5000,
     monto_calculado: 16000,
     fecha: '2026-08-10',
@@ -287,7 +281,6 @@ export const registros_servicio = [
     servicio_id: 6,
     tipo_registro: 'equipo',
     tarea_id: 20,
-    partida_id: 4,
     referencia_id: 24,
     cantidad_o_horas: 25,
     monto_calculado: 2000,
@@ -300,7 +293,6 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Pintura acrílica blanco',
-    partida_id: 5,
     cantidad_o_horas: 18,
     monto_calculado: 1728,
     fecha: '2026-09-05',
@@ -320,7 +312,6 @@ export const registros_servicio = [
     servicio_id: 6,
     tipo_registro: 'personal',
     tarea_id: 16,
-    partida_id: 2,
     referencia_id: 1,
     cantidad_o_horas: 40,
     monto_calculado: 1000,
@@ -331,7 +322,6 @@ export const registros_servicio = [
     servicio_id: 6,
     tipo_registro: 'personal',
     tarea_id: 18,
-    partida_id: 3,
     referencia_id: 3,
     cantidad_o_horas: 30,
     monto_calculado: 540,
@@ -344,16 +334,17 @@ export const registros_servicio = [
 // ------------------------------------------------------------
 
 export const tareas = [
-  // Servicio 6 — Construcción de almacén
-  { id: 13, servicio_id: 6, partida_id: 1, nombre: 'Obras preliminares', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-15', avance: 100 },
-  { id: 14, servicio_id: 6, partida_id: 2, nombre: 'Cimentación', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100 },
-  { id: 15, servicio_id: 6, padre_id: 14, partida_id: 2, nombre: 'Excavación', fecha_inicio: '2026-07-16', fecha_fin: '2026-07-31', avance: 100 },
-  { id: 16, servicio_id: 6, padre_id: 14, partida_id: 2, nombre: 'Vaciado de cimientos', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15', avance: 100 },
-  { id: 17, servicio_id: 6, partida_id: 3, nombre: 'Estructuras', fecha_inicio: '2026-08-16', fecha_fin: '2026-10-15', avance: 60 },
-  { id: 18, servicio_id: 6, padre_id: 17, partida_id: 3, nombre: 'Columnas y vigas', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-20', avance: 70 },
-  { id: 19, servicio_id: 6, padre_id: 17, partida_id: 3, nombre: 'Losa aligerada', fecha_inicio: '2026-09-21', fecha_fin: '2026-10-15', avance: 30 },
-  { id: 20, servicio_id: 6, partida_id: 4, nombre: 'Cobertura y cerramientos', fecha_inicio: '2026-10-16', fecha_fin: '2026-11-20', avance: 0 },
-  { id: 21, servicio_id: 6, partida_id: 5, nombre: 'Acabados y entrega', fecha_inicio: '2026-11-21', fecha_fin: '2026-12-20', avance: 0 },
+  // Servicio 6 — Construcción de almacén. Cada tarea lleva su monto del
+  // presupuesto; las principales suman automáticamente el de sus hijas.
+  { id: 13, servicio_id: 6, nombre: 'Obras preliminares', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-15', avance: 100, monto: 8000 },
+  { id: 14, servicio_id: 6, nombre: 'Cimentación', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100, monto: 0 },
+  { id: 15, servicio_id: 6, padre_id: 14, nombre: 'Excavación', fecha_inicio: '2026-07-16', fecha_fin: '2026-07-31', avance: 100, monto: 9600 },
+  { id: 16, servicio_id: 6, padre_id: 14, nombre: 'Vaciado de cimientos', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15', avance: 100, monto: 12000 },
+  { id: 17, servicio_id: 6, nombre: 'Estructuras', fecha_inicio: '2026-08-16', fecha_fin: '2026-10-15', avance: 60, monto: 0 },
+  { id: 18, servicio_id: 6, padre_id: 17, nombre: 'Columnas y vigas', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-20', avance: 70, monto: 21000 },
+  { id: 19, servicio_id: 6, padre_id: 17, nombre: 'Losa aligerada', fecha_inicio: '2026-09-21', fecha_fin: '2026-10-15', avance: 30, monto: 18900 },
+  { id: 20, servicio_id: 6, nombre: 'Cobertura y cerramientos', fecha_inicio: '2026-10-16', fecha_fin: '2026-11-20', avance: 0, monto: 26000 },
+  { id: 21, servicio_id: 6, nombre: 'Acabados y entrega', fecha_inicio: '2026-11-21', fecha_fin: '2026-12-20', avance: 0, monto: 24500 },
 ]
 
 // ------------------------------------------------------------
@@ -371,27 +362,6 @@ export const costos_oficina = [
 ]
 
 // ------------------------------------------------------------
-//  5. Presupuesto por partidas y valorizaciones
-// ------------------------------------------------------------
-
-export const partidas = [
-  { id: 1, servicio_id: 6, nombre: 'Obras preliminares', unidad: 'glb', metrado: 1, precio_unitario: 8000 },
-  { id: 2, servicio_id: 6, nombre: 'Cimentación', unidad: 'm3', metrado: 120, precio_unitario: 180 },
-  { id: 3, servicio_id: 6, nombre: 'Estructuras de concreto', unidad: 'm3', metrado: 95, precio_unitario: 420 },
-  { id: 4, servicio_id: 6, nombre: 'Cobertura metálica', unidad: 'm2', metrado: 400, precio_unitario: 65 },
-  { id: 5, servicio_id: 6, nombre: 'Acabados', unidad: 'glb', metrado: 1, precio_unitario: 24500 },
-]
-
-export const valorizaciones = [
-  { id: 1, partida_id: 1, servicio_id: 6, mes: '2026-07', metrado_ejecutado: 1 },
-  { id: 2, partida_id: 2, servicio_id: 6, mes: '2026-08', metrado_ejecutado: 60 },
-  { id: 3, partida_id: 2, servicio_id: 6, mes: '2026-09', metrado_ejecutado: 40 },
-  { id: 4, partida_id: 3, servicio_id: 6, mes: '2026-09', metrado_ejecutado: 30 },
-  { id: 5, partida_id: 3, servicio_id: 6, mes: '2026-10', metrado_ejecutado: 20 },
-  { id: 6, partida_id: 4, servicio_id: 6, mes: '2026-10', metrado_ejecutado: 80 },
-]
-
-// ------------------------------------------------------------
 //  Estado inicial consolidado
 // ------------------------------------------------------------
 
@@ -402,8 +372,6 @@ export const ESTADO_INICIAL = {
   registros_servicio,
   tareas,
   costos_oficina,
-  partidas,
-  valorizaciones,
 }
 
 export const COLECCIONES = Object.keys(ESTADO_INICIAL)
@@ -432,6 +400,52 @@ export function migrarEstadoV1(guardado) {
         }))
       : guardado.equipos,
   }
+}
+
+// Migra datos guardados con partidas separadas al modelo actual, donde el
+// presupuesto vive en las tareas: la tarea principal de cada partida hereda
+// su presupuesto como monto, y los costos directos a la partida pasan a esa
+// tarea principal. Se aplica una sola vez al cargar.
+export function migrarPresupuestoATareas(guardado) {
+  if (!guardado || typeof guardado !== 'object') return guardado
+  if (!Array.isArray(guardado.partidas) || !Array.isArray(guardado.tareas)) {
+    return guardado
+  }
+
+  const presupuestoPorPartida = new Map(
+    guardado.partidas.map((p) => [
+      p.id,
+      (Number(p.metrado) || 0) * (Number(p.precio_unitario) || 0),
+    ]),
+  )
+  const principalPorPartida = new Map()
+  const tareas = guardado.tareas.map((t) => {
+    const monto =
+      t.monto ??
+      (t.padre_id == null && t.partida_id != null
+        ? (presupuestoPorPartida.get(t.partida_id) ?? 0)
+        : 0)
+    if (t.padre_id == null && t.partida_id != null && !principalPorPartida.has(t.partida_id)) {
+      principalPorPartida.set(t.partida_id, t.id)
+    }
+    const { partida_id, ...resto } = t
+    return { ...resto, monto }
+  })
+
+  const registros_servicio = Array.isArray(guardado.registros_servicio)
+    ? guardado.registros_servicio.map((r) => {
+        if (r.tarea_id != null || r.partida_id == null) {
+          const { partida_id, ...resto } = r
+          return resto
+        }
+        const { partida_id, ...resto } = r
+        const destino = principalPorPartida.get(partida_id)
+        return destino != null ? { ...resto, tarea_id: destino } : resto
+      })
+    : guardado.registros_servicio
+
+  const { partidas, valorizaciones, ...resto } = guardado
+  return { ...resto, tareas, registros_servicio }
 }
 
 export { STORAGE_KEY_ANTERIOR }

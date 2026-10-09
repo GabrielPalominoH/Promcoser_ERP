@@ -5,6 +5,7 @@ import {
   STORAGE_KEY,
   STORAGE_KEY_ANTERIOR,
   migrarEstadoV1,
+  migrarPresupuestoATareas,
 } from '../data/mockData'
 
 const DataContext = createContext(null)
@@ -42,8 +43,13 @@ function cargarEstadoGuardado() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (raw) {
-      const combinado = combinarEstado(JSON.parse(raw))
-      if (combinado) return combinado
+      // Migración única del modelo anterior (partidas separadas) al actual
+      // (presupuesto en las tareas). Después se guarda ya migrado.
+      const combinado = combinarEstado(migrarPresupuestoATareas(JSON.parse(raw)))
+      if (combinado) {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(combinado))
+        return combinado
+      }
     }
 
     // Migración desde el esquema anterior (v1): se conserva lo guardado
@@ -115,8 +121,8 @@ export function dataReducer(estado, accion) {
         (item) => item.id !== payload.id,
       )
 
-      // Integridad referencial: al borrar un servicio se van sus registros,
-      // sus tareas del cronograma, sus partidas y sus valorizaciones.
+      // Integridad referencial: al borrar un servicio se van sus registros
+      // y sus tareas del cronograma.
       if (payload.coleccion === 'servicios') {
         return {
           ...estado,
@@ -126,29 +132,6 @@ export function dataReducer(estado, accion) {
           ),
           tareas: estado.tareas.filter(
             (tarea) => tarea.servicio_id !== payload.id,
-          ),
-          partidas: (estado.partidas ?? []).filter(
-            (partida) => partida.servicio_id !== payload.id,
-          ),
-          valorizaciones: (estado.valorizaciones ?? []).filter(
-            (valorizacion) => valorizacion.servicio_id !== payload.id,
-          ),
-        }
-      }
-
-      // Al borrar una partida se van sus valorizaciones; las tareas
-      // vinculadas quedan sin partida (no se borran).
-      if (payload.coleccion === 'partidas') {
-        return {
-          ...estado,
-          partidas: restantes,
-          valorizaciones: (estado.valorizaciones ?? []).filter(
-            (valorizacion) => valorizacion.partida_id !== payload.id,
-          ),
-          tareas: estado.tareas.map((tarea) =>
-            tarea.partida_id === payload.id
-              ? { ...tarea, partida_id: null }
-              : tarea,
           ),
         }
       }

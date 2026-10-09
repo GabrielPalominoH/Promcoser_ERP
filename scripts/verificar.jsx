@@ -1,8 +1,8 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
-import { ESTADO_INICIAL } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, avanceTareasPartida, coberturaTareo, consumoPresupuesto, costoPorPartida, costoPorTarea, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, tareasDePartida, valorizadoPartida } from '../src/utils/calculadora'
+import { ESTADO_INICIAL, migrarPresupuestoATareas } from '../src/data/mockData'
+import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, coberturaTareo, consumoPresupuesto, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoTarea } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
@@ -292,23 +292,20 @@ const soloObra = ESTADO_INICIAL.personal.filter((p) => (p.ambito ?? 'Obra') !== 
 comprobar('personal de obra > 0 y < total', soloObra.length > 0 && soloObra.length < ESTADO_INICIAL.personal.length, String(soloObra.length))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
-console.log('\n[ partidas / valorización ]')
+console.log('\n[ presupuesto por tareas ]')
 
-const { partidas, valorizaciones, registros_servicio: regs } = ESTADO_INICIAL
-comprobar('serv. 6 tiene 5 partidas', partidasDeServicio(partidas, 6).length === 5)
-comprobar('presupuesto por partidas = 120000', presupuestoPartidas(partidas, 6) === 120000, String(presupuestoPartidas(partidas, 6)))
-comprobar('presupuesto partida cimentación = 21600', presupuestoPartida(partidas.find((p) => p.id === 2)) === 21600)
-comprobar('valorizado cimentación = 18000', valorizadoPartida(partidas.find((p) => p.id === 2), valorizaciones) === 18000)
-const medido6 = avanceMedido(6, partidas, valorizaciones)
-comprobar('avance medido serv. 6 ≈ 43.5%', medido6 && Math.abs(medido6.porcentaje - 43.5) < 0.01, String(medido6?.porcentaje))
-comprobar('sin partidas no hay avance medido', avanceMedido(999, partidas, valorizaciones) === null)
+const { registros_servicio: regs } = ESTADO_INICIAL
 const tareasTodas = ESTADO_INICIAL.tareas
+const tareasServ6 = tareasTodas.filter((t) => t.servicio_id === 6)
+comprobar('presupuesto serv. 6 = 120000', presupuestoTareas(tareasTodas, 6) === 120000, String(presupuestoTareas(tareasTodas, 6)))
+comprobar('monto padre suma hijas (cimentación = 21600)', montoTarea(tareasServ6.find((t) => t.id === 14), tareasServ6) === 21600)
+comprobar('monto hoja manual (excavación = 9600)', montoTarea(tareasServ6.find((t) => t.id === 15), tareasServ6) === 9600)
+comprobar('valorizado cimentación = 21600', valorizadoTarea(tareasServ6.find((t) => t.id === 14), tareasServ6) === 21600)
 comprobar('costo tarea excavación = 16310', costoPorTarea(regs, 6, 15) === 16310, String(costoPorTarea(regs, 6, 15)))
-comprobar('costo partida cimentación = 38110 (tareas + directo)', costoPorPartida(regs, 6, 2, tareasTodas) === 38110, String(costoPorPartida(regs, 6, 2, tareasTodas)))
-comprobar('costo partida estructuras = 5028', costoPorPartida(regs, 6, 3, tareasTodas) === 5028, String(costoPorPartida(regs, 6, 3, tareasTodas)))
+comprobar('costo subárbol cimentación = 38110', costoSubarbol(tareasServ6.find((t) => t.id === 14), tareasServ6, regs, 6) === 38110)
 comprobar(
-  'costo total = por partida + sin partida',
-  costoPorPartida(regs, 6, 1, tareasTodas) + costoPorPartida(regs, 6, 2, tareasTodas) + costoPorPartida(regs, 6, 3, tareasTodas) + costoPorPartida(regs, 6, 4, tareasTodas) + costoPorPartida(regs, 6, 5, tareasTodas) + costoSinPartida(regs, 6) === sumarMontos(registrosDeServicio(regs, 6)),
+  'costo total = raíces + sin tarea',
+  tareasServ6.filter((t) => t.padre_id == null).reduce((s, t) => s + costoSubarbol(t, tareasServ6, regs, 6), 0) + costoSinTarea(regs, 6) === sumarMontos(registrosDeServicio(regs, 6)),
 )
 const sinTarea15 = dataReducer(ESTADO_INICIAL, {
   type: 'ELIMINAR_ITEM',
@@ -316,15 +313,8 @@ const sinTarea15 = dataReducer(ESTADO_INICIAL, {
 })
 comprobar('borrar tarea no borra sus costos', sinTarea15.registros_servicio.length === regs.length)
 comprobar(
-  'borrar tarea deja costos sin tarea pero con partida',
-  [19, 22, 23].every((id) => {
-    const r = sinTarea15.registros_servicio.find((x) => x.id === id)
-    return r.tarea_id == null && r.partida_id === 2
-  }),
-)
-comprobar(
-  'borrar tarea no mueve la plata de la partida',
-  costoPorPartida(sinTarea15.registros_servicio, 6, 2, sinTarea15.tareas) === 38110,
+  'borrar tarea deja costos sin tarea',
+  [19, 22, 23].every((id) => sinTarea15.registros_servicio.find((x) => x.id === id).tarea_id == null),
 )
 const sinRaiz = dataReducer(ESTADO_INICIAL, {
   type: 'ELIMINAR_ITEM',
@@ -334,36 +324,24 @@ comprobar(
   'borrar raíz borra sus subtareas',
   ![14, 15, 16].some((id) => sinRaiz.tareas.some((t) => t.id === id)),
 )
-comprobar(
-  'costos de la raíz quedan con partida y sin tarea',
-  [19, 22, 23].every((id) => {
-    const r = sinRaiz.registros_servicio.find((x) => x.id === id)
-    return r.tarea_id == null && r.partida_id === 2
-  }),
-)
-comprobar('cascada servicio borra partidas', !sinServicio.partidas.some((p) => p.servicio_id === 6))
-comprobar('cascada servicio borra valorizaciones', !sinServicio.valorizaciones.some((v) => v.servicio_id === 6))
-const sinPartida = dataReducer(ESTADO_INICIAL, {
-  type: 'ELIMINAR_ITEM',
-  payload: { coleccion: 'partidas', id: 2 },
-})
-comprobar('cascada partida borra sus valorizaciones', !sinPartida.valorizaciones.some((v) => v.partida_id === 2))
-comprobar(
-  'borrar partida deja sus tareas sin partida',
-  [14, 15, 16].every((id) => sinPartida.tareas.find((t) => t.id === id).partida_id == null),
-)
-comprobar('borrar partida no toca otras tareas', sinPartida.tareas.find((t) => t.id === 17).partida_id === 3)
 
-const tareasServ6 = ESTADO_INICIAL.tareas.filter((t) => t.servicio_id === 6)
-comprobar('partida cimentación tiene 3 tareas', tareasDePartida(2, tareasServ6).length === 3)
-comprobar('avance en tiempo cimentación = 100', avanceTareasPartida(2, tareasServ6) === 100)
-comprobar('sin tareas no hay avance en tiempo', avanceTareasPartida(999, tareasServ6) === null)
-const avancePlataCobertura = (valorizadoPartida(partidas.find((p) => p.id === 4), valorizaciones) / presupuestoPartida(partidas.find((p) => p.id === 4))) * 100
-comprobar(
-  'cobertura difiere: tiempo 0 vs plata 20',
-  avanceTareasPartida(4, tareasServ6) === 0 && Math.abs(avanceTareasPartida(4, tareasServ6) - avancePlataCobertura) >= 20,
-  `tiempo=${avanceTareasPartida(4, tareasServ6)} plata=${avancePlataCobertura}`,
-)
+console.log('\n[ migración a tareas ]')
+
+const viejo = {
+  partidas: [{ id: 2, servicio_id: 6, nombre: 'Cimentación', unidad: 'm3', metrado: 120, precio_unitario: 180 }],
+  valorizaciones: [{ id: 9, partida_id: 2, servicio_id: 6, mes: '2026-08', metrado_ejecutado: 10 }],
+  tareas: [{ id: 14, servicio_id: 6, padre_id: null, partida_id: 2, nombre: 'Cimentación', avance: 50 }],
+  registros_servicio: [
+    { id: 26, servicio_id: 6, partida_id: 2, tarea_id: null, monto_calculado: 16000 },
+    { id: 20, servicio_id: 6, monto_calculado: 1200 },
+  ],
+}
+const migrado = migrarPresupuestoATareas(viejo)
+comprobar('migración: raíz hereda presupuesto (21600)', migrado.tareas[0].monto === 21600, String(migrado.tareas[0].monto))
+comprobar('migración: tarea sin partida_id', !('partida_id' in migrado.tareas[0]))
+comprobar('migración: directo va a la raíz', migrado.registros_servicio[0].tarea_id === 14)
+comprobar('migración: sin partida queda sin tarea', migrado.registros_servicio[1].tarea_id == null)
+comprobar('migración: suelta partidas y valorizaciones', !('partidas' in migrado) && !('valorizaciones' in migrado))
 
 // ============================================================
 //  3. Formato

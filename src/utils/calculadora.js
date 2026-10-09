@@ -5,91 +5,57 @@ export function registrosDeServicio(registros, servicioId) {
 }
 
 // ------------------------------------------------------------
-//  Partidas y valorización
+//  Presupuesto por tareas (el presupuesto vive en el cronograma)
 // ------------------------------------------------------------
 
-export function partidasDeServicio(partidas, servicioId) {
-  return (partidas ?? []).filter((p) => p.servicio_id === servicioId)
+// ¿Tiene hijas directas? Entonces su monto es suma automática.
+export function tieneHijas(tareaId, tareas) {
+  return (tareas ?? []).some((t) => t.padre_id === tareaId)
 }
 
-export function presupuestoPartida(partida) {
-  return (Number(partida.metrado) || 0) * (Number(partida.precio_unitario) || 0)
+// Monto de una tarea: si tiene hijas, suma automática (solo lectura);
+// si no, su monto manual.
+export function montoTarea(tarea, tareas) {
+  const hijas = (tareas ?? []).filter((t) => t.padre_id === tarea.id)
+  if (hijas.length === 0) return Number(tarea.monto) || 0
+  return hijas.reduce((total, h) => total + montoTarea(h, tareas), 0)
 }
 
-export function presupuestoPartidas(partidas, servicioId) {
-  return partidasDeServicio(partidas, servicioId).reduce(
-    (total, p) => total + presupuestoPartida(p),
-    0,
-  )
-}
-
-export function valorizadoPartida(partida, valorizaciones) {
-  const precio = Number(partida.precio_unitario) || 0
-  return (valorizaciones ?? [])
-    .filter((v) => v.partida_id === partida.id)
-    .reduce((total, v) => total + (Number(v.metrado_ejecutado) || 0) * precio, 0)
-}
-
-// Avance medido del servicio: valorizado total / presupuesto por partidas.
-// null si no hay partidas con presupuesto (evita dividir entre cero).
-export function avanceMedido(servicioId, partidas, valorizaciones) {
-  const lista = partidasDeServicio(partidas, servicioId)
-  const presupuesto = lista.reduce((t, p) => t + presupuestoPartida(p), 0)
-  if (presupuesto <= 0) return null
-  const valorizado = lista.reduce((t, p) => t + valorizadoPartida(p, valorizaciones), 0)
-  return {
-    presupuestoPartidas: presupuesto,
-    valorizado,
-    porcentaje: (valorizado / presupuesto) * 100,
-  }
-}
-
-// Costo cargado a una tarea: suma de sus registros dentro del servicio.
+// Costo propio de una tarea: suma de sus registros dentro del servicio.
 export function costoPorTarea(registros, servicioId, tareaId) {
   return (registros ?? [])
     .filter((r) => r.servicio_id === servicioId && r.tarea_id === tareaId)
     .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
 }
 
-// Costo cargado a una partida: costos directos a la partida más los costos
-// de sus tareas vinculadas (la partida hereda lo de sus tareas).
-export function costoPorPartida(registros, servicioId, partidaId, tareas = []) {
-  const directos = (registros ?? [])
-    .filter(
-      (r) =>
-        r.servicio_id === servicioId &&
-        r.partida_id === partidaId &&
-        r.tarea_id == null,
+// Costo del subárbol: propio más el de todas las descendientes.
+export function costoSubarbol(tarea, tareas, registros, servicioId) {
+  const propio = costoPorTarea(registros, servicioId, tarea.id)
+  return (tareas ?? [])
+    .filter((t) => t.padre_id === tarea.id)
+    .reduce(
+      (total, h) => total + costoSubarbol(h, tareas, registros, servicioId),
+      propio,
     )
-    .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
-  const tareasPartida = (tareas ?? []).filter(
-    (t) => t.servicio_id === servicioId && t.partida_id === partidaId,
-  )
-  const porTareas = tareasPartida.reduce(
-    (total, t) => total + costoPorTarea(registros, servicioId, t.id),
-    0,
-  )
-  return directos + porTareas
 }
 
-// Tareas vinculadas a una partida (el mismo trabajo visto en tiempo).
-export function tareasDePartida(partidaId, tareas) {
-  return (tareas ?? []).filter((t) => t.partida_id === partidaId)
+// Valorizado de una tarea: monto × avance efectivo (lo ya ejecutado, a
+// precios del presupuesto).
+export function valorizadoTarea(tarea, tareas) {
+  return montoTarea(tarea, tareas) * (avanceEfectivo(tarea, tareas) / 100)
 }
 
-// Avance promedio de las tareas vinculadas (con avance efectivo recursivo).
-// null si no hay tareas vinculadas.
-export function avanceTareasPartida(partidaId, tareas) {
-  const vinculadas = tareasDePartida(partidaId, tareas)
-  if (vinculadas.length === 0) return null
-  const suma = vinculadas.reduce((t, tarea) => t + avanceEfectivo(tarea, tareas), 0)
-  return suma / vinculadas.length
+// Presupuesto del servicio: suma de los montos de sus tareas principales.
+export function presupuestoTareas(tareas, servicioId) {
+  return (tareas ?? [])
+    .filter((t) => t.servicio_id === servicioId && t.padre_id == null)
+    .reduce((total, t) => total + montoTarea(t, tareas), 0)
 }
 
-// Costo sin partida asignada dentro del servicio.
-export function costoSinPartida(registros, servicioId) {
+// Costo sin tarea asignada dentro del servicio.
+export function costoSinTarea(registros, servicioId) {
   return (registros ?? [])
-    .filter((r) => r.servicio_id === servicioId && r.partida_id == null)
+    .filter((r) => r.servicio_id === servicioId && r.tarea_id == null)
     .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
 }
 
