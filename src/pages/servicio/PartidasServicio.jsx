@@ -19,9 +19,11 @@ import {
 } from '../../components/ui/Table'
 import { formatearCantidad, formatearMes, formatearMoneda } from '../../utils/formatters'
 import {
+  avanceEfectivo,
   avanceMedido,
   avanceTareasPartida,
   costoPorPartida,
+  costoPorTarea,
   costoSinPartida,
   partidasDeServicio,
   presupuestoPartida,
@@ -222,10 +224,20 @@ export function PartidasServicio() {
     setPorEliminar(null)
   }
 
+  // Avance en tiempo global: promedio de las tareas raíz del servicio.
+  const tiempoGlobal = (() => {
+    const raices = tareasServicio.filter((t) => t.padre_id == null)
+    if (raices.length === 0) return null
+    return (
+      raices.reduce((s, t) => s + avanceEfectivo(t, tareasServicio), 0) /
+      raices.length
+    )
+  })()
+
   const filas = partidas.map((p) => {
     const presupuesto = presupuestoPartida(p)
     const valorizado = valorizadoPartida(p, todasValorizaciones)
-    const costo = costoPorPartida(todosRegistros, servicio.id, p.id)
+    const costo = costoPorPartida(todosRegistros, servicio.id, p.id, tareasServicio)
     const avance = presupuesto > 0 ? (valorizado / presupuesto) * 100 : 0
     const tareasVinculadas = tareasDePartida(p.id, tareasServicio)
     const avanceTareas = avanceTareasPartida(p.id, tareasServicio)
@@ -281,6 +293,7 @@ export function PartidasServicio() {
               <Th alinear="right">Presupuesto</Th>
               <Th alinear="right">Valorizado</Th>
               <Th alinear="right">Avance</Th>
+              <Th alinear="right">Tiempo</Th>
               <Th alinear="right">Costo</Th>
               <Th alinear="right">Margen</Th>
               <Th alinear="right">Acción</Th>
@@ -288,7 +301,7 @@ export function PartidasServicio() {
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={7} mensaje="Aún no hay partidas registradas." />
+              <TableEmpty colSpan={8} mensaje="Aún no hay partidas registradas." />
             ) : (
               filas.map(({ partida, presupuesto, valorizado, avance, costo, margen, tareasVinculadas, avanceTareas, difieren }) => {
                 return (
@@ -312,6 +325,14 @@ export function PartidasServicio() {
                           Sin tareas vinculadas
                         </span>
                       )}
+                      {tareasVinculadas.map((t) => (
+                        <span key={t.id} className="block truncate text-xs text-slate-500">
+                          • {t.nombre} — {avanceEfectivo(t, tareasServicio).toFixed(0)}% ·{' '}
+                          <span className="tabular-nums">
+                            {formatearMoneda(costoPorTarea(todosRegistros, servicio.id, t.id))}
+                          </span>
+                        </span>
+                      ))}
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {formatearMoneda(presupuesto)}
@@ -321,6 +342,9 @@ export function PartidasServicio() {
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {avance.toFixed(1)}%
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {avanceTareas != null ? `${avanceTareas.toFixed(0)}%` : '—'}
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {formatearMoneda(costo)}
@@ -363,6 +387,9 @@ export function PartidasServicio() {
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {medido ? `${medido.porcentaje.toFixed(1)}%` : '—'}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {tiempoGlobal != null ? `${tiempoGlobal.toFixed(0)}%` : '—'}
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(filas.reduce((s, f) => s + f.costo, 0))}

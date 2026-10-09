@@ -44,12 +44,32 @@ export function avanceMedido(servicioId, partidas, valorizaciones) {
   }
 }
 
-// Costo cargado a una partida: suma de registros (material/gasto/personal/
-// equipo) con ese partida_id dentro del servicio.
-export function costoPorPartida(registros, servicioId, partidaId) {
+// Costo cargado a una tarea: suma de sus registros dentro del servicio.
+export function costoPorTarea(registros, servicioId, tareaId) {
   return (registros ?? [])
-    .filter((r) => r.servicio_id === servicioId && r.partida_id === partidaId)
+    .filter((r) => r.servicio_id === servicioId && r.tarea_id === tareaId)
     .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
+}
+
+// Costo cargado a una partida: costos directos a la partida más los costos
+// de sus tareas vinculadas (la partida hereda lo de sus tareas).
+export function costoPorPartida(registros, servicioId, partidaId, tareas = []) {
+  const directos = (registros ?? [])
+    .filter(
+      (r) =>
+        r.servicio_id === servicioId &&
+        r.partida_id === partidaId &&
+        r.tarea_id == null,
+    )
+    .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
+  const tareasPartida = (tareas ?? []).filter(
+    (t) => t.servicio_id === servicioId && t.partida_id === partidaId,
+  )
+  const porTareas = tareasPartida.reduce(
+    (total, t) => total + costoPorTarea(registros, servicioId, t.id),
+    0,
+  )
+  return directos + porTareas
 }
 
 // Tareas vinculadas a una partida (el mismo trabajo visto en tiempo).

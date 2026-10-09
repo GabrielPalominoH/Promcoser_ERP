@@ -67,28 +67,34 @@ Aquí se registran las **compras de materiales** para la obra. Cada compra
 control de stock: el sistema lleva los costos de los materiales por servicio.
 
 Pasos: escriba el nombre del material, ponga cantidad, costo total, fecha y,
-si quiere, a qué partida pertenece (escriba para buscarla). Pulse
-**"Agregar material"**.
+si quiere, a qué **tarea** corresponde (escriba para buscarla; el costo sube
+solo a la partida de esa tarea). Si es un costo general que no es de ninguna
+tarea (ej. flete), use **partida directa**. Pulse **"Agregar material"**.
 
 ### Personal
 Aquí se anota quién trabaja en la obra y cuántas horas o días. El sistema
 calcula el costo con el pago por hora de cada trabajador. Los domingos no
-cuentan (salvo personal de régimen mensual).
+cuentan (salvo personal de régimen mensual). Igual que los materiales, puede
+asignar el trabajo a una **tarea** (o a una partida directa si es general).
 
 ### Equipos
 Aquí se anota qué máquina se usó y cuántas horas. El costo sale del costo por
-hora del equipo.
+hora del equipo. También se puede asignar a una **tarea** o a una partida
+directa.
 
 ### Gastos
 Gastos extra que no son ni material ni gente ni equipo: fletes, alquileres,
-movilidad, etc.
+movilidad, etc. También aceptan tarea o partida directa (los generales como
+el flete suelen ir a partida directa o sin asignar).
 
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
 fechas. Se marca el avance de cada tarea y el sistema muestra una barra de
 tiempo (diagrama de Gantt) con el progreso total. Al crear o editar una tarea
 puede elegir su **partida** (opcional): así ese trabajo queda vinculado con
-su parte del presupuesto, y la tarea muestra el nombre de su partida.
+su parte del presupuesto, y la tarea muestra el nombre de su partida. Al
+editar una tarea también verá **sus costos asignados y su total**: los costos
+se asignan desde Materiales, Personal, Equipos o Gastos eligiendo la tarea.
 
 ### Partidas
 Una **partida es un pedazo del presupuesto de la obra**. En vez de manejar
@@ -119,19 +125,23 @@ cliente. Es distinto del Cronograma: allá el avance es un porcentaje que se
 marca a ojo por tarea; aquí es una **medición** (m³, m²) que respalda lo que
 se factura.
 
-**3. La tabla de control (dónde hay ahorro y dónde hay sobrecosto).**
+**3. El tablero (tiempos y costos para decidir).**
 Una fila por partida con estas columnas:
 
 - **Presupuesto:** cuánto vale la partida (metrado × precio).
 - **Valorizado:** lo ejecutado hasta hoy (suma de las valorizaciones).
 - **Avance:** valorizado ÷ presupuesto, en porcentaje. Si Cimentación vale
   S/ 21,600 y se valorizó S/ 18,000, va al 83%.
-- **Costo:** lo gastado en esa partida. Sale de los materiales, gastos,
-  personal y equipos donde eligió esa partida en su campo "Partida
-  (opcional)".
+- **Tiempo:** avance promedio de sus tareas del cronograma.
+- **Costo:** lo gastado en esa partida: suma los costos de sus tareas más los
+  costos directos a la partida (generales como fletes).
 - **Margen:** valorizado menos costo. Si sale en rojo, esa partida genera
   sobrecosto: ya gastó más de lo que vale lo hecho, y nadie le va a dar más
   dinero por esa diferencia.
+
+Debajo del nombre de cada partida verá **la lista de sus tareas**: nombre,
+avance en tiempo y costo de cada una. Así ve de un vistazo qué tarea se está
+comiendo la plata.
 
 Arriba de la tabla verá el **avance medido global**: valorizado total ÷
 presupuesto total. Es el avance real de la obra. Debajo hay la lista de
@@ -149,14 +159,15 @@ Tenga en cuenta:
 
 - Lo que registre **sin partida** no aparece en ninguna fila; debajo del
   total verá un aviso con ese monto (*"sin partida asignada"*) para que nada
-  se pierda. Elija la partida siempre que pueda, en costos y en tareas.
-- Si borra una partida, se borran sus valorizaciones, pero los costos y las
-  tareas quedan como "sin partida": nada se pierde.
+  se pierda. Elija la tarea (o la partida directa) siempre que pueda.
+- Si borra una tarea, sus costos no se borran: conservan la partida y quedan
+  "sin tarea". Si borra una partida, sus tareas y costos quedan "sin
+  partida": la plata nunca desaparece.
 
 **El flujo de cada mes, en 3 pasos:** 1) durante el mes registre los costos
-eligiendo su partida; 2) a fin de mes registre la valorización (metrado
-ejecutado) de cada partida; 3) revise la tabla: todo margen en rojo necesita
-atención.
+eligiendo su tarea; 2) a fin de mes registre la valorización (metrado
+ejecutado) de cada partida y actualice los % del cronograma; 3) revise el
+tablero: todo margen en rojo o aviso "difiere" necesita atención.
 
 ### Opciones
 Datos de la obra (nombre, cliente, fechas) y la opción de eliminarla. Eliminar

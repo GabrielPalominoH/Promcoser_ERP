@@ -9,8 +9,8 @@ import { CampoComboBox } from '../../components/ui/ComboBox'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import { Badge } from '../../components/ui/Badge'
-import { formatearFecha } from '../../utils/formatters'
-import { avanceEfectivo, estadoTarea, hoyISO, partidasDeServicio } from '../../utils/calculadora'
+import { formatearFecha, formatearMoneda } from '../../utils/formatters'
+import { avanceEfectivo, estadoTarea, hoyISO, nombreReferencia, partidasDeServicio, sumarMontos } from '../../utils/calculadora'
 
 const DIA_MS = 86400000
 const DIA_PX_MIN = 28
@@ -58,7 +58,7 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, partidas, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
+function ModalTarea({ servicio, tarea, padre, partidas, costos, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
   const esGrupo = enEdicion && tieneHijos
@@ -240,6 +240,29 @@ function ModalTarea({ servicio, tarea, padre, partidas, tieneHijos, avanceDeriva
               </Campo>
             )}
           </div>
+          {enEdicion && !confirmando && (
+            <div className="mt-4 rounded-lg bg-slate-50 px-4 py-3">
+              <p className="text-sm font-medium text-slate-700">
+                Costos asignados ({costos.length}) ·{' '}
+                <span className="tabular-nums">{formatearMoneda(sumarMontos(costos))}</span>
+              </p>
+              {costos.length > 0 ? (
+                <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+                  {costos.map((c) => (
+                    <li key={c.id} className="flex justify-between gap-2 text-xs text-slate-600">
+                      <span className="min-w-0 truncate">{c.texto}</span>
+                      <span className="shrink-0 tabular-nums">{formatearMoneda(c.monto_calculado)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">
+                  Sin costos todavía. Se asignan desde Materiales, Personal,
+                  Equipos o Gastos eligiendo esta tarea.
+                </p>
+              )}
+            </div>
+          )}
         </form>
       )}
     </Modal>
@@ -284,6 +307,11 @@ export function CronogramaServicio() {
     [estado.partidas, servicio.id],
   )
   const partidaDe = (id) => partidas.find((p) => p.id === id)
+
+  const registros = useMemo(
+    () => (estado.registros_servicio ?? []).filter((r) => r.servicio_id === servicio.id),
+    [estado.registros_servicio, servicio.id],
+  )
 
   // Árbol multinivel: cada tarea puede tener subtareas que a su vez
   // pueden tener las suyas. Las huérfanas (padre inexistente) suben a raíz.
@@ -941,6 +969,17 @@ export function CronogramaServicio() {
           tarea={modal.modo === 'editar' ? modal.tarea : null}
           padre={modal.modo === 'crear' ? modal.padre ?? null : null}
           partidas={partidas}
+          costos={
+            modal.modo === 'editar'
+              ? registros
+                  .filter((r) => r.tarea_id === modal.tarea.id)
+                  .map((r) => ({
+                    id: r.id,
+                    monto_calculado: r.monto_calculado,
+                    texto: `${nombreReferencia(r, estado)} · ${formatearFecha(r.fecha)}`,
+                  }))
+              : []
+          }
           tieneHijos={
             modal.modo === 'editar'
               ? tareas.some((x) => x.padre_id === modal.tarea.id)

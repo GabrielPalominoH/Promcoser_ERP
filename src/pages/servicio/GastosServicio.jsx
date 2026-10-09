@@ -20,14 +20,18 @@ function FormularioGasto({ servicio, registrar }) {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), partida_id: '' },
+    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', partida_id: '' },
   })
   const {
-    estado: { partidas: todasPartidas },
+    estado: { partidas: todasPartidas, tareas: todasTareas },
   } = useData()
   const partidas = partidasDeServicio(todasPartidas, servicio.id)
+  const tareas = (todasTareas ?? [])
+    .filter((t) => t.servicio_id === servicio.id)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+  const partidaDeTarea = (id) => (todasTareas ?? []).find((t) => String(t.id) === String(id))?.partida_id ?? null
 
-  const enviar = ({ concepto, monto, fecha, partida_id }) => {
+  const enviar = ({ concepto, monto, fecha, tarea_id, partida_id }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'gasto',
@@ -36,9 +40,10 @@ function FormularioGasto({ servicio, registrar }) {
       cantidad_o_horas: 1,
       monto_calculado: redondearMonto(monto),
       fecha,
-      partida_id: partida_id ? Number(partida_id) : null,
+      tarea_id: tarea_id ? Number(tarea_id) : null,
+      partida_id: tarea_id ? partidaDeTarea(tarea_id) : partida_id ? Number(partida_id) : null,
     })
-    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), partida_id: '' })
+    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', partida_id: '' })
   }
 
   return (
@@ -72,12 +77,34 @@ function FormularioGasto({ servicio, registrar }) {
             {...register('fecha', { required: 'Indica la fecha' })}
           />
         </Campo>
+        {tareas.length > 0 && (
+          <Campo
+            label="Tarea (opcional)"
+            error={errors.tarea_id?.message}
+            htmlFor="gasto-tarea"
+            hint="El costo sube solo a la partida de la tarea"
+          >
+            <CampoComboBox
+              id="gasto-tarea"
+              control={control}
+              name="tarea_id"
+              placeholder="Sin tarea — escribe para buscar…"
+              opciones={tareas.map((t) => {
+                const partida = partidas.find((p) => p.id === t.partida_id)
+                return {
+                  valor: String(t.id),
+                  etiqueta: partida ? `${t.nombre} (${partida.nombre})` : t.nombre,
+                }
+              })}
+            />
+          </Campo>
+        )}
         {partidas.length > 0 && (
           <Campo
-            label="Partida (opcional)"
+            label="Partida directa (opcional)"
             error={errors.partida_id?.message}
             htmlFor="gasto-partida"
-            hint="Para el costo por partida"
+            hint="Solo si no eliges tarea (ej. costos generales)"
           >
             <CampoComboBox
               id="gasto-partida"

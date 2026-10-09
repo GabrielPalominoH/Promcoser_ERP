@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, avanceTareasPartida, coberturaTareo, consumoPresupuesto, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, tareasDePartida, valorizadoPartida } from '../src/utils/calculadora'
+import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, avanceTareasPartida, coberturaTareo, consumoPresupuesto, costoPorPartida, costoPorTarea, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, tareasDePartida, valorizadoPartida } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
@@ -302,10 +302,29 @@ comprobar('valorizado cimentación = 18000', valorizadoPartida(partidas.find((p)
 const medido6 = avanceMedido(6, partidas, valorizaciones)
 comprobar('avance medido serv. 6 ≈ 43.5%', medido6 && Math.abs(medido6.porcentaje - 43.5) < 0.01, String(medido6?.porcentaje))
 comprobar('sin partidas no hay avance medido', avanceMedido(999, partidas, valorizaciones) === null)
-comprobar('costo partida cimentación = 25560', costoPorPartida(regs, 6, 2) === 25560, String(costoPorPartida(regs, 6, 2)))
+const tareasTodas = ESTADO_INICIAL.tareas
+comprobar('costo tarea excavación = 16310', costoPorTarea(regs, 6, 15) === 16310, String(costoPorTarea(regs, 6, 15)))
+comprobar('costo partida cimentación = 38110 (tareas + directo)', costoPorPartida(regs, 6, 2, tareasTodas) === 38110, String(costoPorPartida(regs, 6, 2, tareasTodas)))
+comprobar('costo partida estructuras = 5028', costoPorPartida(regs, 6, 3, tareasTodas) === 5028, String(costoPorPartida(regs, 6, 3, tareasTodas)))
 comprobar(
   'costo total = por partida + sin partida',
-  costoPorPartida(regs, 6, 1) + costoPorPartida(regs, 6, 2) + costoPorPartida(regs, 6, 3) + costoPorPartida(regs, 6, 4) + costoPorPartida(regs, 6, 5) + costoSinPartida(regs, 6) === sumarMontos(registrosDeServicio(regs, 6)),
+  costoPorPartida(regs, 6, 1, tareasTodas) + costoPorPartida(regs, 6, 2, tareasTodas) + costoPorPartida(regs, 6, 3, tareasTodas) + costoPorPartida(regs, 6, 4, tareasTodas) + costoPorPartida(regs, 6, 5, tareasTodas) + costoSinPartida(regs, 6) === sumarMontos(registrosDeServicio(regs, 6)),
+)
+const sinTarea15 = dataReducer(ESTADO_INICIAL, {
+  type: 'ELIMINAR_ITEM',
+  payload: { coleccion: 'tareas', id: 15 },
+})
+comprobar('borrar tarea no borra sus costos', sinTarea15.registros_servicio.length === regs.length)
+comprobar(
+  'borrar tarea deja costos sin tarea pero con partida',
+  [19, 22, 23].every((id) => {
+    const r = sinTarea15.registros_servicio.find((x) => x.id === id)
+    return r.tarea_id == null && r.partida_id === 2
+  }),
+)
+comprobar(
+  'borrar tarea no mueve la plata de la partida',
+  costoPorPartida(sinTarea15.registros_servicio, 6, 2, sinTarea15.tareas) === 38110,
 )
 comprobar('cascada servicio borra partidas', !sinServicio.partidas.some((p) => p.servicio_id === 6))
 comprobar('cascada servicio borra valorizaciones', !sinServicio.valorizaciones.some((v) => v.servicio_id === 6))

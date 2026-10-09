@@ -71,6 +71,13 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
               domingo · no suma
             </span>
           )}
+        {registro.tarea_id != null &&
+          (() => {
+            const tarea = (refs.tareas ?? []).find((t) => t.id === registro.tarea_id)
+            return tarea ? (
+              <span className="block text-xs text-slate-500">↳ {tarea.nombre}</span>
+            ) : null
+          })()}
         {registro.partida_id != null &&
           (() => {
             const partida = (refs.partidas ?? []).find((p) => p.id === registro.partida_id)
@@ -114,7 +121,7 @@ export function SeccionRegistros({
   children,
 }) {
   const { estado, agregarItem, eliminarItem } = useData()
-  const { personal, equipos, registros_servicio: todos, partidas: todasPartidas } = estado
+  const { personal, equipos, registros_servicio: todos, partidas: todasPartidas, tareas: todasTareas } = estado
 
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
@@ -123,6 +130,7 @@ export function SeccionRegistros({
     personal,
     equipos,
     partidas: (todasPartidas ?? []).filter((p) => p.servicio_id === servicio.id),
+    tareas: (todasTareas ?? []).filter((t) => t.servicio_id === servicio.id),
   }
   const registros = ordenarPorFechaDesc(
     todos.filter(
