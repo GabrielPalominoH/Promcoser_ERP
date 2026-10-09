@@ -978,11 +978,6 @@ export function CronogramaServicio() {
                       </span>
                         <span className="mt-0.5 inline-flex items-center gap-1.5">
                           <Badge variante={COLORES_ETIQUETA[estado]}>{estado}</Badge>
-                          {t.partida_id != null && partidaDe(t.partida_id) && (
-                            <span className="rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-medium text-primary-700">
-                              {partidaDe(t.partida_id).nombre}
-                            </span>
-                          )}
                           {esPadre && (
                             <span className="text-[11px] text-slate-400 tabular-nums">
                               {hijas.length} subt.
