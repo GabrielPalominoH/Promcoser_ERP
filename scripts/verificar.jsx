@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL, migrarPresupuestoATareas } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, coberturaTareo, consumoPresupuesto, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoTarea } from '../src/utils/calculadora'
+import { agruparPersonalPorMes, alertasServicio, asentamientoDe, avanceEfectivo, coberturaTareo, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoTarea } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
@@ -277,6 +277,26 @@ const cobDemo = coberturaTareo(
 )
 comprobar('cobertura 2/26 días incompleta', cobDemo.length === 1 && cobDemo[0].diasRegistrados === 2 && cobDemo[0].diasEsperados === 26 && cobDemo[0].completo === false, JSON.stringify(cobDemo[0]))
 comprobar('cobertura vacía = []', coberturaTareo([], [], '2026-08-01', '2026-08-31').length === 0)
+
+console.log('\n[ asignaciones de personal ]')
+
+const { asignaciones: asigs } = ESTADO_INICIAL
+const servSeis = ESTADO_INICIAL.servicios.find((s) => s.id === 6)
+comprobar('serv. 6 tiene 2 asignaciones', asigs.filter((a) => a.servicio_id === 6).length === 2)
+comprobar('rango calendario 12→31 ago = 20 días', diasCalendarioRango('2026-08-12', '2026-08-31') === 20)
+comprobar('mensual Elmer ago = 4000', costoMensualAsignacion(asigs[0], '2026-08', servSeis).monto === 4000, JSON.stringify(costoMensualAsignacion(asigs[0], '2026-08', servSeis)))
+comprobar('mensual Ronald sep prorrateado = 2160', costoMensualAsignacion(asigs[1], '2026-09', servSeis).monto === 2160)
+comprobar('mensual Ronald oct (baja) = 0', costoMensualAsignacion(asigs[1], '2026-10', servSeis).monto === 0)
+comprobar('diciembre se recorta al fin de obra (20 días)', costoMensualAsignacion(asigs[0], '2026-12', servSeis).dias === 20)
+const proyAsig6 = proyeccionAsignaciones(asigs, servSeis, ESTADO_INICIAL.registros_servicio)
+comprobar('total inicio-fin con baja = 31096', proyAsig6.total === 31096, String(proyAsig6.total))
+comprobar('sin asentar todo es proyectado', proyAsig6.gastado === 0 && proyAsig6.proyectado === 31096)
+const sinBaja = asigs.map((a) => (a.id === 2 ? { ...a, fecha_fin: null } : a))
+const proyAsigSinBaja = proyeccionAsignaciones(sinBaja, servSeis, ESTADO_INICIAL.registros_servicio)
+comprobar('sin baja el total sería mayor (44920)', proyAsigSinBaja.total === 44920, String(proyAsigSinBaja.total))
+comprobar('la baja baja el total', proyAsigSinBaja.total > proyAsig6.total)
+comprobar('sin asentamiento devuelve null', asentamientoDe(1, ESTADO_INICIAL.registros_servicio, '2026-08') === null)
+comprobar('cascada servicio borra asignaciones', !(sinServicio.asignaciones ?? []).some((a) => a.servicio_id === 6))
 const spi6 = indiceAvance(servicio6, 54, '2026-10-06')
 comprobar('SPI serv. 6 ≈ 0.96', spi6 && Math.abs(spi6.spi - 0.96) < 0.01, String(spi6?.spi))
 comprobar('sin plazo no hay SPI', indiceAvance({ fecha_inicio: '', fecha_fin_estimada: '' }, 50, '2026-10-06') === null)

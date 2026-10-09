@@ -72,10 +72,21 @@ generales que no son de ninguna tarea (ej. flete) se dejan sin tarea y suman
 igual al gastado. Pulse **"Agregar material"**.
 
 ### Personal
-Aquí se anota quién trabaja en la obra y cuántas horas o días. El sistema
-calcula el costo con el pago por hora de cada trabajador. Los domingos no
-cuentan (salvo personal de régimen mensual). Igual que los materiales, puede
-asignar el trabajo a una **tarea**.
+Aquí se **asigna** quién trabaja en la obra: persona, tarea (opcional),
+horas por día, tarifa y desde cuándo. No se toma asistencia día por día. El
+sistema calcula la **proyección total de inicio a fin** (lo que costará la
+mano de obra si nadie se mueve) y la muestra en 3 números: gastado
+(asentado), proyectado restante y total.
+
+**Asentar mes:** cada mes se pulsa **Asentar** y se crea el gasto real de ese
+mes por cada persona vigente (un solo registro por persona). Solo lo asentado
+resta del presupuesto; lo demás es proyección. Si se asentó por error, se
+puede **desasentar**.
+
+**Si alguien renuncia:** se le da **Dar de baja** indicando su último día.
+Ya no genera gasto en los meses siguientes (el total inicio-fin baja), pero
+lo ya asentado se conserva: lo gastado no se quita. El mes de la baja sale
+prorrateado por los días trabajados. Si fue un error, se puede reactivar.
 
 ### Equipos
 Aquí se anota qué máquina se usó y cuántas horas. El costo sale del costo por

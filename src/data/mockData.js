@@ -362,6 +362,17 @@ export const costos_oficina = [
 ]
 
 // ------------------------------------------------------------
+//  Asignaciones de personal a servicios: quién trabaja dónde, con qué
+//  pago y desde/hasta cuándo. La proyección y los asentamientos mensuales
+//  se calculan desde aquí; fecha_fin vacía = vigente.
+// ------------------------------------------------------------
+
+export const asignaciones = [
+  { id: 1, servicio_id: 6, personal_id: 1, tarea_id: 16, horas_por_dia: 8, tarifa: 25, fecha_inicio: '2026-08-12', fecha_fin: null },
+  { id: 2, servicio_id: 6, personal_id: 3, tarea_id: 18, horas_por_dia: 8, tarifa: 18, fecha_inicio: '2026-08-13', fecha_fin: '2026-09-15' },
+]
+
+// ------------------------------------------------------------
 //  Estado inicial consolidado
 // ------------------------------------------------------------
 
@@ -372,6 +383,7 @@ export const ESTADO_INICIAL = {
   registros_servicio,
   tareas,
   costos_oficina,
+  asignaciones,
 }
 
 export const COLECCIONES = Object.keys(ESTADO_INICIAL)

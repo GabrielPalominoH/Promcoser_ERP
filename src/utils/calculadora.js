@@ -59,6 +59,105 @@ export function costoSinTarea(registros, servicioId) {
     .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
 }
 
+// ------------------------------------------------------------
+//  Asignaciones de personal: proyección inicio→fin y meses asentados
+// ------------------------------------------------------------
+
+// Días calendario (incluye domingos: régimen mensual) en un rango inclusive.
+export function diasCalendarioRango(desdeISO, hastaISO) {
+  if (!desdeISO || !hastaISO || hastaISO < desdeISO) return 0
+  const [ai, mi, di] = desdeISO.split('-').map(Number)
+  const [af, mf, df] = hastaISO.split('-').map(Number)
+  if (!ai || !mi || !di || !af || !mf || !df) return 0
+  const ms = new Date(af, mf - 1, df) - new Date(ai, mi - 1, di)
+  return Math.round(ms / 86400000) + 1
+}
+
+export function ultimoDiaMes(mesISO) {
+  const [anio, mes] = mesISO.split('-').map(Number)
+  return `${mesISO}-${String(new Date(anio, mes, 0).getDate()).padStart(2, '0')}`
+}
+
+// Costo de una asignación en un mes: días vigentes × horas × tarifa.
+// Si se pasa el servicio, se recorta por su inicio y fin estimado.
+export function costoMensualAsignacion(asignacion, mesISO, servicio = null) {
+  const inicioMes = `${mesISO}-01`
+  const finMes = ultimoDiaMes(mesISO)
+  const desde = [inicioMes, asignacion.fecha_inicio, servicio?.fecha_inicio]
+    .filter(Boolean)
+    .sort()
+    .at(-1)
+  const topes = [finMes, asignacion.fecha_fin, servicio?.fecha_fin_estimada].filter(Boolean).sort()
+  const hasta = topes[0]
+  const dias = diasCalendarioRango(desde, hasta)
+  if (dias <= 0) return { dias: 0, horas: 0, monto: 0 }
+  const horas = dias * (Number(asignacion.horas_por_dia) || 0)
+  const monto = Math.round(horas * (Number(asignacion.tarifa) || 0) * 100) / 100
+  return { dias, horas, monto }
+}
+
+// Meses YYYY-MM entre dos meses inclusive.
+export function mesesEntre(desdeMes, hastaMes) {
+  if (!desdeMes || !hastaMes || hastaMes < desdeMes) return []
+  const [ai, mi] = desdeMes.split('-').map(Number)
+  const [af, mf] = hastaMes.split('-').map(Number)
+  const lista = []
+  let anio = ai
+  let mes = mi
+  while (anio < af || (anio === af && mes <= mf)) {
+    lista.push(`${anio}-${String(mes).padStart(2, '0')}`)
+    mes += 1
+    if (mes > 12) {
+      mes = 1
+      anio += 1
+    }
+  }
+  return lista
+}
+
+// ¿El mes ya se asentó para esta asignación? (registro enlazado por mes)
+export function asentamientoDe(asignacionId, registros, mesISO) {
+  return (registros ?? []).find(
+    (r) =>
+      r.asignacion_id === asignacionId &&
+      r.fecha &&
+      r.fecha.slice(0, 7) === mesISO,
+  ) ?? null
+}
+
+// Proyección de mano de obra inicio→fin desde las asignaciones: meses
+// reales (asentados) + meses proyectados. Al dar de baja (fecha_fin), los
+// meses futuros desaparecen y el total baja; lo asentado no cambia.
+export function proyeccionAsignaciones(asignaciones, servicio, registros) {
+  const lista = (asignaciones ?? []).filter((a) => a.servicio_id === servicio.id)
+  if (lista.length === 0) {
+    return { porMes: [], gastado: 0, proyectado: 0, total: 0 }
+  }
+  const inicios = lista.map((a) => a.fecha_inicio.slice(0, 7))
+  const fines = lista.map((a) =>
+    (a.fecha_fin || servicio.fecha_fin_estimada || '').slice(0, 7),
+  )
+  const desde = [servicio.fecha_inicio?.slice(0, 7), ...inicios].filter(Boolean).sort()[0]
+  const hasta = [...fines, servicio.fecha_fin_estimada?.slice(0, 7)].filter(Boolean).sort().at(-1)
+  const porMes = mesesEntre(desde, hasta).map((mes) => {
+    let monto = 0
+    let estimado = true
+    for (const a of lista) {
+      const asentado = asentamientoDe(a.id, registros, mes)
+      if (asentado) {
+        monto += Number(asentado.monto_calculado) || 0
+        estimado = false
+      } else {
+        monto += costoMensualAsignacion(a, mes, servicio).monto
+      }
+    }
+    return { mes, monto: Math.round(monto * 100) / 100, estimado }
+  })
+  const gastado = porMes.filter((m) => !m.estimado).reduce((s, m) => s + m.monto, 0)
+  const proyectado = porMes.filter((m) => m.estimado).reduce((s, m) => s + m.monto, 0)
+  return { porMes, gastado, proyectado, total: gastado + proyectado }
+}
+
 export function sumarMontos(registros) {
   return registros.reduce((total, registro) => total + (Number(registro.monto_calculado) || 0), 0)
 }

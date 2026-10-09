@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
+import { Modal } from '../../components/ui/Modal'
+import { Aviso } from '../../components/ui/Aviso'
 import {
   Table,
   TableBody,
@@ -14,114 +17,35 @@ import {
   Td,
   Th,
 } from '../../components/ui/Table'
-import { formatearCantidad, formatearFecha, formatearMes, formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { agruparPersonalPorMes, coberturaTareo, fechasHastaFinDeMes, metricasCronograma, proyeccionLaboral } from '../../utils/calculadora'
-import { CampoComboBox } from '../../components/ui/ComboBox'
 import {
-  SeccionRegistros,
-  reglasNumeroMayorACero,
-} from './compartido'
+  formatearCantidad,
+  formatearFecha,
+  formatearMes,
+  formatearMoneda,
+  redondearMonto,
+} from '../../utils/formatters'
+import {
+  asentamientoDe,
+  costoMensualAsignacion,
+  proyeccionAsignaciones,
+  ultimoDiaMes,
+} from '../../utils/calculadora'
 
 function nombreCompleto(item) {
   return `${item.nombre} ${item.apellido ?? ''}`.trim()
 }
 
-// Tabla de personal agrupada por persona y mes: una fila por persona por
-// mes con días, horas y costo mensual calculado.
-function TablaPersonalMensual({ registros, refs, onEliminar, mensajeVacio }) {
-  const grupos = agruparPersonalPorMes(registros, refs.personal)
-  const total = grupos.reduce((s, g) => s + g.monto, 0)
-
-  return (
-    <Table>
-      <TableHead>
-        <TableRow>
-          <Th>Personal</Th>
-          <Th>Mes</Th>
-          <Th alinear="right">Días</Th>
-          <Th alinear="right">Horas</Th>
-          <Th alinear="right">Costo mensual</Th>
-          <Th alinear="right">Acción</Th>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {grupos.length === 0 ? (
-          <TableEmpty colSpan={6} mensaje={mensajeVacio} />
-        ) : (
-          grupos.map((g) => (
-            <TableRow key={g.clave}>
-              <Td>
-                <span className="font-medium text-slate-900">{g.nombre}</span>
-                {g.cargo && (
-                  <span className="block text-xs text-slate-500">{g.cargo}</span>
-                )}
-              </Td>
-              <Td className="whitespace-nowrap capitalize">{formatearMes(g.mes)}</Td>
-              <Td alinear="right" className="tabular-nums">
-                {g.dias}
-              </Td>
-              <Td alinear="right" className="tabular-nums">
-                {formatearCantidad(g.horas)}
-              </Td>
-              <Td alinear="right" className="font-semibold text-slate-900 tabular-nums">
-                {formatearMoneda(g.monto)}
-              </Td>
-              <Td alinear="right">
-                <Button
-                  variante="peligro"
-                  tamano="sm"
-                  onClick={() =>
-                    onEliminar({
-                      ids: g.ids,
-                      titulo: `${g.nombre} · ${formatearMes(g.mes)}`,
-                    })
-                  }
-                >
-                  Eliminar
-                </Button>
-              </Td>
-            </TableRow>
-          ))
-        )}
-
-        {grupos.length > 0 && (
-          <TableRow className="bg-slate-50 font-semibold">
-            <Td className="text-slate-600" colSpan={4}>
-              Total
-            </Td>
-            <Td alinear="right" className="text-slate-900 tabular-nums">
-              {formatearMoneda(total)}
-            </Td>
-            <Td />
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  )
+function nombreTarea(tareas, id) {
+  return tareas.find((t) => t.id === id)?.nombre ?? '—'
 }
 
-function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
-  // Solo personal de Obra: el de Oficina es gasto general y no se asigna
-  // a un servicio. Los registros viejos sin ámbito cuentan como Obra.
+// Asignar personal al servicio: persona + pago + vigencia. No genera gasto
+// todavía; el gasto nace al asentar cada mes.
+function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
   const elegibles = useMemo(
-    () => personal.filter((p) => (p.ambito ?? 'Obra') !== 'Oficina'),
+    () => [...personal].filter((p) => (p.ambito ?? 'Obra') !== 'Oficina'),
     [personal],
   )
-  const ordenados = useMemo(
-    () =>
-      [...elegibles].sort((a, b) =>
-        `${a.nombre} ${a.apellido ?? ''}`.localeCompare(`${b.nombre} ${b.apellido ?? ''}`, 'es'),
-      ),
-    [elegibles],
-  )
-
-  const [busqueda, setBusqueda] = useState('')
-  const [seleccionadoId, setSeleccionadoId] = useState(null)
-  const [abierto, setAbierto] = useState(false)
-  const [errorPersona, setErrorPersona] = useState(null)
-  const [avisoRango, setAvisoRango] = useState(null)
-  const contenedorRef = useRef(null)
-
   const {
     register,
     handleSubmit,
@@ -132,114 +56,43 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
     formState: { errors },
   } = useForm({
     defaultValues: {
+      personal_id: '',
+      tarea_id: '',
       horas: '',
       tarifa: '',
-      fecha_desde: servicio.fecha_inicio || '',
-      tarea_id: '',
+      fecha_inicio: servicio.fecha_inicio || '',
+      fecha_fin: '',
     },
   })
-  const { estado: estadoGlobal } = useData()
-  const tareas = (estadoGlobal.tareas ?? [])
-    .filter((t) => t.servicio_id === servicio.id)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-
-  const horasVista = Number(watch('horas')) || 0
-  const tarifaVista = Number(watch('tarifa')) || 0
-  const desdeVista = watch('fecha_desde')
-  const fechasRango = fechasHastaFinDeMes(desdeVista)
-  const totalRango = redondearMonto(fechasRango.length * horasVista * tarifaVista)
+  const { agregarItem } = useData()
+  const personalId = watch('personal_id')
 
   useEffect(() => {
-    const alPresionarFuera = (evento) => {
-      if (contenedorRef.current && !contenedorRef.current.contains(evento.target)) {
-        setAbierto(false)
-      }
+    const ficha = elegibles.find((p) => String(p.id) === String(personalId))
+    if (ficha && Number(ficha.tarifa_por_hora) > 0) {
+      setValue('tarifa', ficha.tarifa_por_hora)
     }
+  }, [personalId, elegibles, setValue])
 
-    document.addEventListener('mousedown', alPresionarFuera)
-    return () => document.removeEventListener('mousedown', alPresionarFuera)
-  }, [])
-
-  const termino = busqueda.trim().toLowerCase()
-  const filtrados = termino
-    ? ordenados.filter((item) =>
-        `${item.nombre} ${item.apellido ?? ''} ${item.cargo} ${item.dni ?? ''}`
-          .toLowerCase()
-          .includes(termino),
-      )
-    : ordenados
-
-  const elegir = (item) => {
-    setSeleccionadoId(item.id)
-    setBusqueda(nombreCompleto(item))
-    setAbierto(false)
-    setErrorPersona(null)
-    if (Number(item.tarifa_por_hora) > 0) {
-      setValue('tarifa', item.tarifa_por_hora, { shouldValidate: false })
+  const enviar = ({ personal_id, tarea_id, horas, tarifa, fecha_inicio, fecha_fin }) => {
+    if (fecha_fin && fecha_fin < fecha_inicio) {
+      notificar('error', 'La fecha de fin no puede ser anterior al inicio.')
+      return
     }
-  }
-
-  const alEscribir = (valor) => {
-    setBusqueda(valor)
-    setAbierto(true)
-    if (seleccionadoId) {
-      const actual = ordenados.find((item) => item.id === seleccionadoId)
-      if (!actual || nombreCompleto(actual) !== valor.trim()) {
-        setSeleccionadoId(null)
-      }
-    }
-  }
-
-  const limpiar = () => {
-    reset({
-      horas: '',
-      tarifa: '',
-      fecha_desde: servicio.fecha_inicio || '',
-      tarea_id: '',
+    agregarItem('asignaciones', {
+      servicio_id: servicio.id,
+      personal_id: Number(personal_id),
+      tarea_id: tarea_id ? Number(tarea_id) : null,
+      horas_por_dia: Number(horas),
+      tarifa: Number(tarifa),
+      fecha_inicio,
+      fecha_fin: fecha_fin || null,
     })
-    setBusqueda('')
-    setSeleccionadoId(null)
-    setAbierto(false)
-    setErrorPersona(null)
-    setAvisoRango(null)
+    notificar('exito', 'Personal asignado. El gasto se genera al asentar cada mes.')
+    reset()
   }
 
-  const baseRegistro = (horasNum, tarifaNum, fecha, tareaId) => ({
-    servicio_id: servicio.id,
-    tipo_registro: 'personal',
-    modalidad: 'mensual',
-    referencia_id: Number(seleccionadoId),
-    cantidad_o_horas: horasNum,
-    monto_calculado: redondearMonto(horasNum * tarifaNum),
-    fecha,
-    tarea_id: tareaId ? Number(tareaId) : null,
-  })
-
-  const enviar = ({ horas, tarifa, fecha_desde, tarea_id }) => {
-    if (!seleccionadoId) {
-      setErrorPersona('Selecciona a una persona de la lista')
-      setAbierto(true)
-      return
-    }
-    const horasNum = Number(horas)
-    const tarifaNum = Number(tarifa)
-    // Desde la fecha elegida hasta fin de ese mes (domingos incluidos).
-    const fechas = fechasHastaFinDeMes(fecha_desde)
-    if (fechas.length === 0) {
-      setAvisoRango('Indica una fecha de inicio válida.')
-      return
-    }
-    registrarLote(
-      fechas.map((f) => baseRegistro(horasNum, tarifaNum, f, tarea_id)),
-      `${nombreCompleto(ordenados.find((p) => p.id === seleccionadoId))}: ` +
-        `${fechas.length} días × ${formatearCantidad(horasNum)} h × ${formatearMoneda(tarifaNum)} = ` +
-        `${formatearMoneda(redondearMonto(fechas.length * horasNum * tarifaNum))} ` +
-        `(del ${formatearFecha(fecha_desde)} a fin de mes).`,
-    )
-    limpiar()
-  }
-
-  if (ordenados.length === 0) {
+  if (elegibles.length === 0) {
     return (
       <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
         Todavía no hay personal registrado.{' '}
@@ -255,124 +108,86 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
     <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Campo
-          label="Personal"
-          error={errorPersona}
-          htmlFor="per-busqueda"
-          className="sm:col-span-3"
-          hint="Escribe para buscar por nombre, cargo o DNI"
+          label="Persona"
+          error={errors.personal_id?.message}
+          htmlFor="asi-persona"
+          className="sm:col-span-2"
         >
-          <div ref={contenedorRef} className="relative">
-            <Input
-              id="per-busqueda"
-              placeholder="Escribe un nombre…"
-              value={busqueda}
-              onChange={(evento) => alEscribir(evento.target.value)}
-              onFocus={() => setAbierto(true)}
-              onKeyDown={(evento) => {
-                if (evento.key === 'Escape') setAbierto(false)
-              }}
-              autoComplete="off"
-            />
-            {abierto && (
-              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                {filtrados.length === 0 ? (
-                  <li className="px-3 py-2 text-sm text-slate-400">
-                    Sin coincidencias.
-                  </li>
-                ) : (
-                  filtrados.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        onClick={() => elegir(item)}
-                        className={`flex w-full flex-col px-3 py-2 text-left text-sm transition-colors hover:bg-primary-50 ${
-                          seleccionadoId === item.id ? 'bg-primary-50' : ''
-                        }`}
-                      >
-                        <span className="font-medium text-slate-900">
-                          {nombreCompleto(item)}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {item.cargo}
-                          {Number(item.tarifa_por_hora) > 0
-                            ? ` · ${formatearMoneda(item.tarifa_por_hora)}/h`
-                            : ''}
-                        </span>
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
-            )}
-          </div>
+          <CampoComboBox
+            id="asi-persona"
+            control={control}
+            name="personal_id"
+            rules={{ required: 'Selecciona a una persona' }}
+            placeholder="Escribe para buscar…"
+            opciones={elegibles.map((p) => ({
+              valor: String(p.id),
+              etiqueta: `${nombreCompleto(p)} — ${p.cargo}`,
+            }))}
+          />
+        </Campo>
+        <Campo
+          label="Tarea (opcional)"
+          error={errors.tarea_id?.message}
+          htmlFor="asi-tarea"
+        >
+          <CampoComboBox
+            id="asi-tarea"
+            control={control}
+            name="tarea_id"
+            placeholder="Sin tarea…"
+            opciones={tareas.map((t) => ({ valor: String(t.id), etiqueta: t.nombre }))}
+          />
         </Campo>
         <Campo
           label="Horas por día"
           error={errors.horas?.message}
-          htmlFor="per-horas"
+          htmlFor="asi-horas"
         >
           <Input
-            id="per-horas"
+            id="asi-horas"
             type="number"
             step="0.25"
-            placeholder="0"
-            {...register('horas', reglasNumeroMayorACero('Ingresa las horas'))}
+            placeholder="8"
+            {...register('horas', {
+              valueAsNumber: true,
+              required: 'Ingresa las horas',
+              validate: (v) => (v > 0 ? true : 'Debe ser mayor que cero'),
+            })}
           />
         </Campo>
         <Campo
           label="Tarifa por hora (S/)"
           error={errors.tarifa?.message}
-          htmlFor="per-tarifa"
-          hint="Se sugiere la de su ficha; puedes ajustarla"
+          htmlFor="asi-tarifa"
+          hint="Se sugiere la de su ficha"
         >
           <Input
-            id="per-tarifa"
+            id="asi-tarifa"
             type="number"
             step="0.01"
             placeholder="0.00"
-            {...register('tarifa', reglasNumeroMayorACero('Ingresa la tarifa'))}
+            {...register('tarifa', {
+              valueAsNumber: true,
+              required: 'Ingresa la tarifa',
+              validate: (v) => (v > 0 ? true : 'Debe ser mayor que cero'),
+            })}
+          />
+        </Campo>
+        <Campo label="Desde" error={errors.fecha_inicio?.message} htmlFor="asi-desde">
+          <Input
+            id="asi-desde"
+            type="date"
+            {...register('fecha_inicio', { required: 'Indica el inicio' })}
           />
         </Campo>
         <Campo
-          label="Fecha de inicio"
-          error={errors.fecha_desde?.message}
-          htmlFor="per-desde"
-          hint="Por defecto, el inicio del servicio. Genera hasta fin de mes"
+          label="Hasta (opcional)"
+          error={errors.fecha_fin?.message}
+          htmlFor="asi-hasta"
+          hint="Vacío = vigente"
         >
-          <Input
-            id="per-desde"
-            type="date"
-            {...register('fecha_desde', { required: 'Indica el inicio' })}
-          />
+          <Input id="asi-hasta" type="date" {...register('fecha_fin')} />
         </Campo>
-        {tareas.length > 0 && (
-          <Campo
-            label="Tarea (opcional)"
-            error={errors.tarea_id?.message}
-            htmlFor="per-tarea"
-            hint="A qué trabajo corresponde este costo"
-            className="sm:col-span-3"
-          >
-            <CampoComboBox
-              id="per-tarea"
-              control={control}
-              name="tarea_id"
-              placeholder="Sin tarea — escribe para buscar…"
-              opciones={tareas.map((t) => ({ valor: String(t.id), etiqueta: t.nombre }))}
-            />
-          </Campo>
-        )}
-      </div>
-      <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm">
-        {avisoRango ? (
-          <p className="font-medium text-amber-700">{avisoRango}</p>
-        ) : (
-          <p className="text-slate-600">
-            Se crearán <span className="font-semibold text-slate-900">{fechasRango.length} registros</span>
-            {' '}({formatearCantidad(horasVista)} h × {formatearMoneda(tarifaVista)} c/u) por un total de{' '}
-            <span className="font-semibold text-slate-900">{formatearMoneda(totalRango)}</span>
-          </p>
-        )}
       </div>
       <div className="flex justify-end">
         <Button type="submit">Asignar personal</Button>
@@ -383,191 +198,315 @@ function FormularioPersonalCosto({ servicio, personal, registrarLote }) {
 
 export function PersonalServicio() {
   const { servicio } = useOutletContext()
-  const {
-    estado: { registros_servicio: todos, tareas: todasLasTareas, personal },
-  } = useData()
+  const { estado, agregarItem, actualizarItem, eliminarItem } = useData()
+  const [aviso, setAviso] = useState(null)
+  const [bajaDe, setBajaDe] = useState(null)
+  const [fechaBaja, setFechaBaja] = useState('')
+  const notificar = (tipo, mensaje) => setAviso({ tipo, mensaje })
 
-  const registros = todos.filter(
-    (r) => r.servicio_id === servicio.id && r.tipo_registro === 'personal',
+  const personal = estado.personal
+  const tareas = useMemo(
+    () => (estado.tareas ?? []).filter((t) => t.servicio_id === servicio.id),
+    [estado.tareas, servicio.id],
   )
-  // Tarifa promedio del personal de Obra: respaldo para estimar meses con
-  // horas pero sin costo registrado.
-  const tarifasObra = personal
-    .filter((p) => (p.ambito ?? 'Obra') !== 'Oficina')
-    .map((p) => Number(p.tarifa_por_hora) || 0)
-    .filter((t) => t > 0)
-  const tarifaPromedioObra = tarifasObra.length > 0
-    ? tarifasObra.reduce((s, t) => s + t, 0) / tarifasObra.length
-    : 0
-  const proyeccion = proyeccionLaboral(
-    registros,
-    servicio.fecha_fin_estimada,
-    undefined,
-    servicio.fecha_inicio,
-    tarifaPromedioObra,
+  const registros = useMemo(
+    () => (estado.registros_servicio ?? []).filter((r) => r.servicio_id === servicio.id),
+    [estado.registros_servicio, servicio.id],
   )
-  const totalInicioFin =
-    proyeccion.porMes
-      .filter((m) => !m.estimado)
-      .reduce((s, m) => s + m.monto, 0) + proyeccion.costoProyectado
+  const asignaciones = useMemo(
+    () => (estado.asignaciones ?? []).filter((a) => a.servicio_id === servicio.id),
+    [estado.asignaciones, servicio.id],
+  )
 
-  const tareas = todasLasTareas.filter((t) => t.servicio_id === servicio.id)
-  const cobertura = coberturaTareo(registros, personal, servicio.fecha_inicio, servicio.fecha_fin_estimada)
-  const incompletos = cobertura.filter((c) => !c.completo)
+  const proyeccion = useMemo(
+    () => proyeccionAsignaciones(asignaciones, servicio, estado.registros_servicio),
+    [asignaciones, servicio, estado.registros_servicio],
+  )
   const mesActual = new Date().toISOString().slice(0, 7)
-  const costoMesActual = proyeccion.porMes.find((m) => m.mes === mesActual)?.monto ?? 0
-  const mesSinCarga =
-    tareas.length > 0 &&
-    metricasCronograma(tareas).avanceGlobal > 0 &&
-    !proyeccion.porMes.some((m) => m.mes === mesActual)
+  const pendientes = proyeccion.porMes.filter((m) => m.estimado && m.mes <= mesActual && m.monto > 0)
+  const asentados = proyeccion.porMes.filter((m) => !m.estimado)
+
+  const personaDe = (id) => personal.find((p) => p.id === id)
+  const asentadoPor = (asignacionId) =>
+    registros.filter((r) => r.asignacion_id === asignacionId)
+
+  // Asentar un mes: un registro por asignación vigente (prorrateado si
+  // entró o salió dentro del mes). No se puede asentar dos veces.
+  const asentarMes = (mes) => {
+    let creados = 0
+    for (const a of asignaciones) {
+      if (asentamientoDe(a.id, estado.registros_servicio, mes)) continue
+      const { dias, horas, monto } = costoMensualAsignacion(a, mes, servicio)
+      if (monto <= 0) continue
+      agregarItem('registros_servicio', {
+        servicio_id: servicio.id,
+        tipo_registro: 'personal',
+        modalidad: 'mensual',
+        referencia_id: a.personal_id,
+        tarea_id: a.tarea_id,
+        asignacion_id: a.id,
+        cantidad_o_horas: horas,
+        monto_calculado: redondearMonto(monto),
+        fecha: ultimoDiaMes(mes),
+      })
+      creados += 1
+    }
+    notificar(
+      'exito',
+      creados > 0
+        ? `Mes ${formatearMes(mes)} asentado: ${creados} registro(s). Resta del presupuesto.`
+        : `El mes ${formatearMes(mes)} no tiene personal vigente por asentar.`,
+    )
+  }
+
+  const desasentarMes = (mes) => {
+    const ids = registros
+      .filter((r) => r.asignacion_id != null && r.fecha?.slice(0, 7) === mes)
+      .map((r) => r.id)
+    ids.forEach((id) => eliminarItem('registros_servicio', id))
+    notificar('info', `Asentamiento de ${formatearMes(mes)} eliminado (${ids.length} registro(s)).`)
+  }
+
+  const confirmarBaja = () => {
+    if (!fechaBaja) {
+      notificar('error', 'Indica el último día trabajado.')
+      return
+    }
+    if (fechaBaja < bajaDe.fecha_inicio) {
+      notificar('error', 'La baja no puede ser anterior al inicio.')
+      return
+    }
+    actualizarItem('asignaciones', { id: bajaDe.id, fecha_fin: fechaBaja })
+    notificar('exito', 'Baja registrada: ya no genera gasto futuro. Lo asentado se conserva.')
+    setBajaDe(null)
+    setFechaBaja('')
+  }
+
+  const reactivar = (asignacion) => {
+    actualizarItem('asignaciones', { id: asignacion.id, fecha_fin: null })
+    notificar('exito', 'Asignación reactivada (vigente).')
+  }
+
+  const eliminarAsignacion = (asignacion) => {
+    if (asentadoPor(asignacion.id).length > 0) {
+      notificar('error', 'Tiene meses asentados: dale de baja en vez de eliminar. Lo gastado no se quita.')
+      return
+    }
+    eliminarItem('asignaciones', asignacion.id)
+    notificar('info', 'Asignación eliminada (no tenía gasto asentado).')
+  }
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
-          <p className="text-sm text-slate-500">Costo este mes ({formatearMes(mesActual)})</p>
+          <p className="text-sm text-slate-500">Gastado en personal</p>
           <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-            {formatearMoneda(costoMesActual)}
+            {formatearMoneda(proyeccion.gastado)}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Mano de obra registrada en el mes actual
-          </p>
+          <p className="mt-0.5 text-xs text-slate-500">Meses asentados: resta del presupuesto</p>
         </Card>
         <Card>
-          <p className="text-sm text-slate-500">Estimado total personal</p>
+          <p className="text-sm text-slate-500">Proyectado restante</p>
+          <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+            {formatearMoneda(proyeccion.proyectado)}
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">Meses por asentar hasta fin de obra</p>
+        </Card>
+        <Card>
+          <p className="text-sm text-slate-500">Total inicio-fin</p>
           <p className="mt-1 text-xl font-bold text-red-600 tabular-nums">
-            {formatearMoneda(totalInicioFin)}
+            {formatearMoneda(proyeccion.total)}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
-            Gastado {formatearMoneda(totalInicioFin - proyeccion.costoProyectado)} + proyectado {formatearMoneda(proyeccion.costoProyectado)}
-          </p>
+          <p className="mt-0.5 text-xs text-slate-500">Baja si alguien renuncia (quitan sus meses futuros)</p>
         </Card>
       </div>
 
-      <SeccionRegistros
-        servicio={servicio}
-        tipo="personal"
-        titulo="Personal"
-        descripcion="Mano de obra del servicio: horas por tarifa. Suma al gastado del presupuesto."
-        columnaCantidad
-        etiquetaCantidad="Horas"
-        mensajeVacio="Este servicio todavía no tiene personal asignado."
-        mensajeExito={(datos) =>
-          `Personal asignado por ${formatearMoneda(datos.monto_calculado)} (${formatearCantidad(datos.cantidad_o_horas)} h).`
-        }
-        tablaAgrupada={({ registros, refs, onEliminar }) => (
-          <TablaPersonalMensual
-            registros={registros}
-            refs={refs}
-            onEliminar={onEliminar}
-            mensajeVacio="Este servicio todavía no tiene personal asignado."
-          />
-        )}
+      <Card
+        titulo="Asignar personal"
+        descripcion="Quién trabaja en la obra, con qué pago y desde cuándo. El gasto nace al asentar cada mes."
       >
-        {({ servicio, personal, registrarLote }) => (
-          <FormularioPersonalCosto
-            servicio={servicio}
-            personal={personal}
-            registrarLote={registrarLote}
-          />
-        )}
-      </SeccionRegistros>
+        <FormularioAsignacion
+          servicio={servicio}
+          personal={personal}
+          tareas={tareas}
+          notificar={notificar}
+        />
+      </Card>
 
       <Card
-        titulo="Cobertura de tareo"
-        descripcion="Días con registro frente a días laborables esperados, por persona y mes."
+        titulo="Asignaciones"
+        descripcion="Vigentes generan gasto futuro; de baja solo conservan lo asentado."
       >
-        {cobertura.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            Sin tareo todavía. Al asignar personal aparecerá aquí su cobertura mensual.
-          </p>
-        ) : (
-          <>
-            {incompletos.length > 0 && (
-              <p className="mb-4 rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
-                {incompletos.length} mes(es) persona con tareo incompleto: revisa los días faltantes.
-              </p>
-            )}
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <Th>Personal</Th>
-                  <Th>Mes</Th>
-                  <Th alinear="right">Días</Th>
-                  <Th alinear="right">Estado</Th>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {cobertura.map((c) => (
-                  <TableRow key={`${c.personaId ?? 'x'}-${c.mes}`}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <Th>Persona</Th>
+              <Th>Tarea</Th>
+              <Th>Vigencia</Th>
+              <Th alinear="right">Mensual est.</Th>
+              <Th alinear="right">Gastado</Th>
+              <Th alinear="right">Acciones</Th>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {asignaciones.length === 0 ? (
+              <TableEmpty colSpan={6} mensaje="Aún no hay personal asignado a este servicio." />
+            ) : (
+              asignaciones.map((a) => {
+                const persona = personaDe(a.personal_id)
+                const vigente = !a.fecha_fin
+                const mensual = vigente
+                  ? costoMensualAsignacion(a, mesActual, servicio).monto
+                  : 0
+                const gastado = asentadoPor(a.id).reduce(
+                  (s, r) => s + (Number(r.monto_calculado) || 0),
+                  0,
+                )
+                return (
+                  <TableRow key={a.id}>
                     <Td>
-                      <span className="font-medium text-slate-900">{c.nombre}</span>
-                      {c.cargo && (
-                        <span className="block text-xs text-slate-500">{c.cargo}</span>
-                      )}
+                      <span className="font-medium text-slate-900">
+                        {persona ? nombreCompleto(persona) : 'Personal eliminado'}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {persona?.cargo ?? ''} · {formatearMoneda(a.tarifa)}/h ·{' '}
+                        {formatearCantidad(a.horas_por_dia)} h/día
+                      </span>
                     </Td>
-                    <Td className="whitespace-nowrap capitalize">{formatearMes(c.mes)}</Td>
-                    <Td alinear="right" className="tabular-nums">
-                      {c.diasRegistrados}/{c.diasEsperados}
-                    </Td>
-                    <Td alinear="right">
+                    <Td className="text-slate-600">{nombreTarea(tareas, a.tarea_id)}</Td>
+                    <Td>
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
-                          c.completo
+                          vigente
                             ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                            : 'bg-amber-50 text-amber-700 ring-amber-200'
+                            : 'bg-slate-100 text-slate-600 ring-slate-200'
                         }`}
                       >
-                        {c.completo ? 'Completo' : 'Incompleto'}
+                        {vigente ? 'Vigente' : 'De baja'}
+                      </span>
+                      <span className="block text-xs whitespace-nowrap text-slate-500">
+                        {formatearFecha(a.fecha_inicio)} →{' '}
+                        {a.fecha_fin ? formatearFecha(a.fecha_fin) : 'fin de obra'}
+                      </span>
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {vigente ? formatearMoneda(mensual) : '—'}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(gastado)}
+                    </Td>
+                    <Td alinear="right">
+                      <span className="inline-flex gap-1.5">
+                        {vigente ? (
+                          <Button
+                            variante="secundario"
+                            tamano="sm"
+                            onClick={() => {
+                              setBajaDe(a)
+                              setFechaBaja(new Date().toISOString().slice(0, 10))
+                            }}
+                          >
+                            Dar de baja
+                          </Button>
+                        ) : (
+                          <Button variante="secundario" tamano="sm" onClick={() => reactivar(a)}>
+                            Reactivar
+                          </Button>
+                        )}
+                        <Button variante="peligro" tamano="sm" onClick={() => eliminarAsignacion(a)}>
+                          Eliminar
+                        </Button>
                       </span>
                     </Td>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </>
-        )}
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
       <Card
-        titulo="Proyección de mano de obra"
-        descripcion="Costo por mes y total desde el inicio hasta el fin del servicio."
+        titulo="Asentar mes"
+        descripcion="Cada mes pendiente genera un registro por persona vigente y resta del presupuesto."
       >
-        <p className="mb-4 text-center text-sm text-slate-600">
-          Del <span className="font-semibold text-slate-900">{formatearFecha(servicio.fecha_inicio)}</span>
-          {' '}al <span className="font-semibold text-slate-900">{servicio.fecha_fin_estimada ? formatearFecha(servicio.fecha_fin_estimada) : '—'}</span>
-        </p>
-        {mesSinCarga && (
-          <p className="mb-4 rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
-            Este mes aún no tiene horas cargadas: la estimación puede estar subestimada.
+        {pendientes.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Sin meses pendientes: todo lo vigente hasta hoy está asentado.
           </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {pendientes.map((m) => (
+              <li
+                key={m.mes}
+                className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+              >
+                <span className="text-slate-700">
+                  <span className="font-medium capitalize">{formatearMes(m.mes)}</span> ·{' '}
+                  <span className="tabular-nums">{formatearMoneda(m.monto)}</span>
+                </span>
+                <Button tamano="sm" onClick={() => asentarMes(m.mes)}>
+                  Asentar
+                </Button>
+              </li>
+            ))}
+          </ul>
         )}
 
-        <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Costo por mes
-            </p>
-            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-              {formatearMoneda(proyeccion.ritmo)}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Promedio mensual registrado
-            </p>
+        {asentados.length > 0 && (
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-medium text-slate-700">Meses asentados</p>
+            <ul className="space-y-1.5">
+              {asentados.map((m) => (
+                <li
+                  key={m.mes}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2 text-sm"
+                >
+                  <span className="text-slate-700">
+                    <span className="font-medium capitalize">{formatearMes(m.mes)}</span> ·{' '}
+                    <span className="tabular-nums">{formatearMoneda(m.monto)}</span>
+                  </span>
+                  <Button variante="secundario" tamano="sm" onClick={() => desasentarMes(m.mes)}>
+                    Desasentar
+                  </Button>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Total inicio → fin
-            </p>
-            <p className="mt-1 text-xl font-bold text-red-600 tabular-nums">
-              {formatearMoneda(totalInicioFin)}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
-              Gastado + proyectado a {servicio.fecha_fin_estimada ? formatearFecha(servicio.fecha_fin_estimada) : 'fin'}
-            </p>
-          </div>
-        </div>
+        )}
       </Card>
+
+      {bajaDe && (
+        <Modal
+          abierto
+          ancho="sm"
+          titulo="Dar de baja"
+          descripcion={`${personaDe(bajaDe.personal_id) ? nombreCompleto(personaDe(bajaDe.personal_id)) : 'Esta persona'} dejará de generar gasto desde esa fecha. Lo asentado se conserva.`}
+          onCerrar={() => setBajaDe(null)}
+          pie={
+            <>
+              <Button variante="secundario" onClick={() => setBajaDe(null)}>
+                Cancelar
+              </Button>
+              <Button variante="peligro" onClick={confirmarBaja}>
+                Confirmar baja
+              </Button>
+            </>
+          }
+        >
+          <Campo label="Último día trabajado" htmlFor="baja-fecha">
+            <Input
+              id="baja-fecha"
+              type="date"
+              value={fechaBaja}
+              onChange={(e) => setFechaBaja(e.target.value)}
+            />
+          </Campo>
+        </Modal>
+      )}
+
+      <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
     </div>
   )
 }
