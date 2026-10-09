@@ -1,0 +1,420 @@
+import { useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { useData } from '../../context/useData'
+import { Card } from '../../components/ui/Card'
+import { Button } from '../../components/ui/Button'
+import { Campo, Input, Select } from '../../components/ui/Field'
+import { Modal } from '../../components/ui/Modal'
+import { Aviso } from '../../components/ui/Aviso'
+import {
+  Table,
+  TableBody,
+  TableEmpty,
+  TableHead,
+  TableRow,
+  Td,
+  Th,
+} from '../../components/ui/Table'
+import { formatearCantidad, formatearMes, formatearMoneda } from '../../utils/formatters'
+import {
+  avanceMedido,
+  costoPorPartida,
+  costoSinPartida,
+  partidasDeServicio,
+  presupuestoPartida,
+  valorizadoPartida,
+} from '../../utils/calculadora'
+import {
+  fechaHoyISO,
+  reglasNumeroMayorACero,
+} from './compartido'
+
+function FormularioPartida({ servicio, onGuardar }) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: { nombre: '', unidad: 'glb', metrado: '', precio_unitario: '' },
+  })
+
+  const enviar = ({ nombre, unidad, metrado, precio_unitario }) => {
+    onGuardar({
+      servicio_id: servicio.id,
+      nombre: nombre.trim(),
+      unidad: unidad.trim() || 'glb',
+      metrado: Number(metrado),
+      precio_unitario: Number(precio_unitario),
+    })
+    reset()
+  }
+
+  return (
+    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <Campo
+          label="Nombre de la partida"
+          error={errors.nombre?.message}
+          htmlFor="part-nombre"
+          className="sm:col-span-2"
+        >
+          <Input
+            id="part-nombre"
+            placeholder="Ej. Cimentación"
+            {...register('nombre', { required: 'Ingresa el nombre' })}
+          />
+        </Campo>
+        <Campo label="Unidad" error={errors.unidad?.message} htmlFor="part-unidad">
+          <Input
+            id="part-unidad"
+            placeholder="m3, m2, glb…"
+            {...register('unidad', { required: 'Indica la unidad' })}
+          />
+        </Campo>
+        <div />
+        <Campo label="Metrado" error={errors.metrado?.message} htmlFor="part-metrado">
+          <Input
+            id="part-metrado"
+            type="number"
+            step="0.01"
+            placeholder="0"
+            {...register('metrado', reglasNumeroMayorACero('Ingresa el metrado'))}
+          />
+        </Campo>
+        <Campo
+          label="Precio unitario (S/)"
+          error={errors.precio_unitario?.message}
+          htmlFor="part-pu"
+        >
+          <Input
+            id="part-pu"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            {...register('precio_unitario', reglasNumeroMayorACero('Ingresa el precio'))}
+          />
+        </Campo>
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit">Agregar partida</Button>
+      </div>
+    </form>
+  )
+}
+
+function FormularioValorizacion({ servicio, partidas, onGuardar }) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: { partida_id: '', mes: '', metrado_ejecutado: '' },
+  })
+
+  const enviar = ({ partida_id, mes, metrado_ejecutado }) => {
+    onGuardar({
+      servicio_id: servicio.id,
+      partida_id: Number(partida_id),
+      mes,
+      metrado_ejecutado: Number(metrado_ejecutado),
+    })
+    reset()
+  }
+
+  if (partidas.length === 0) {
+    return (
+      <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Primero crea al menos una partida para poder valorizarla.
+      </p>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Campo
+          label="Partida"
+          error={errors.partida_id?.message}
+          htmlFor="val-partida"
+        >
+          <Select
+            id="val-partida"
+            {...register('partida_id', { required: 'Selecciona una partida' })}
+          >
+            <option value="" disabled>
+              Selecciona…
+            </option>
+            {partidas.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} ({formatearMoneda(presupuestoPartida(p))})
+              </option>
+            ))}
+          </Select>
+        </Campo>
+        <Campo label="Mes" error={errors.mes?.message} htmlFor="val-mes">
+          <Input
+            id="val-mes"
+            type="month"
+            {...register('mes', { required: 'Indica el mes' })}
+          />
+        </Campo>
+        <Campo
+          label="Metrado ejecutado"
+          error={errors.metrado_ejecutado?.message}
+          htmlFor="val-metrado"
+        >
+          <Input
+            id="val-metrado"
+            type="number"
+            step="0.01"
+            placeholder="0"
+            {...register('metrado_ejecutado', reglasNumeroMayorACero('Ingresa el metrado'))}
+          />
+        </Campo>
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit">Agregar valorización</Button>
+      </div>
+    </form>
+  )
+}
+
+export function PartidasServicio() {
+  const { servicio } = useOutletContext()
+  const { estado, agregarItem, eliminarItem } = useData()
+  const {
+    partidas: todasPartidas,
+    valorizaciones: todasValorizaciones,
+    registros_servicio: todosRegistros,
+  } = estado
+
+  const [aviso, setAviso] = useState(null)
+  const [porEliminar, setPorEliminar] = useState(null)
+
+  const partidas = partidasDeServicio(todasPartidas, servicio.id).sort((a, b) => a.id - b.id)
+  const medido = avanceMedido(servicio.id, todasPartidas, todasValorizaciones)
+
+  const guardarPartida = (datos) => {
+    agregarItem('partidas', datos)
+    setAviso({ tipo: 'exito', mensaje: `Partida «${datos.nombre}» agregada.` })
+  }
+
+  const guardarValorizacion = (datos) => {
+    agregarItem('valorizaciones', datos)
+    setAviso({ tipo: 'exito', mensaje: 'Valorización agregada.' })
+  }
+
+  const confirmarEliminar = () => {
+    if (porEliminar.tipo === 'partida') {
+      eliminarItem('partidas', porEliminar.id)
+      setAviso({ tipo: 'info', mensaje: 'Partida eliminada junto con sus valorizaciones.' })
+    } else {
+      eliminarItem('valorizaciones', porEliminar.id)
+      setAviso({ tipo: 'info', mensaje: 'Valorización eliminada.' })
+    }
+    setPorEliminar(null)
+  }
+
+  const filas = partidas.map((p) => {
+    const presupuesto = presupuestoPartida(p)
+    const valorizado = valorizadoPartida(p, todasValorizaciones)
+    const costo = costoPorPartida(todosRegistros, servicio.id, p.id)
+    return { partida: p, presupuesto, valorizado, costo, margen: valorizado - costo }
+  })
+  const sinPartida = costoSinPartida(todosRegistros, servicio.id)
+
+  return (
+    <div className="space-y-6">
+      <Card
+        titulo="Partidas del servicio"
+        descripcion="El presupuesto por partidas convive con el presupuesto global como tope."
+      >
+        <FormularioPartida servicio={servicio} onGuardar={guardarPartida} />
+      </Card>
+
+      <Card
+        titulo="Valorización mensual"
+        descripcion="Metrado ejecutado por partida en cada mes."
+      >
+        <FormularioValorizacion
+          servicio={servicio}
+          partidas={partidas}
+          onGuardar={guardarValorizacion}
+        />
+      </Card>
+
+      <Card
+        titulo="Avance medido y margen por partida"
+        descripcion={
+          medido
+            ? `Valorizado ${formatearMoneda(medido.valorizado)} de ${formatearMoneda(medido.presupuestoPartidas)} (${medido.porcentaje.toFixed(1)}%)`
+            : 'Sin partidas con presupuesto todavía.'
+        }
+      >
+        <Table>
+          <TableHead>
+            <TableRow>
+              <Th>Partida</Th>
+              <Th alinear="right">Presupuesto</Th>
+              <Th alinear="right">Valorizado</Th>
+              <Th alinear="right">Avance</Th>
+              <Th alinear="right">Costo</Th>
+              <Th alinear="right">Margen</Th>
+              <Th alinear="right">Acción</Th>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filas.length === 0 ? (
+              <TableEmpty colSpan={7} mensaje="Aún no hay partidas registradas." />
+            ) : (
+              filas.map(({ partida, presupuesto, valorizado, costo, margen }) => {
+                const avance = presupuesto > 0 ? (valorizado / presupuesto) * 100 : 0
+                return (
+                  <TableRow key={partida.id}>
+                    <Td>
+                      <span className="font-medium text-slate-900">{partida.nombre}</span>
+                      <span className="block text-xs text-slate-500">
+                        {formatearCantidad(partida.metrado)} {partida.unidad} × {formatearMoneda(partida.precio_unitario)}
+                      </span>
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(presupuesto)}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(valorizado)}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {avance.toFixed(1)}%
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(costo)}
+                    </Td>
+                    <Td
+                      alinear="right"
+                      className={`font-semibold tabular-nums ${margen < 0 ? 'text-red-600' : 'text-slate-900'}`}
+                    >
+                      {formatearMoneda(margen)}
+                    </Td>
+                    <Td alinear="right">
+                      <Button
+                        variante="peligro"
+                        tamano="sm"
+                        onClick={() => setPorEliminar({ tipo: 'partida', id: partida.id, nombre: partida.nombre })}
+                      >
+                        Eliminar
+                      </Button>
+                    </Td>
+                  </TableRow>
+                )
+              })
+            )}
+
+            {filas.length > 0 && (
+              <TableRow className="bg-slate-50 font-semibold">
+                <Td className="text-slate-600">
+                  Total
+                  {sinPartida > 0 && (
+                    <span className="block text-xs font-normal">
+                      + {formatearMoneda(sinPartida)} sin partida asignada
+                    </span>
+                  )}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {formatearMoneda(filas.reduce((s, f) => s + f.presupuesto, 0))}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {formatearMoneda(filas.reduce((s, f) => s + f.valorizado, 0))}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {medido ? `${medido.porcentaje.toFixed(1)}%` : '—'}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {formatearMoneda(filas.reduce((s, f) => s + f.costo, 0))}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {formatearMoneda(filas.reduce((s, f) => s + f.margen, 0))}
+                </Td>
+                <Td />
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+
+        {todasValorizaciones.filter((v) => v.servicio_id === servicio.id).length > 0 && (
+          <div className="mt-6">
+            <p className="mb-2 text-sm font-medium text-slate-700">
+              Valorizaciones registradas
+            </p>
+            <ul className="space-y-1.5">
+              {[...todasValorizaciones]
+                .filter((v) => v.servicio_id === servicio.id)
+                .sort((a, b) => a.mes.localeCompare(b.mes) || a.id - b.id)
+                .map((v) => {
+                  const partida = partidas.find((p) => p.id === v.partida_id)
+                  return (
+                    <li
+                      key={v.id}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                    >
+                      <span className="min-w-0 truncate text-slate-700">
+                        {partida?.nombre ?? 'Partida eliminada'} ·{' '}
+                        <span className="text-slate-500 capitalize">{formatearMes(v.mes)}</span> ·{' '}
+                        <span className="tabular-nums">
+                          {formatearCantidad(v.metrado_ejecutado)} {partida?.unidad ?? ''}
+                        </span>
+                      </span>
+                      <Button
+                        variante="peligro"
+                        tamano="sm"
+                        onClick={() => setPorEliminar({ tipo: 'valorizacion', id: v.id })}
+                      >
+                        Eliminar
+                      </Button>
+                    </li>
+                  )
+                })}
+            </ul>
+          </div>
+        )}
+      </Card>
+
+      {porEliminar && (
+        <Modal
+          abierto
+          ancho="sm"
+          titulo={porEliminar.tipo === 'partida' ? 'Eliminar partida' : 'Eliminar valorización'}
+          descripcion="Esta acción no se puede deshacer."
+          onCerrar={() => setPorEliminar(null)}
+          pie={
+            <>
+              <Button variante="secundario" onClick={() => setPorEliminar(null)}>
+                Cancelar
+              </Button>
+              <Button variante="peligro" onClick={confirmarEliminar}>
+                Sí, eliminar
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-slate-600">
+            {porEliminar.tipo === 'partida' ? (
+              <>
+                Se eliminará la partida{' '}
+                <span className="font-semibold text-slate-900">{porEliminar.nombre}</span>{' '}
+                junto con sus valorizaciones. Los registros de costo vinculados quedarán
+                como “sin partida”.
+              </>
+            ) : (
+              <>Se eliminará la valorización seleccionada.</>
+            )}
+          </p>
+        </Modal>
+      )}
+
+      <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
+    </div>
+  )
+}

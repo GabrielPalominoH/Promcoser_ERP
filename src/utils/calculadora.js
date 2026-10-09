@@ -4,6 +4,88 @@ export function registrosDeServicio(registros, servicioId) {
   return registros.filter((registro) => registro.servicio_id === servicioId)
 }
 
+// ------------------------------------------------------------
+//  Partidas, valorización y almacén (Fase 3)
+// ------------------------------------------------------------
+
+export function partidasDeServicio(partidas, servicioId) {
+  return (partidas ?? []).filter((p) => p.servicio_id === servicioId)
+}
+
+export function presupuestoPartida(partida) {
+  return (Number(partida.metrado) || 0) * (Number(partida.precio_unitario) || 0)
+}
+
+export function presupuestoPartidas(partidas, servicioId) {
+  return partidasDeServicio(partidas, servicioId).reduce(
+    (total, p) => total + presupuestoPartida(p),
+    0,
+  )
+}
+
+export function valorizadoPartida(partida, valorizaciones) {
+  const precio = Number(partida.precio_unitario) || 0
+  return (valorizaciones ?? [])
+    .filter((v) => v.partida_id === partida.id)
+    .reduce((total, v) => total + (Number(v.metrado_ejecutado) || 0) * precio, 0)
+}
+
+// Avance medido del servicio: valorizado total / presupuesto por partidas.
+// null si no hay partidas con presupuesto (evita dividir entre cero).
+export function avanceMedido(servicioId, partidas, valorizaciones) {
+  const lista = partidasDeServicio(partidas, servicioId)
+  const presupuesto = lista.reduce((t, p) => t + presupuestoPartida(p), 0)
+  if (presupuesto <= 0) return null
+  const valorizado = lista.reduce((t, p) => t + valorizadoPartida(p, valorizaciones), 0)
+  return {
+    presupuestoPartidas: presupuesto,
+    valorizado,
+    porcentaje: (valorizado / presupuesto) * 100,
+  }
+}
+
+// Costo cargado a una partida: suma de registros (material/gasto/personal/
+// equipo) con ese partida_id dentro del servicio.
+export function costoPorPartida(registros, servicioId, partidaId) {
+  return (registros ?? [])
+    .filter((r) => r.servicio_id === servicioId && r.partida_id === partidaId)
+    .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
+}
+
+// Costo sin partida asignada dentro del servicio.
+export function costoSinPartida(registros, servicioId) {
+  return (registros ?? [])
+    .filter((r) => r.servicio_id === servicioId && r.partida_id == null)
+    .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
+}
+
+// Kardex por material: ingresos, salidas, stock y precio promedio ponderado.
+export function kardexMaterial(materialId, movimientos) {
+  const lista = (movimientos ?? []).filter((m) => m.material_id === materialId)
+  let ingresosCant = 0
+  let ingresosMonto = 0
+  let salidasCant = 0
+  for (const m of lista) {
+    const cant = Number(m.cantidad) || 0
+    const pu = Number(m.costo_unitario) || 0
+    if (m.tipo === 'ingreso') {
+      ingresosCant += cant
+      ingresosMonto += cant * pu
+    } else if (m.tipo === 'salida') {
+      salidasCant += cant
+    }
+  }
+  const stock = ingresosCant - salidasCant
+  const precioPromedio = ingresosCant > 0 ? ingresosMonto / ingresosCant : 0
+  return {
+    ingresos: ingresosCant,
+    salidas: salidasCant,
+    stock,
+    precioPromedio,
+    valorizado: stock * precioPromedio,
+  }
+}
+
 export function sumarMontos(registros) {
   return registros.reduce((total, registro) => total + (Number(registro.monto_calculado) || 0), 0)
 }

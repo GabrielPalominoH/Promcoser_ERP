@@ -22,7 +22,10 @@ const SECCIONES = [
   },
   {
     titulo: 'Planificación',
-    opciones: [{ id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' }],
+    opciones: [
+      { id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' },
+      { id: 'partidas', etiqueta: 'Partidas', icono: 'clipboard' },
+    ],
   },
   {
     titulo: 'Ajustes',
@@ -42,7 +45,7 @@ function Contador({ valor }) {
 export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
   const { servicio } = usePanelServicio()
   const {
-    estado: { registros_servicio: todos, tareas },
+    estado: { registros_servicio: todos, tareas, partidas: todasPartidas },
   } = useData()
 
   const conteo = (tipo) =>
@@ -62,6 +65,7 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
     equipos: conteo('equipo'),
     gastos: conteo('gasto'),
     cronograma: tareas.filter((t) => t.servicio_id === servicio.id && t.padre_id == null).length,
+    partidas: (todasPartidas ?? []).filter((p) => p.servicio_id === servicio.id).length,
   }
 
   const base = `/servicios/${servicio.id}`

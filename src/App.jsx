@@ -9,10 +9,12 @@ import { PersonalServicio } from './pages/servicio/PersonalServicio'
 import { EquiposServicio } from './pages/servicio/EquiposServicio'
 import { GastosServicio } from './pages/servicio/GastosServicio'
 import { CronogramaServicio } from './pages/servicio/CronogramaServicio'
+import { PartidasServicio } from './pages/servicio/PartidasServicio'
 import { OpcionesServicio } from './pages/servicio/OpcionesServicio'
 import { Personal } from './pages/Personal'
 import { Equipos } from './pages/Equipos'
 import { Oficina } from './pages/Oficina'
+import { Almacen } from './pages/Almacen'
 
 export default function App() {
   return (
@@ -27,11 +29,13 @@ export default function App() {
           <Route path="equipos" element={<EquiposServicio />} />
           <Route path="gastos" element={<GastosServicio />} />
           <Route path="cronograma" element={<CronogramaServicio />} />
+          <Route path="partidas" element={<PartidasServicio />} />
           <Route path="opciones" element={<OpcionesServicio />} />
         </Route>
         <Route path="personal" element={<Personal />} />
         <Route path="equipos" element={<Equipos />} />
         <Route path="oficina" element={<Oficina />} />
+        <Route path="almacen" element={<Almacen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

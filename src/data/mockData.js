@@ -256,6 +256,7 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Cemento Portland Tipo I',
+    partida_id: 2,
     cantidad_o_horas: 200,
     monto_calculado: 7700,
     fecha: '2026-07-08',
@@ -276,6 +277,7 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Acero de refuerzo 1/2 pulg',
+    partida_id: 3,
     cantidad_o_horas: 120,
     monto_calculado: 2988,
     fecha: '2026-07-15',
@@ -295,6 +297,7 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Arena gruesa',
+    partida_id: 2,
     cantidad_o_horas: 30,
     monto_calculado: 1860,
     fecha: '2026-07-22',
@@ -324,6 +327,7 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Ladrillo Kingsize de arcilla',
+    partida_id: 2,
     cantidad_o_horas: 5000,
     monto_calculado: 16000,
     fecha: '2026-08-10',
@@ -343,6 +347,7 @@ export const registros_servicio = [
     tipo_registro: 'material',
     referencia_id: null,
     nombre_material: 'Pintura acrílica blanco',
+    partida_id: 5,
     cantidad_o_horas: 18,
     monto_calculado: 1728,
     fecha: '2026-09-05',
@@ -409,6 +414,40 @@ export const costos_oficina = [
 ]
 
 // ------------------------------------------------------------
+//  5. Presupuesto por partidas y valorizaciones
+// ------------------------------------------------------------
+
+export const partidas = [
+  { id: 1, servicio_id: 6, nombre: 'Obras preliminares', unidad: 'glb', metrado: 1, precio_unitario: 8000 },
+  { id: 2, servicio_id: 6, nombre: 'Cimentación', unidad: 'm3', metrado: 120, precio_unitario: 180 },
+  { id: 3, servicio_id: 6, nombre: 'Estructuras de concreto', unidad: 'm3', metrado: 95, precio_unitario: 420 },
+  { id: 4, servicio_id: 6, nombre: 'Cobertura metálica', unidad: 'm2', metrado: 400, precio_unitario: 65 },
+  { id: 5, servicio_id: 6, nombre: 'Acabados', unidad: 'glb', metrado: 1, precio_unitario: 24500 },
+]
+
+export const valorizaciones = [
+  { id: 1, partida_id: 1, servicio_id: 6, mes: '2026-07', metrado_ejecutado: 1 },
+  { id: 2, partida_id: 2, servicio_id: 6, mes: '2026-08', metrado_ejecutado: 60 },
+  { id: 3, partida_id: 2, servicio_id: 6, mes: '2026-09', metrado_ejecutado: 40 },
+  { id: 4, partida_id: 3, servicio_id: 6, mes: '2026-09', metrado_ejecutado: 30 },
+  { id: 5, partida_id: 3, servicio_id: 6, mes: '2026-10', metrado_ejecutado: 20 },
+  { id: 6, partida_id: 4, servicio_id: 6, mes: '2026-10', metrado_ejecutado: 80 },
+]
+
+// ------------------------------------------------------------
+//  6. Almacén: kardex de ingresos y salidas por material
+// ------------------------------------------------------------
+
+export const movimientos_almacen = [
+  { id: 1, material_id: 1, tipo: 'ingreso', cantidad: 300, costo_unitario: 38.5, fecha: '2026-07-02', documento: 'FAC-001', servicio_id: null },
+  { id: 2, material_id: 1, tipo: 'salida', cantidad: 120, costo_unitario: 38.5, fecha: '2026-07-08', documento: 'VAL-001', servicio_id: 6 },
+  { id: 3, material_id: 2, tipo: 'ingreso', cantidad: 8000, costo_unitario: 3.2, fecha: '2026-07-25', documento: 'FAC-002', servicio_id: null },
+  { id: 4, material_id: 2, tipo: 'ingreso', cantidad: 2000, costo_unitario: 3.4, fecha: '2026-08-20', documento: 'FAC-005', servicio_id: null },
+  { id: 5, material_id: 2, tipo: 'salida', cantidad: 2000, costo_unitario: 3.2, fecha: '2026-08-10', documento: 'VAL-002', servicio_id: 6 },
+  { id: 6, material_id: 5, tipo: 'ingreso', cantidad: 40, costo_unitario: 96, fecha: '2026-09-01', documento: 'FAC-009', servicio_id: null },
+]
+
+// ------------------------------------------------------------
 //  Estado inicial consolidado
 // ------------------------------------------------------------
 
@@ -420,6 +459,9 @@ export const ESTADO_INICIAL = {
   registros_servicio,
   tareas,
   costos_oficina,
+  partidas,
+  valorizaciones,
+  movimientos_almacen,
 }
 
 export const COLECCIONES = Object.keys(ESTADO_INICIAL)

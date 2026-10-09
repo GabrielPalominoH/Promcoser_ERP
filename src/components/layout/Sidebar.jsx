@@ -9,6 +9,7 @@ export const SECCIONES_NAVEGACION = [
       { to: '/personal', label: 'Personal', icono: 'users' },
       { to: '/equipos', label: 'Equipos', icono: 'truck' },
       { to: '/oficina', label: 'Oficina', icono: 'grid' },
+      { to: '/almacen', label: 'Almacén', icono: 'box' },
     ],
   },
 ]

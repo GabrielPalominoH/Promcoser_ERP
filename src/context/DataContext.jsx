@@ -115,8 +115,8 @@ export function dataReducer(estado, accion) {
         (item) => item.id !== payload.id,
       )
 
-      // Integridad referencial: al borrar un servicio se van sus registros
-      // y sus tareas del cronograma.
+      // Integridad referencial: al borrar un servicio se van sus registros,
+      // sus tareas del cronograma, sus partidas y sus valorizaciones.
       if (payload.coleccion === 'servicios') {
         return {
           ...estado,
@@ -126,6 +126,23 @@ export function dataReducer(estado, accion) {
           ),
           tareas: estado.tareas.filter(
             (tarea) => tarea.servicio_id !== payload.id,
+          ),
+          partidas: (estado.partidas ?? []).filter(
+            (partida) => partida.servicio_id !== payload.id,
+          ),
+          valorizaciones: (estado.valorizaciones ?? []).filter(
+            (valorizacion) => valorizacion.servicio_id !== payload.id,
+          ),
+        }
+      }
+
+      // Al borrar una partida se van sus valorizaciones.
+      if (payload.coleccion === 'partidas') {
+        return {
+          ...estado,
+          partidas: restantes,
+          valorizaciones: (estado.valorizaciones ?? []).filter(
+            (valorizacion) => valorizacion.partida_id !== payload.id,
           ),
         }
       }

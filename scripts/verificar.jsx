@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, coberturaTareo, consumoPresupuesto, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral } from '../src/utils/calculadora'
+import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, coberturaTareo, consumoPresupuesto, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, kardexMaterial, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoPartida } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import App from '../src/App'
 
@@ -291,6 +291,35 @@ const soloObra = ESTADO_INICIAL.personal.filter((p) => (p.ambito ?? 'Obra') !== 
 comprobar('personal de obra > 0 y < total', soloObra.length > 0 && soloObra.length < ESTADO_INICIAL.personal.length, String(soloObra.length))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
+console.log('\n[ partidas / valorización / almacén ]')
+
+const { partidas, valorizaciones, movimientos_almacen: movimientos, registros_servicio: regs } = ESTADO_INICIAL
+comprobar('serv. 6 tiene 5 partidas', partidasDeServicio(partidas, 6).length === 5)
+comprobar('presupuesto por partidas = 120000', presupuestoPartidas(partidas, 6) === 120000, String(presupuestoPartidas(partidas, 6)))
+comprobar('presupuesto partida cimentación = 21600', presupuestoPartida(partidas.find((p) => p.id === 2)) === 21600)
+comprobar('valorizado cimentación = 18000', valorizadoPartida(partidas.find((p) => p.id === 2), valorizaciones) === 18000)
+const medido6 = avanceMedido(6, partidas, valorizaciones)
+comprobar('avance medido serv. 6 ≈ 43.5%', medido6 && Math.abs(medido6.porcentaje - 43.5) < 0.01, String(medido6?.porcentaje))
+comprobar('sin partidas no hay avance medido', avanceMedido(999, partidas, valorizaciones) === null)
+comprobar('costo partida cimentación = 25560', costoPorPartida(regs, 6, 2) === 25560, String(costoPorPartida(regs, 6, 2)))
+comprobar(
+  'costo total = por partida + sin partida',
+  costoPorPartida(regs, 6, 1) + costoPorPartida(regs, 6, 2) + costoPorPartida(regs, 6, 3) + costoPorPartida(regs, 6, 4) + costoPorPartida(regs, 6, 5) + costoSinPartida(regs, 6) === sumarMontos(registrosDeServicio(regs, 6)),
+)
+const kardexCemento = kardexMaterial(1, movimientos)
+comprobar('kardex cemento stock = 180', kardexCemento.stock === 180, String(kardexCemento.stock))
+comprobar('kardex cemento valorizado = 6930', kardexCemento.valorizado === 6930, String(kardexCemento.valorizado))
+const kardexLadrillo = kardexMaterial(2, movimientos)
+comprobar('kardex ladrillo stock = 8000', kardexLadrillo.stock === 8000, String(kardexLadrillo.stock))
+comprobar('kardex ladrillo promedio = 3.24', Math.abs(kardexLadrillo.precioPromedio - 3.24) < 1e-9, String(kardexLadrillo.precioPromedio))
+comprobar('cascada servicio borra partidas', !sinServicio.partidas.some((p) => p.servicio_id === 6))
+comprobar('cascada servicio borra valorizaciones', !sinServicio.valorizaciones.some((v) => v.servicio_id === 6))
+const sinPartida = dataReducer(ESTADO_INICIAL, {
+  type: 'ELIMINAR_ITEM',
+  payload: { coleccion: 'partidas', id: 2 },
+})
+comprobar('cascada partida borra sus valorizaciones', !sinPartida.valorizaciones.some((v) => v.partida_id === 2))
+
 // ============================================================
 //  3. Formato
 // ============================================================
@@ -317,11 +346,13 @@ const rutas = [
   { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
+  { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
   { ruta: '/servicios/999', etiqueta: 'Detalle id inexistente', monto: false },
   { ruta: '/personal', etiqueta: 'Personal', monto: true },
   { ruta: '/equipos', etiqueta: 'Equipos', monto: false },
   { ruta: '/oficina', etiqueta: 'Oficina', monto: true },
+  { ruta: '/almacen', etiqueta: 'Almacén', monto: false },
   { ruta: '/materiales', etiqueta: 'Materiales redirige', monto: false },
   { ruta: '/ruta-inexistente', etiqueta: 'Fallback 404', monto: false },
 ]

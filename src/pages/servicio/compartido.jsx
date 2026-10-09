@@ -71,6 +71,13 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
               domingo · no suma
             </span>
           )}
+        {registro.partida_id != null &&
+          (() => {
+            const partida = (refs.partidas ?? []).find((p) => p.id === registro.partida_id)
+            return partida ? (
+              <span className="block text-xs text-slate-500">{partida.nombre}</span>
+            ) : null
+          })()}
       </Td>
       {conCantidad && (
         <Td alinear="right" className="tabular-nums">
@@ -106,12 +113,17 @@ export function SeccionRegistros({
   children,
 }) {
   const { estado, agregarItem, eliminarItem } = useData()
-  const { personal, materiales, equipos, registros_servicio: todos } = estado
+  const { personal, materiales, equipos, registros_servicio: todos, partidas: todasPartidas } = estado
 
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
 
-  const refs = { personal, materiales, equipos }
+  const refs = {
+    personal,
+    materiales,
+    equipos,
+    partidas: (todasPartidas ?? []).filter((p) => p.servicio_id === servicio.id),
+  }
   const registros = ordenarPorFechaDesc(
     todos.filter(
       (r) => r.servicio_id === servicio.id && r.tipo_registro === tipo,

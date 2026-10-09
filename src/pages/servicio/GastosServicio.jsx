@@ -1,8 +1,10 @@
 import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input } from '../../components/ui/Field'
+import { Campo, Input, Select } from '../../components/ui/Field'
+import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
+import { partidasDeServicio } from '../../utils/calculadora'
 import {
   SeccionRegistros,
   fechaHoyISO,
@@ -16,10 +18,14 @@ function FormularioGasto({ servicio, registrar }) {
     reset,
     formState: { errors },
   } = useForm({
-    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO() },
+    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), partida_id: '' },
   })
+  const {
+    estado: { partidas: todasPartidas },
+  } = useData()
+  const partidas = partidasDeServicio(todasPartidas, servicio.id)
 
-  const enviar = ({ concepto, monto, fecha }) => {
+  const enviar = ({ concepto, monto, fecha, partida_id }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'gasto',
@@ -28,8 +34,9 @@ function FormularioGasto({ servicio, registrar }) {
       cantidad_o_horas: 1,
       monto_calculado: redondearMonto(monto),
       fecha,
+      partida_id: partida_id ? Number(partida_id) : null,
     })
-    reset({ concepto: '', monto: '', fecha: fechaHoyISO() })
+    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), partida_id: '' })
   }
 
   return (
@@ -63,6 +70,23 @@ function FormularioGasto({ servicio, registrar }) {
             {...register('fecha', { required: 'Indica la fecha' })}
           />
         </Campo>
+        {partidas.length > 0 && (
+          <Campo
+            label="Partida (opcional)"
+            error={errors.partida_id?.message}
+            htmlFor="gasto-partida"
+            hint="Para el costo por partida"
+          >
+            <Select id="gasto-partida" {...register('partida_id')}>
+              <option value="">Sin partida</option>
+              {partidas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </Select>
+          </Campo>
+        )}
         <div className="flex items-end">
           <Button type="submit" className="w-full">
             Agregar gasto

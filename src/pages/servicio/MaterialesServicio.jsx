@@ -1,8 +1,10 @@
 import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input } from '../../components/ui/Field'
+import { Campo, Input, Select } from '../../components/ui/Field'
+import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
+import { partidasDeServicio } from '../../utils/calculadora'
 import {
   SeccionRegistros,
   fechaHoyISO,
@@ -16,10 +18,14 @@ function FormularioMaterial({ servicio, registrar }) {
     reset,
     formState: { errors },
   } = useForm({
-    defaultValues: { nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO() },
+    defaultValues: { nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), partida_id: '' },
   })
+  const {
+    estado: { partidas: todasPartidas },
+  } = useData()
+  const partidas = partidasDeServicio(todasPartidas, servicio.id)
 
-  const enviar = ({ nombre_material, cantidad, costo, fecha }) => {
+  const enviar = ({ nombre_material, cantidad, costo, fecha, partida_id }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'material',
@@ -28,8 +34,9 @@ function FormularioMaterial({ servicio, registrar }) {
       cantidad_o_horas: Number(cantidad),
       monto_calculado: redondearMonto(costo),
       fecha,
+      partida_id: partida_id ? Number(partida_id) : null,
     })
-    reset({ nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO() })
+    reset({ nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), partida_id: '' })
   }
 
   return (
@@ -72,6 +79,23 @@ function FormularioMaterial({ servicio, registrar }) {
             {...register('fecha', { required: 'Indica la fecha' })}
           />
         </Campo>
+        {partidas.length > 0 && (
+          <Campo
+            label="Partida (opcional)"
+            error={errors.partida_id?.message}
+            htmlFor="mat-partida"
+            hint="Para el costo por partida"
+          >
+            <Select id="mat-partida" {...register('partida_id')}>
+              <option value="">Sin partida</option>
+              {partidas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </Select>
+          </Campo>
+        )}
       </div>
       <div className="flex justify-end">
         <Button type="submit">Agregar material</Button>
