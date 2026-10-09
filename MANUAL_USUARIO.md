@@ -11,7 +11,9 @@ Responde tres preguntas todos los días:
 
 1. **¿Cuánta plata contrataron por cada obra?** (el presupuesto, o monto contratado)
 2. **¿Cuánta plata ya gasté?** (materiales, gente, equipos, gastos)
-3. **¿Estoy ganando o perdiendo?** (la diferencia entre lo cobrado y lo gastado)
+3. **¿La obra deja ganancia?** (comparar lo presupuestado con lo gastado: el
+   cliente paga un monto fijo, así que todo lo que ahorres frente al
+   presupuesto es tu ganancia)
 
 Antes esto se llevaba en cuadernos o archivos sueltos. El sistema lo junta todo
 en un solo lugar: cada obra muestra su plata, su gente, sus materiales y su
@@ -56,7 +58,8 @@ Entre a **Servicios** y pulse una obra. Adentro verá su propio menú:
 
 ### Resumen
 La foto de la obra: presupuesto, gastado, saldo, fechas, alertas (por ejemplo,
-"presupuesto casi agotado") y si está ganando o perdiendo.
+"presupuesto casi agotado") y si va dejando ganancia (ahorro) o generando
+sobrecosto.
 
 ### Materiales (compras)
 Aquí se registran las **compras de materiales** para la obra. Cada compra
@@ -89,10 +92,12 @@ tiempo (diagrama de Gantt) con el progreso total.
 Una **partida es un pedazo del presupuesto de la obra**. En vez de manejar
 la obra como un solo monto grande, se divide en partes que corresponden al
 trabajo real: por ejemplo, "Obras preliminares", "Cimentación", "Cobertura",
-"Acabados". ¿Para qué sirve? Para saber **qué parte de la obra gana plata y
-qué parte la pierde**: sin partidas solo sabría si la obra en general va bien
-o mal; con partidas ve, por ejemplo, que la cimentación dejó ganancia pero
-los acabados están en rojo. Eso le dice dónde mirar.
+"Acabados". ¿Para qué sirve? Para saber **qué parte de la obra deja ahorro
+y qué parte genera sobrecosto**: sin partidas solo sabría si la obra en
+general va bien o mal; con partidas ve, por ejemplo, que la cimentación dejó
+ahorro pero los acabados generaron sobrecosto. Eso le dice dónde mirar.
+Recuerde: el cliente paga un monto fijo, así que "ganar" aquí significa
+gastar menos de lo presupuestado, no recibir más dinero.
 
 El módulo tiene 3 bloques:
 
@@ -112,7 +117,7 @@ cliente. Es distinto del Cronograma: allá el avance es un porcentaje que se
 marca a ojo por tarea; aquí es una **medición** (m³, m²) que respalda lo que
 se factura.
 
-**3. La tabla de control (dónde se gana o se pierde).**
+**3. La tabla de control (dónde hay ahorro y dónde hay sobrecosto).**
 Una fila por partida con estas columnas:
 
 - **Presupuesto:** cuánto vale la partida (metrado × precio).
@@ -122,8 +127,9 @@ Una fila por partida con estas columnas:
 - **Costo:** lo gastado en esa partida. Sale de los materiales, gastos,
   personal y equipos donde eligió esa partida en su campo "Partida
   (opcional)".
-- **Margen:** valorizado menos costo. Si sale en rojo, esa partida está
-  perdiendo plata.
+- **Margen:** valorizado menos costo. Si sale en rojo, esa partida genera
+  sobrecosto: ya gastó más de lo que vale lo hecho, y nadie le va a dar más
+  dinero por esa diferencia.
 
 Arriba de la tabla verá el **avance medido global**: valorizado total ÷
 presupuesto total. Es el avance real de la obra. Debajo hay la lista de
@@ -169,12 +175,13 @@ tal como figura en la factura, para poder ubicarla después.
 - **Gastado:** todo lo que ya se gastó en la obra.
 - **Saldo / disponible:** presupuesto menos gastado. Lo que queda.
 - **Partida:** un pedazo del presupuesto (ej. cimentación). Sirve para saber
-  qué parte gana y qué parte pierde.
+  qué parte deja ahorro y qué parte genera sobrecosto.
 - **Unidad glb (global):** un trabajo cobrado como paquete completo, sin
   medirse en metros (ej. "Obras preliminares: 1 glb × S/ 8,000").
 - **Valorización:** decir cuánto de cada partida ya se ejecutó en el mes,
   para cobrarlo. Es el avance "medido".
-- **Margen:** valorizado menos costo. Positivo = ganancia, negativo = pérdida.
+- **Margen:** valorizado menos costo. Positivo = ahorro (va gastando menos de
+  lo presupuestado, y eso es su ganancia); negativo = sobrecosto.
 - **Respaldo:** el archivo con toda la información, para guardarla y
   recuperarla.
 
