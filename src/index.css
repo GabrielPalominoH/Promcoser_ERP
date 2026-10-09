@@ -41,3 +41,29 @@
     @apply outline-2 outline-offset-2 outline-primary-600;
   }
 }
+
+@layer base {
+  @media print {
+    /* Reporte limpio: sin sidebars, encabezado, botones ni modales. */
+    aside,
+    header,
+    button,
+    .fixed {
+      display: none !important;
+    }
+
+    body {
+      background: #fff;
+    }
+
+    main {
+      max-width: none !important;
+      padding: 0 !important;
+    }
+
+    section {
+      box-shadow: none !important;
+      break-inside: avoid;
+    }
+  }
+}

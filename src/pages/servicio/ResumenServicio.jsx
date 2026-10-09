@@ -256,9 +256,14 @@ export function ResumenServicio() {
         titulo="Información del servicio"
         descripcion="Resumen de presupuesto y tiempos."
         acciones={
-          <Button variante="secundario" tamano="sm" onClick={abrirEditar}>
-            Editar
-          </Button>
+          <>
+            <Button variante="secundario" tamano="sm" onClick={() => window.print()}>
+              Imprimir reporte
+            </Button>
+            <Button variante="secundario" tamano="sm" onClick={abrirEditar}>
+              Editar
+            </Button>
+          </>
         }
       >
         <div className="mb-5 grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 text-center sm:grid-cols-3">

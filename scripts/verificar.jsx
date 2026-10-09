@@ -309,7 +309,7 @@ comprobar('moneda formatea miles', formatearMoneda(48500).includes('48,500'), fo
 console.log('\n[ render ]')
 
 const rutas = [
-  { ruta: '/', etiqueta: 'Raíz redirige a servicios', monto: false },
+  { ruta: '/', etiqueta: 'Dashboard global', monto: true },
   { ruta: '/servicios', etiqueta: 'Servicios', monto: true },
   { ruta: '/servicios/6', etiqueta: 'Detalle /servicios/6', monto: true },
   { ruta: '/servicios/6/materiales', etiqueta: 'Panel materiales', monto: true },

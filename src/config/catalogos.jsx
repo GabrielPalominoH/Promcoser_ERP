@@ -4,7 +4,7 @@ import {
 } from '../data/mockData'
 import { BadgeActivo, BadgeEstatus } from '../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../utils/formatters'
-import { consumoPresupuesto } from '../utils/calculadora'
+import { consumoPresupuesto, rentabilidadServicio } from '../utils/calculadora'
 import { Link } from 'react-router-dom'
 
 // Cada catálogo se describe con datos, no con componentes a medida.
@@ -382,6 +382,31 @@ export const CATALOGO_SERVICIOS = {
               {consumo.porcentaje.toFixed(1)}%
             </p>
           </div>
+        )
+      },
+    },
+    {
+      etiqueta: 'Margen proy.',
+      alinear: 'right',
+      render: (item, ctx) => {
+        const tareas = (ctx.estado.tareas ?? []).filter((t) => t.servicio_id === item.id)
+        const rent = rentabilidadServicio(item, ctx.estado.registros_servicio, tareas)
+
+        if (rent.margenProyectado == null) {
+          return <span className="text-slate-400">—</span>
+        }
+
+        const pct = item.presupuesto_asignado
+          ? (rent.margenProyectado / item.presupuesto_asignado) * 100
+          : 0
+
+        return (
+          <span
+            className={`font-medium tabular-nums ${rent.margenProyectado < 0 ? 'text-red-600' : 'text-slate-900'}`}
+            title={`Margen proyectado ${formatearMoneda(rent.margenProyectado)} (${pct.toFixed(1)}%)`}
+          >
+            {pct.toFixed(1)}%
+          </span>
         )
       },
     },
