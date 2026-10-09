@@ -78,6 +78,11 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
               <span className="block text-xs text-slate-500">{partida.nombre}</span>
             ) : null
           })()}
+        {registro.movimiento_id != null && (
+          <span className="mt-0.5 inline-block rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800">
+            en almacén
+          </span>
+        )}
       </Td>
       {conCantidad && (
         <Td alinear="right" className="tabular-nums">
@@ -149,6 +154,8 @@ export function SeccionRegistros({
     setAviso({ tipo: 'exito', mensaje })
   }
 
+  const notificar = (tipo, mensaje) => setAviso({ tipo, mensaje })
+
   const confirmarEliminar = () => {
     if (Array.isArray(porEliminar.ids)) {
       porEliminar.ids.forEach((id) => eliminarItem('registros_servicio', id))
@@ -165,7 +172,7 @@ export function SeccionRegistros({
   return (
     <div className="space-y-6">
       <Card titulo={titulo} descripcion={descripcion}>
-        {children({ servicio, personal, materiales, equipos, registrar, registrarLote })}
+        {children({ servicio, personal, materiales, equipos, registrar, registrarLote, notificar })}
       </Card>
 
       <Card titulo={`Registros de ${titulo.toLowerCase()}`}>
@@ -258,6 +265,12 @@ export function SeccionRegistros({
                 </span>{' '}
                 del {formatearFecha(porEliminar.fecha)}. El presupuesto del servicio se
                 actualiza automáticamente.
+                {porEliminar.movimiento_id != null && (
+                  <>
+                    {' '}
+                    Su ingreso vinculado también se quitará del almacén.
+                  </>
+                )}
               </>
             )}
           </p>

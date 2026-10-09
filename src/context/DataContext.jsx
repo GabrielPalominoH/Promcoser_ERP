@@ -133,6 +133,43 @@ export function dataReducer(estado, accion) {
           valorizaciones: (estado.valorizaciones ?? []).filter(
             (valorizacion) => valorizacion.servicio_id !== payload.id,
           ),
+          movimientos_almacen: (estado.movimientos_almacen ?? []).filter(
+            (movimiento) => movimiento.servicio_id !== payload.id,
+          ),
+        }
+      }
+
+      // Compra y su ingreso van juntos: al borrar un registro de material
+      // vinculado se borra también su ingreso al almacén, y viceversa.
+      if (payload.coleccion === 'registros_servicio') {
+        const borrado = estado.registros_servicio.find(
+          (registro) => registro.id === payload.id,
+        )
+        if (borrado?.movimiento_id == null) {
+          return { ...estado, registros_servicio: restantes }
+        }
+        return {
+          ...estado,
+          registros_servicio: restantes,
+          movimientos_almacen: (estado.movimientos_almacen ?? []).filter(
+            (movimiento) => movimiento.id !== borrado.movimiento_id,
+          ),
+        }
+      }
+
+      if (payload.coleccion === 'movimientos_almacen') {
+        const borrado = (estado.movimientos_almacen ?? []).find(
+          (movimiento) => movimiento.id === payload.id,
+        )
+        if (borrado?.registro_id == null) {
+          return { ...estado, movimientos_almacen: restantes }
+        }
+        return {
+          ...estado,
+          movimientos_almacen: restantes,
+          registros_servicio: estado.registros_servicio.filter(
+            (registro) => registro.id !== borrado.registro_id,
+          ),
         }
       }
 

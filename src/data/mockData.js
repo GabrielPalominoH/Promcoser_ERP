@@ -254,9 +254,10 @@ export const registros_servicio = [
     id: 19,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: null,
+    referencia_id: 1,
     nombre_material: 'Cemento Portland Tipo I',
     partida_id: 2,
+    movimiento_id: 1,
     cantidad_o_horas: 200,
     monto_calculado: 7700,
     fecha: '2026-07-08',
@@ -275,9 +276,10 @@ export const registros_servicio = [
     id: 21,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: null,
+    referencia_id: 3,
     nombre_material: 'Acero de refuerzo 1/2 pulg',
     partida_id: 3,
+    movimiento_id: 7,
     cantidad_o_horas: 120,
     monto_calculado: 2988,
     fecha: '2026-07-15',
@@ -295,9 +297,10 @@ export const registros_servicio = [
     id: 23,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: null,
+    referencia_id: 4,
     nombre_material: 'Arena gruesa',
     partida_id: 2,
+    movimiento_id: 8,
     cantidad_o_horas: 30,
     monto_calculado: 1860,
     fecha: '2026-07-22',
@@ -325,9 +328,10 @@ export const registros_servicio = [
     id: 26,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: null,
+    referencia_id: 2,
     nombre_material: 'Ladrillo Kingsize de arcilla',
     partida_id: 2,
+    movimiento_id: 3,
     cantidad_o_horas: 5000,
     monto_calculado: 16000,
     fecha: '2026-08-10',
@@ -345,9 +349,10 @@ export const registros_servicio = [
     id: 28,
     servicio_id: 6,
     tipo_registro: 'material',
-    referencia_id: null,
+    referencia_id: 5,
     nombre_material: 'Pintura acrílica blanco',
     partida_id: 5,
+    movimiento_id: 6,
     cantidad_o_horas: 18,
     monto_calculado: 1728,
     fecha: '2026-09-05',
@@ -438,13 +443,19 @@ export const valorizaciones = [
 //  6. Almacén: kardex de ingresos y salidas por material
 // ------------------------------------------------------------
 
+// Cada compra de un servicio genera un ingreso vinculado a su registro
+// de costo (registro_id); las salidas descuentan stock e indican en qué
+// partida se usó el material, sin generar costo nuevo (el costo se contó
+// en la compra).
 export const movimientos_almacen = [
-  { id: 1, material_id: 1, tipo: 'ingreso', cantidad: 300, costo_unitario: 38.5, fecha: '2026-07-02', documento: 'FAC-001', servicio_id: null },
-  { id: 2, material_id: 1, tipo: 'salida', cantidad: 120, costo_unitario: 38.5, fecha: '2026-07-08', documento: 'VAL-001', servicio_id: 6 },
-  { id: 3, material_id: 2, tipo: 'ingreso', cantidad: 8000, costo_unitario: 3.2, fecha: '2026-07-25', documento: 'FAC-002', servicio_id: null },
-  { id: 4, material_id: 2, tipo: 'ingreso', cantidad: 2000, costo_unitario: 3.4, fecha: '2026-08-20', documento: 'FAC-005', servicio_id: null },
-  { id: 5, material_id: 2, tipo: 'salida', cantidad: 2000, costo_unitario: 3.2, fecha: '2026-08-10', documento: 'VAL-002', servicio_id: 6 },
-  { id: 6, material_id: 5, tipo: 'ingreso', cantidad: 40, costo_unitario: 96, fecha: '2026-09-01', documento: 'FAC-009', servicio_id: null },
+  { id: 1, material_id: 1, tipo: 'ingreso', cantidad: 200, costo_unitario: 38.5, fecha: '2026-07-08', documento: 'FAC-001', servicio_id: 6, partida_id: 2, registro_id: 19 },
+  { id: 2, material_id: 1, tipo: 'salida', cantidad: 120, costo_unitario: 38.5, fecha: '2026-07-15', documento: 'SAL-001', servicio_id: 6, partida_id: 2, registro_id: null },
+  { id: 7, material_id: 3, tipo: 'ingreso', cantidad: 120, costo_unitario: 24.9, fecha: '2026-07-15', documento: 'FAC-003', servicio_id: 6, partida_id: 3, registro_id: 21 },
+  { id: 8, material_id: 4, tipo: 'ingreso', cantidad: 30, costo_unitario: 62, fecha: '2026-07-22', documento: 'FAC-004', servicio_id: 6, partida_id: 2, registro_id: 23 },
+  { id: 3, material_id: 2, tipo: 'ingreso', cantidad: 5000, costo_unitario: 3.2, fecha: '2026-08-10', documento: 'FAC-002', servicio_id: 6, partida_id: 2, registro_id: 26 },
+  { id: 4, material_id: 2, tipo: 'ingreso', cantidad: 2000, costo_unitario: 3.4, fecha: '2026-08-20', documento: 'FAC-005', servicio_id: null, partida_id: null, registro_id: null },
+  { id: 5, material_id: 2, tipo: 'salida', cantidad: 2000, costo_unitario: 3.2, fecha: '2026-08-18', documento: 'SAL-002', servicio_id: 6, partida_id: 2, registro_id: null },
+  { id: 6, material_id: 5, tipo: 'ingreso', cantidad: 18, costo_unitario: 96, fecha: '2026-09-05', documento: 'FAC-009', servicio_id: 6, partida_id: 5, registro_id: 28 },
 ]
 
 // ------------------------------------------------------------

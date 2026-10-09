@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, coberturaTareo, consumoPresupuesto, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, kardexMaterial, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoPartida } from '../src/utils/calculadora'
+import { agruparPersonalPorMes, alertasServicio, avanceEfectivo, avanceMedido, coberturaTareo, comprasDeServicio, consumoPresupuesto, consumoPartidaPorSalidas, costoPorPartida, costoSinPartida, cuentaComoManoDeObra, desglosePorTipo, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, kardexMaterial, metricasCronograma, partidasDeServicio, presupuestoPartida, presupuestoPartidas, puedeEliminarIngreso, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, salidasDeServicio, valorizadoPartida } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import App from '../src/App'
 
@@ -307,13 +307,44 @@ comprobar(
   costoPorPartida(regs, 6, 1) + costoPorPartida(regs, 6, 2) + costoPorPartida(regs, 6, 3) + costoPorPartida(regs, 6, 4) + costoPorPartida(regs, 6, 5) + costoSinPartida(regs, 6) === sumarMontos(registrosDeServicio(regs, 6)),
 )
 const kardexCemento = kardexMaterial(1, movimientos)
-comprobar('kardex cemento stock = 180', kardexCemento.stock === 180, String(kardexCemento.stock))
-comprobar('kardex cemento valorizado = 6930', kardexCemento.valorizado === 6930, String(kardexCemento.valorizado))
+comprobar('kardex cemento stock = 80', kardexCemento.stock === 80, String(kardexCemento.stock))
+comprobar('kardex cemento valorizado = 3080', kardexCemento.valorizado === 3080, String(kardexCemento.valorizado))
 const kardexLadrillo = kardexMaterial(2, movimientos)
-comprobar('kardex ladrillo stock = 8000', kardexLadrillo.stock === 8000, String(kardexLadrillo.stock))
-comprobar('kardex ladrillo promedio = 3.24', Math.abs(kardexLadrillo.precioPromedio - 3.24) < 1e-9, String(kardexLadrillo.precioPromedio))
+comprobar('kardex ladrillo stock = 5000', kardexLadrillo.stock === 5000, String(kardexLadrillo.stock))
+comprobar('kardex ladrillo promedio = 22800/7000', Math.abs(kardexLadrillo.precioPromedio - 22800 / 7000) < 1e-9, String(kardexLadrillo.precioPromedio))
 comprobar('cascada servicio borra partidas', !sinServicio.partidas.some((p) => p.servicio_id === 6))
 comprobar('cascada servicio borra valorizaciones', !sinServicio.valorizaciones.some((v) => v.servicio_id === 6))
+comprobar('cascada servicio borra movimientos', !(sinServicio.movimientos_almacen ?? []).some((m) => m.servicio_id === 6))
+
+console.log('\n[ almacén conectado ]')
+
+comprobar('serv. 6 tiene 5 compras vinculadas', comprasDeServicio(6, movimientos).length === 5)
+comprobar('serv. 6 tiene 2 salidas', salidasDeServicio(6, movimientos).length === 2)
+comprobar(
+  'toda compra vinculada tiene su costo de vuelta',
+  comprasDeServicio(6, movimientos)
+    .filter((m) => m.registro_id != null)
+    .every((m) => {
+      const r = regs.find((x) => x.id === m.registro_id)
+      return r && r.movimiento_id === m.id && r.cantidad_o_horas === m.cantidad
+    }),
+)
+comprobar('consumo cimentación por salidas = 11020', consumoPartidaPorSalidas(6, 2, movimientos) === 11020, String(consumoPartidaPorSalidas(6, 2, movimientos)))
+const ingresoCemento = movimientos.find((m) => m.id === 1)
+const guardaCemento = puedeEliminarIngreso(ingresoCemento, movimientos)
+comprobar('borrar compra de cemento deja stock negativo: bloqueado', guardaCemento.permitido === false && guardaCemento.stockResultante === -120, JSON.stringify(guardaCemento))
+const ingresoArena = movimientos.find((m) => m.id === 8)
+comprobar('borrar compra de arena deja stock en cero: permitido', puedeEliminarIngreso(ingresoArena, movimientos).permitido === true)
+const sinRegistro = dataReducer(ESTADO_INICIAL, {
+  type: 'ELIMINAR_ITEM',
+  payload: { coleccion: 'registros_servicio', id: 19 },
+})
+comprobar('borrar costo borra su ingreso', !sinRegistro.movimientos_almacen.some((m) => m.id === 1))
+const sinIngreso = dataReducer(ESTADO_INICIAL, {
+  type: 'ELIMINAR_ITEM',
+  payload: { coleccion: 'movimientos_almacen', id: 3 },
+})
+comprobar('borrar ingreso borra su costo', !sinIngreso.registros_servicio.some((r) => r.id === 26))
 const sinPartida = dataReducer(ESTADO_INICIAL, {
   type: 'ELIMINAR_ITEM',
   payload: { coleccion: 'partidas', id: 2 },

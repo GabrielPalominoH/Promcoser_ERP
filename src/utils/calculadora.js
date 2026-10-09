@@ -59,6 +59,40 @@ export function costoSinPartida(registros, servicioId) {
     .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
 }
 
+// Salidas de un servicio: qué material se usó en obra y en qué partida.
+// No generan costo (el costo se contó en la compra); sirven para ver el
+// consumo por partida.
+export function salidasDeServicio(servicioId, movimientos) {
+  return (movimientos ?? []).filter(
+    (m) => m.tipo === 'salida' && m.servicio_id === servicioId,
+  )
+}
+
+// Consumo de una partida por salidas: cantidad × costo unitario registrado.
+export function consumoPartidaPorSalidas(servicioId, partidaId, movimientos) {
+  return salidasDeServicio(servicioId, movimientos)
+    .filter((m) => m.partida_id === partidaId)
+    .reduce(
+      (total, m) => total + (Number(m.cantidad) || 0) * (Number(m.costo_unitario) || 0),
+      0,
+    )
+}
+
+// Compras de un servicio: ingresos vinculados a su registro de costo.
+export function comprasDeServicio(servicioId, movimientos) {
+  return (movimientos ?? []).filter(
+    (m) => m.tipo === 'ingreso' && m.servicio_id === servicioId,
+  )
+}
+
+// Un ingreso solo puede eliminarse si el stock resultante no queda negativo.
+export function puedeEliminarIngreso(ingreso, movimientos) {
+  if (ingreso.tipo !== 'ingreso') return { permitido: true, stockResultante: null }
+  const { stock } = kardexMaterial(ingreso.material_id, movimientos)
+  const stockResultante = stock - (Number(ingreso.cantidad) || 0)
+  return { permitido: stockResultante >= 0, stockResultante }
+}
+
 // Kardex por material: ingresos, salidas, stock y precio promedio ponderado.
 export function kardexMaterial(materialId, movimientos) {
   const lista = (movimientos ?? []).filter((m) => m.material_id === materialId)

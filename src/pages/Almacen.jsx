@@ -15,15 +15,26 @@ import {
   Th,
 } from '../components/ui/Table'
 import { useData } from '../context/useData'
-import { kardexMaterial } from '../utils/calculadora'
+import {
+  kardexMaterial,
+  partidasDeServicio,
+  puedeEliminarIngreso,
+} from '../utils/calculadora'
 import { formatearCantidad, formatearFecha } from '../utils/formatters'
 import { fechaHoyISO, reglasNumeroMayorACero } from './servicio/compartido'
 
-function FormularioMovimiento({ materiales, movimientos, onGuardar }) {
+const nombreMaterial = (m) => m?.nombre ?? m?.nombre_material ?? 'Material eliminado'
+
+// Las salidas exigen servicio (y partida opcional): descuentan stock e
+// indican dónde se usó el material, sin generar costo nuevo porque el
+// costo ya se contó en la compra. Los ingresos desde aquí son stock
+// general; para comprar para un servicio se usa su pestaña Materiales.
+function FormularioMovimiento({ materiales, servicios, partidas, onGuardar }) {
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -34,10 +45,26 @@ function FormularioMovimiento({ materiales, movimientos, onGuardar }) {
       fecha: fechaHoyISO(),
       documento: '',
       servicio_id: '',
+      partida_id: '',
     },
   })
+  const tipo = watch('tipo')
+  const servicioId = watch('servicio_id')
+  const esSalida = tipo === 'salida'
+  const partidasDelServicio = servicioId
+    ? partidasDeServicio(partidas, Number(servicioId))
+    : []
 
-  const enviar = ({ material_id, tipo, cantidad, costo_unitario, fecha, documento }) => {
+  const enviar = ({
+    material_id,
+    tipo,
+    cantidad,
+    costo_unitario,
+    fecha,
+    documento,
+    servicio_id,
+    partida_id,
+  }) => {
     onGuardar({
       material_id: Number(material_id),
       tipo,
@@ -45,7 +72,9 @@ function FormularioMovimiento({ materiales, movimientos, onGuardar }) {
       costo_unitario: Number(costo_unitario),
       fecha,
       documento: documento.trim() || null,
-      servicio_id: null,
+      servicio_id: esSalida ? Number(servicio_id) : null,
+      partida_id: esSalida && partida_id ? Number(partida_id) : null,
+      registro_id: null,
     })
     reset()
   }
@@ -75,21 +104,21 @@ function FormularioMovimiento({ materiales, movimientos, onGuardar }) {
             </option>
             {materiales.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.nombre ?? m.nombre_material} ({m.unidad_medida})
+                {nombreMaterial(m)} ({m.unidad_medida})
               </option>
             ))}
           </Select>
         </Campo>
         <Campo label="Tipo" error={errors.tipo?.message} htmlFor="alm-tipo">
           <Select id="alm-tipo" {...register('tipo', { required: true })}>
-            <option value="ingreso">Ingreso (compra)</option>
+            <option value="ingreso">Ingreso (compra general)</option>
             <option value="salida">Salida (uso en obra)</option>
           </Select>
         </Campo>
         <Campo label="Documento" error={errors.documento?.message} htmlFor="alm-doc">
           <Input
             id="alm-doc"
-            placeholder="FAC-001 / VAL-001"
+            placeholder="FAC-001 / SAL-001"
             {...register('documento')}
           />
         </Campo>
@@ -122,7 +151,55 @@ function FormularioMovimiento({ materiales, movimientos, onGuardar }) {
             {...register('fecha', { required: 'Indica la fecha' })}
           />
         </Campo>
+
+        {esSalida && (
+          <>
+            <Campo
+              label="Servicio destino"
+              error={errors.servicio_id?.message}
+              htmlFor="alm-servicio"
+            >
+              <Select
+                id="alm-servicio"
+                {...register('servicio_id', { required: 'Indica el servicio' })}
+              >
+                <option value="" disabled>
+                  Selecciona…
+                </option>
+                {servicios.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre_servicio}
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+            {partidasDelServicio.length > 0 && (
+              <Campo
+                label="Partida (opcional)"
+                error={errors.partida_id?.message}
+                htmlFor="alm-partida"
+              >
+                <Select id="alm-partida" {...register('partida_id')}>
+                  <option value="">Sin partida</option>
+                  {partidasDelServicio.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+            )}
+          </>
+        )}
       </div>
+
+      {!esSalida && (
+        <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Los ingresos desde aquí son stock general. Para comprar para un servicio
+          (con su costo), usa la pestaña Materiales de ese servicio.
+        </p>
+      )}
+
       <div className="flex justify-end">
         <Button type="submit">Registrar movimiento</Button>
       </div>
@@ -132,7 +209,12 @@ function FormularioMovimiento({ materiales, movimientos, onGuardar }) {
 
 export function Almacen() {
   const { estado, agregarItem, eliminarItem } = useData()
-  const { materiales, movimientos_almacen: movimientos } = estado
+  const {
+    materiales,
+    servicios,
+    partidas,
+    movimientos_almacen: movimientos,
+  } = estado
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
 
@@ -142,7 +224,7 @@ export function Almacen() {
       if (datos.cantidad > kardex.stock) {
         setAviso({
           tipo: 'error',
-          mensaje: `Stock insuficiente: hay ${kardex.stock} disponible.`,
+          mensaje: `Stock insuficiente: hay ${formatearCantidad(kardex.stock)} disponible.`,
         })
         return
       }
@@ -151,17 +233,39 @@ export function Almacen() {
     setAviso({ tipo: 'exito', mensaje: 'Movimiento registrado.' })
   }
 
-  const confirmarEliminar = () => {
-    eliminarItem('movimientos_almacen', porEliminar)
-    setPorEliminar(null)
-    setAviso({ tipo: 'info', mensaje: 'Movimiento eliminado.' })
+  const pedirEliminar = (movimiento) => {
+    if (movimiento.tipo === 'ingreso') {
+      const { permitido, stockResultante } = puedeEliminarIngreso(movimiento, movimientos)
+      if (!permitido) {
+        setAviso({
+          tipo: 'error',
+          mensaje: `No se puede eliminar: el stock quedaría en ${formatearCantidad(stockResultante)}. Elimina primero las salidas.`,
+        })
+        return
+      }
+    }
+    setPorEliminar(movimiento)
   }
 
-  const nombreMaterial = (m) => m.nombre ?? m.nombre_material ?? ''
+  const confirmarEliminar = () => {
+    eliminarItem('movimientos_almacen', porEliminar.id)
+    setAviso({
+      tipo: 'info',
+      mensaje:
+        porEliminar.registro_id != null
+          ? 'Movimiento y su costo vinculado eliminados. El stock se recalcula automáticamente.'
+          : 'Movimiento eliminado. El stock se recalcula automáticamente.',
+    })
+    setPorEliminar(null)
+  }
+
   const filas = [...materiales]
     .sort((a, b) => nombreMaterial(a).localeCompare(nombreMaterial(b), 'es'))
     .map((m) => ({ material: m, kardex: kardexMaterial(m.id, movimientos) }))
     .filter(({ kardex }) => kardex.ingresos > 0 || kardex.salidas > 0)
+
+  const servicioDe = (id) => servicios.find((s) => s.id === id)
+  const partidaDe = (id) => (partidas ?? []).find((p) => p.id === id)
 
   const ultimos = [...(movimientos ?? [])]
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id)
@@ -171,11 +275,12 @@ export function Almacen() {
     <div className="space-y-6">
       <Card
         titulo="Registrar movimiento"
-        descripcion="Ingresos por compra y salidas hacia obra. Las salidas no pueden superar el stock."
+        descripcion="Ingresos de stock general y salidas hacia obra con su destino."
       >
         <FormularioMovimiento
           materiales={materiales}
-          movimientos={movimientos}
+          servicios={servicios}
+          partidas={partidas ?? []}
           onGuardar={guardar}
         />
       </Card>
@@ -246,7 +351,7 @@ export function Almacen() {
                     >
                       {m.tipo}
                     </span>
-                    {(material?.nombre ?? material?.nombre_material) ?? 'Material eliminado'} ·{' '}
+                    {nombreMaterial(material)} ·{' '}
                     <span className="tabular-nums">
                       {formatearCantidad(m.cantidad)} {material?.unidad_medida ?? ''}
                     </span>{' '}
@@ -254,11 +359,23 @@ export function Almacen() {
                     {m.documento && (
                       <span className="text-slate-500"> · {m.documento}</span>
                     )}
+                    {m.servicio_id != null && (
+                      <span className="block truncate text-xs text-slate-500">
+                        → {servicioDe(m.servicio_id)?.nombre_servicio ?? 'Servicio eliminado'}
+                        {m.partida_id != null &&
+                          ` · ${partidaDe(m.partida_id)?.nombre ?? ''}`}
+                      </span>
+                    )}
+                    {m.registro_id != null && (
+                      <span className="mt-0.5 inline-block rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800">
+                        con costo
+                      </span>
+                    )}
                   </span>
                   <Button
                     variante="peligro"
                     tamano="sm"
-                    onClick={() => setPorEliminar(m.id)}
+                    onClick={() => pedirEliminar(m)}
                   >
                     Eliminar
                   </Button>
@@ -290,6 +407,13 @@ export function Almacen() {
           <p className="text-sm text-slate-600">
             Se eliminará el movimiento seleccionado. El stock se recalcula
             automáticamente.
+            {porEliminar.registro_id != null && (
+              <>
+                {' '}
+                Su costo vinculado también se quitará del servicio y el presupuesto
+                se actualiza.
+              </>
+            )}
           </p>
         </Modal>
       )}

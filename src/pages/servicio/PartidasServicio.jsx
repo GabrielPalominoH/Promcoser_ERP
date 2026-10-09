@@ -19,6 +19,7 @@ import {
 import { formatearCantidad, formatearMes, formatearMoneda } from '../../utils/formatters'
 import {
   avanceMedido,
+  consumoPartidaPorSalidas,
   costoPorPartida,
   costoSinPartida,
   partidasDeServicio,
@@ -189,6 +190,7 @@ export function PartidasServicio() {
     partidas: todasPartidas,
     valorizaciones: todasValorizaciones,
     registros_servicio: todosRegistros,
+    movimientos_almacen: todosMovimientos,
   } = estado
 
   const [aviso, setAviso] = useState(null)
@@ -222,7 +224,8 @@ export function PartidasServicio() {
     const presupuesto = presupuestoPartida(p)
     const valorizado = valorizadoPartida(p, todasValorizaciones)
     const costo = costoPorPartida(todosRegistros, servicio.id, p.id)
-    return { partida: p, presupuesto, valorizado, costo, margen: valorizado - costo }
+    const consumo = consumoPartidaPorSalidas(servicio.id, p.id, todosMovimientos)
+    return { partida: p, presupuesto, valorizado, costo, consumo, margen: valorizado - costo }
   })
   const sinPartida = costoSinPartida(todosRegistros, servicio.id)
 
@@ -262,15 +265,16 @@ export function PartidasServicio() {
               <Th alinear="right">Valorizado</Th>
               <Th alinear="right">Avance</Th>
               <Th alinear="right">Costo</Th>
+              <Th alinear="right">Consumo</Th>
               <Th alinear="right">Margen</Th>
               <Th alinear="right">Acción</Th>
             </TableRow>
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={7} mensaje="Aún no hay partidas registradas." />
+              <TableEmpty colSpan={8} mensaje="Aún no hay partidas registradas." />
             ) : (
-              filas.map(({ partida, presupuesto, valorizado, costo, margen }) => {
+              filas.map(({ partida, presupuesto, valorizado, costo, consumo, margen }) => {
                 const avance = presupuesto > 0 ? (valorizado / presupuesto) * 100 : 0
                 return (
                   <TableRow key={partida.id}>
@@ -291,6 +295,9 @@ export function PartidasServicio() {
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {formatearMoneda(costo)}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums" title="Salidas de almacén usadas en esta partida">
+                      {formatearMoneda(consumo)}
                     </Td>
                     <Td
                       alinear="right"
@@ -333,6 +340,9 @@ export function PartidasServicio() {
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(filas.reduce((s, f) => s + f.costo, 0))}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {formatearMoneda(filas.reduce((s, f) => s + f.consumo, 0))}
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(filas.reduce((s, f) => s + f.margen, 0))}
