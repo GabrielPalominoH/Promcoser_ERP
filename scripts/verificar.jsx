@@ -1,8 +1,8 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
-import { ESTADO_INICIAL, migrarPresupuestoATareas } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, coberturaTareo, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
+import { COLECCIONES, ESTADO_INICIAL, migrarPresupuestoATareas } from '../src/data/mockData'
+import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, esDomingo, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
@@ -150,7 +150,6 @@ const alertasSanas = alertasServicio({
   consumo: { excedido: false, presupuesto: 120000, disponible: 50000 },
   dias: 60,
   rentabilidad: { cpi: 1.2 },
-  coberturaIncompleta: 0,
 })
 comprobar('sin problemas no hay alertas', alertasSanas.length === 0, JSON.stringify(alertasSanas))
 const alertasMal = alertasServicio({
@@ -158,12 +157,11 @@ const alertasMal = alertasServicio({
   consumo: { excedido: true, presupuesto: 100, disponible: -10 },
   dias: -5,
   rentabilidad: { cpi: 0.7 },
-  coberturaIncompleta: 2,
 })
 const codigos = alertasMal.map((a) => a.codigo)
 comprobar(
-  'detecta excedido, cpi, plazo y tareo',
-  ['excedido', 'cpi-critico', 'plazo-vencido', 'tareo-incompleto'].every((c) => codigos.includes(c)),
+  'detecta excedido, cpi y plazo',
+  ['excedido', 'cpi-critico', 'plazo-vencido'].every((c) => codigos.includes(c)),
   JSON.stringify(codigos),
 )
 const alertasMargen = alertasServicio({
@@ -171,7 +169,6 @@ const alertasMargen = alertasServicio({
   consumo: { excedido: false, presupuesto: 1000, disponible: 50 },
   dias: 10,
   rentabilidad: { cpi: null },
-  coberturaIncompleta: 0,
 })
 comprobar(
   'margen bajo y plazo cercano avisan',
@@ -196,8 +193,6 @@ comprobar(
   'mensual en domingo sí cuenta (régimen 30 días)',
   cuentaComoManoDeObra({ tipo_registro: 'personal', modalidad: 'mensual', fecha: '2026-10-04' }) === true,
 )
-comprobar('fechasDelMes octubre da 31 días', fechasDelMes('2026-10').length === 31 && fechasDelMes('2026-10')[0] === '2026-10-01')
-comprobar('fechasDelMes vacío da []', fechasDelMes('').length === 0)
 comprobar(
   'personal en sábado sí cuenta',
   cuentaComoManoDeObra({ tipo_registro: 'personal', fecha: '2026-10-03' }) === true,
@@ -206,78 +201,6 @@ comprobar(
   'material en domingo sí cuenta',
   cuentaComoManoDeObra({ tipo_registro: 'material', fecha: '2026-10-04' }) === true,
 )
-comprobar('octubre 2026 tiene 27 laborables', diasLaborables('2026-10') === 27, String(diasLaborables('2026-10')))
-comprobar('febrero 2026 tiene 24 laborables', diasLaborables('2026-02') === 24, String(diasLaborables('2026-02')))
-comprobar('mes vacío da 0', diasLaborables('') === 0)
-const semana = fechasLaborables('2026-10-05', '2026-10-11')
-comprobar('rango lun-dom salta el domingo (6 días)', semana.length === 6 && !semana.includes('2026-10-11'), JSON.stringify(semana))
-comprobar('rango invertido da []', fechasLaborables('2026-10-11', '2026-10-05').length === 0)
-comprobar('rango de un día da [ese día]', JSON.stringify(fechasLaborables('2026-10-06', '2026-10-06')) === '["2026-10-06"]')
-const octMes = fechasLaborablesMes('2026-10')
-comprobar('mes octubre da 27 fechas sin domingos', octMes.length === 27 && octMes[0] === '2026-10-01' && !octMes.includes('2026-10-04'), `${octMes.length}`)
-comprobar('desde 15/07 hasta fin de mes da 17 fechas', fechasHastaFinDeMes('2026-07-15').length === 17 && fechasHastaFinDeMes('2026-07-15')[0] === '2026-07-15', String(fechasHastaFinDeMes('2026-07-15').length))
-const personal6 = registrosDeServicio(registros, 6).filter((r) => r.tipo_registro === 'personal')
-const proy6 = proyeccionLaboral(personal6, '2026-12-20', '2026-10-06', '2026-07-01')
-comprobar('proyección serv. 6 = 6 meses (jul-dic)', proy6.porMes.length === 6, JSON.stringify(proy6.porMes.map((m) => m.mes)))
-comprobar('ritmo serv. 6 = 1540', proy6.ritmo === 1540, String(proy6.ritmo))
-comprobar('agosto es real', proy6.porMes.find((m) => m.mes === '2026-08')?.estimado === false)
-comprobar('noviembre es estimado', proy6.porMes.find((m) => m.mes === '2026-11')?.estimado === true)
-comprobar('diciembre prorrateado ≈ 969.63', Math.abs(proy6.porMes.find((m) => m.mes === '2026-12')?.monto - 969.63) < 0.01, String(proy6.porMes.find((m) => m.mes === '2026-12')?.monto))
-comprobar('noviembre estimado con 70 h', proy6.porMes.find((m) => m.mes === '2026-11')?.horas === 70, String(proy6.porMes.find((m) => m.mes === '2026-11')?.horas))
-comprobar('diciembre prorratea horas ≈ 44.07', Math.abs(proy6.porMes.find((m) => m.mes === '2026-12')?.horas - 44.07) < 0.01, String(proy6.porMes.find((m) => m.mes === '2026-12')?.horas))
-comprobar('julio vacío se estima con ritmo', proy6.porMes.find((m) => m.mes === '2026-07')?.monto === 1540, String(proy6.porMes.find((m) => m.mes === '2026-07')?.monto))
-comprobar('septiembre vacío se estima con ritmo', proy6.porMes.find((m) => m.mes === '2026-09')?.monto === 1540, String(proy6.porMes.find((m) => m.mes === '2026-09')?.monto))
-comprobar('meses estimados serv. 6 = 5', proy6.mesesRestantes === 5, String(proy6.mesesRestantes))
-comprobar('costo proyectado serv. 6 ≈ 7129.63', Math.abs(proy6.costoProyectado - 7129.63) < 0.01, String(proy6.costoProyectado))
-comprobar('proyección vacía en ceros', proyeccionLaboral([], '2026-12-20', '2026-10-06', '2026-07-01').costoProyectado === 0)
-const regJun = [{ fecha: '2026-06-05', cantidad_o_horas: 40, monto_calculado: 1540 }]
-const proyMitad = proyeccionLaboral(regJun, '2026-08-10', '2026-07-10', '2026-07-15')
-comprobar('inicio a mitad de mes se prorratea', Math.abs(proyMitad.porMes.find((m) => m.mes === '2026-08')?.monto - 473.85) < 0.01, String(proyMitad.porMes.find((m) => m.mes === '2026-08')?.monto))
-const regSinCosto = [
-  { fecha: '2026-08-05', cantidad_o_horas: 70, monto_calculado: 1540 },
-  { fecha: '2026-09-03', cantidad_o_horas: 20, monto_calculado: 0 },
-]
-const proyCalc = proyeccionLaboral(regSinCosto, '2026-12-20', '2026-10-06', '2026-07-01')
-comprobar('mes con horas y costo 0 se estima (20h × 22 = 440)', proyCalc.porMes.find((m) => m.mes === '2026-09')?.monto === 440, String(proyCalc.porMes.find((m) => m.mes === '2026-09')?.monto))
-comprobar('mes estimado lleva marca calc.', proyCalc.porMes.find((m) => m.mes === '2026-09')?.calculado === true)
-const regTodoCero = [
-  { fecha: '2026-08-05', cantidad_o_horas: 70, monto_calculado: 0 },
-  { fecha: '2026-09-03', cantidad_o_horas: 20, monto_calculado: 0 },
-]
-const proyRef = proyeccionLaboral(regTodoCero, '2026-12-20', '2026-10-06', '2026-07-01', 25)
-comprobar('sin meses con costo usa tarifa de referencia (20h × 25 = 500)', proyRef.porMes.find((m) => m.mes === '2026-09')?.monto === 500, String(proyRef.porMes.find((m) => m.mes === '2026-09')?.monto))
-comprobar('sin tarifa de referencia queda en 0', proyeccionLaboral(regTodoCero, '2026-12-20', '2026-10-06', '2026-07-01').porMes.find((m) => m.mes === '2026-09')?.monto === 0)
-const demoAgrup = [
-  { id: 1, servicio_id: 6, tipo_registro: 'personal', referencia_id: 1, cantidad_o_horas: 8, monto_calculado: 200, fecha: '2026-08-04' },
-  { id: 2, servicio_id: 6, tipo_registro: 'personal', referencia_id: 1, cantidad_o_horas: 8, monto_calculado: 200, fecha: '2026-08-05' },
-  { id: 3, servicio_id: 6, tipo_registro: 'personal', referencia_id: 3, cantidad_o_horas: 6, monto_calculado: 108, fecha: '2026-08-06' },
-  { id: 4, servicio_id: 6, tipo_registro: 'gasto', referencia_id: null, cantidad_o_horas: 1, monto_calculado: 50, fecha: '2026-08-06' },
-]
-const demoPersonal = [
-  { id: 1, nombre: 'Ana', apellido: 'Paz', cargo: 'Oficial' },
-  { id: 3, nombre: 'Luis', apellido: 'Rey', cargo: 'Ayudante' },
-]
-const gruposDemo = agruparPersonalPorMes(demoAgrup, demoPersonal)
-comprobar('agrupa por persona y mes (2 grupos)', gruposDemo.length === 2, JSON.stringify(gruposDemo.map((g) => g.clave)))
-comprobar(
-  'grupo Ana agosto: 2 días, 16 h, S/ 400',
-  gruposDemo[0].dias === 2 && gruposDemo[0].horas === 16 && gruposDemo[0].monto === 400,
-  JSON.stringify(gruposDemo[0]),
-)
-comprobar('ignora registros que no son personal', !gruposDemo.some((g) => g.monto === 50))
-comprobar('agrupado vacío = []', agruparPersonalPorMes([], []).length === 0)
-const cobDemo = coberturaTareo(
-  [
-    { referencia_id: 1, fecha: '2026-08-04', cantidad_o_horas: 8, monto_calculado: 200 },
-    { referencia_id: 1, fecha: '2026-08-05', cantidad_o_horas: 8, monto_calculado: 200 },
-  ],
-  [{ id: 1, nombre: 'Ana', apellido: 'Paz', cargo: 'Oficial' }],
-  '2026-08-01',
-  '2026-08-31',
-)
-comprobar('cobertura 2/26 días incompleta', cobDemo.length === 1 && cobDemo[0].diasRegistrados === 2 && cobDemo[0].diasEsperados === 26 && cobDemo[0].completo === false, JSON.stringify(cobDemo[0]))
-comprobar('cobertura vacía = []', coberturaTareo([], [], '2026-08-01', '2026-08-31').length === 0)
-
 console.log('\n[ asignaciones de personal ]')
 
 const { asignaciones: asigs } = ESTADO_INICIAL
@@ -308,6 +231,21 @@ const gastado6 = sumarMontos(registrosDeServicio(ESTADO_INICIAL.registros_servic
 comprobar('utilidad real = cobrado − gastado', utilidadReal(cobradoServicio(cobros, 6), gastado6) === 54000 - gastado6)
 comprobar('sobrepago da negativo', porCobrar({ id: 7, presupuesto_asignado: 1000 }, [{ servicio_id: 7, monto: 1500 }]) === -500)
 comprobar('cascada servicio borra cobros', !(sinServicio.cobros ?? []).some((c) => c.servicio_id === 6))
+
+console.log('\n[ dashboard global ]')
+
+const regsDash6 = registrosDeServicio(ESTADO_INICIAL.registros_servicio, 6)
+const gastadoDash6 = sumarMontos(regsDash6)
+comprobar('gastado serv. 6 = 48866', gastadoDash6 === 48866, String(gastadoDash6))
+const oficinaTotal = sumarMontos(ESTADO_INICIAL.costos_oficina)
+comprobar('oficina total = 23800', oficinaTotal === 23800, String(oficinaTotal))
+comprobar('resultado empresa = 47334', 120000 - gastadoDash6 - oficinaTotal === 47334)
+const porMes6 = proyeccionAsignaciones(asigs, servSeis, ESTADO_INICIAL.registros_servicio).porMes
+const pendientes6 = porMes6.filter((m) => m.estimado && m.monto > 0 && ['2026-08', '2026-09', '2026-10'].includes(m.mes))
+comprobar('ago/oct pendientes suman 6736/8160/6200', JSON.stringify(pendientes6.map((m) => m.monto)) === '[6736,8160,6200]', JSON.stringify(pendientes6.map((m) => m.monto)))
+const porConcepto = cobros.reduce((a, c) => ({ ...a, [c.concepto]: (a[c.concepto] || 0) + c.monto }), {})
+comprobar('adelanto 24000 y valorización 30000', porConcepto.adelanto === 24000 && porConcepto['valorización'] === 30000)
+comprobar('COLECCIONES trae asignaciones y cobros, sin partidas', COLECCIONES.includes('asignaciones') && COLECCIONES.includes('cobros') && !COLECCIONES.includes('partidas') && !COLECCIONES.includes('valorizaciones'))
 const spi6 = indiceAvance(servicio6, 54, '2026-10-06')
 comprobar('SPI serv. 6 ≈ 0.96', spi6 && Math.abs(spi6.spi - 0.96) < 0.01, String(spi6?.spi))
 comprobar('sin plazo no hay SPI', indiceAvance({ fecha_inicio: '', fecha_fin_estimada: '' }, 50, '2026-10-06') === null)

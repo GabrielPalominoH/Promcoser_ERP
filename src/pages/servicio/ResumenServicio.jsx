@@ -11,7 +11,6 @@ import {
 import {
   alertasServicio,
   cobradoServicio,
-  coberturaTareo,
   consumoPresupuesto,
   cuentaComoManoDeObra,
   desglosePorTipo,
@@ -47,7 +46,7 @@ function CascadaPresupuesto({ presupuesto, materiales, manoObra, equipos, gastos
       altura: altura(materiales),
     },
     {
-      etiqueta: '− Mano de obra',
+      etiqueta: '− Personal',
       valor: manoObra,
       texto: `−${formatearMoneda(manoObra)}`,
       tono: 'bg-emerald-500',
@@ -199,9 +198,9 @@ export function ResumenServicio() {
     estado: { registros_servicio: todosLosRegistros, tareas: todasLasTareas, personal, cobros: todosLosCobros },
   } = useData()
 
-  // La mano de obra (personal con costo) sí suma al gastado, igual que
-  // materiales y gastos. Los domingos no generan costo de mano de obra,
-  // así que esos registros se excluyen de todos los cálculos.
+  // El personal con costo sí suma al gastado, igual que materiales y
+  // gastos. Los registros diarios viejos en domingo no cuentan (régimen
+  // diario); los asentamientos mensuales siempre cuentan.
   const registrosVigentes = todosLosRegistros.filter(cuentaComoManoDeObra)
   const consumo = consumoPresupuesto(servicio, registrosVigentes)
   const dias = diasRestantes(servicio.fecha_fin_estimada)
@@ -246,12 +245,6 @@ export function ResumenServicio() {
     consumo,
     dias,
     rentabilidad,
-    coberturaIncompleta: coberturaTareo(
-      registros.filter((r) => r.tipo_registro === 'personal'),
-      personal,
-      servicio.fecha_inicio,
-      servicio.fecha_fin_estimada,
-    ).filter((c) => !c.completo).length,
   })
 
   return (
@@ -395,7 +388,7 @@ export function ResumenServicio() {
               {formatearMoneda(pendiente)}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
-              {pendiente < 0 ? 'Sobrepago del cliente' : 'Lo que te deben del contratado'}
+              {pendiente < 0 ? 'Sobrepago del cliente' : 'Pendiente de cobro del monto contratado'}
             </p>
           </div>
         </div>
@@ -421,16 +414,16 @@ export function ResumenServicio() {
               <ul className="divide-y divide-slate-100">
                 {[
                   { etiqueta: 'Materiales', total: conteoTipo.material, detalle: null, a: 'materiales' },
-                  { etiqueta: 'Mano de obra', total: conteoTipo.personal, detalle: null, a: 'personal' },
+                  { etiqueta: 'Personal', total: conteoTipo.personal, detalle: null, a: 'personal' },
                   { etiqueta: 'Gastos', total: conteoTipo.gasto, detalle: null, a: 'gastos' },
-                  { etiqueta: 'Usos de equipo', total: conteoTipo.equipo, detalle: `${formatearCantidad(horasEquipos)} h`, a: 'equipos' },
+                  { etiqueta: 'Equipos', total: conteoTipo.equipo, detalle: `${formatearCantidad(horasEquipos)} h`, a: 'equipos' },
                 ].map((item) => (
                   <li key={item.etiqueta} className="flex items-baseline justify-between gap-2 py-2 text-sm">
                     <Link to={item.a} className="font-medium text-slate-700 hover:text-primary-700 hover:underline">
                       {item.etiqueta}
                     </Link>
                     <span className="text-slate-500 tabular-nums">
-                      {item.total} reg.{item.detalle ? ` · ${item.detalle}` : ''}
+                      {item.total} registros{item.detalle ? ` · ${item.detalle}` : ''}
                     </span>
                   </li>
                 ))}

@@ -23,24 +23,6 @@ const TONOS_ESTATUS = {
   Cancelado: 'danger',
 }
 
-const TONOS_OPERATIVOS = {
-  Operativo: 'success',
-  'En mantenimiento': 'warning',
-  'De baja': 'danger',
-}
-
 export function BadgeEstatus({ estatus }) {
   return <Badge variante={TONOS_ESTATUS[estatus] ?? 'neutral'}>{estatus}</Badge>
-}
-
-export function BadgeOperativo({ estado }) {
-  return <Badge variante={TONOS_OPERATIVOS[estado] ?? 'neutral'}>{estado}</Badge>
-}
-
-export function BadgeActivo({ activo }) {
-  return (
-    <Badge variante={activo ? 'success' : 'neutral'}>
-      {activo ? 'Activo' : 'Inactivo'}
-    </Badge>
-  )
 }

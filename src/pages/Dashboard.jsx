@@ -12,6 +12,7 @@ import { COLECCIONES } from '../data/mockData'
 import {
   formatearCantidad,
   formatearFecha,
+  formatearMes,
   formatearMoneda,
 } from '../utils/formatters'
 import {
@@ -19,9 +20,11 @@ import {
   consumoPresupuesto,
   desglosePorTipo,
   diasRestantes,
+  metricasCronograma,
   nombreReferencia,
   ordenarPorFechaDesc,
   porCobrar,
+  proyeccionAsignaciones,
   rentabilidadServicio,
   sumarMontos,
   utilidadReal,
@@ -102,7 +105,10 @@ export function Dashboard() {
     registros_servicio: registros,
     tareas: todasLasTareas,
     cobros: todosLosCobros,
+    asignaciones: todasLasAsignaciones,
+    costos_oficina: costosOficina,
   } = estado
+  const mesActual = new Date().toISOString().slice(0, 7)
 
   const presupuestoTotal = servicios.reduce(
     (total, servicio) => total + (Number(servicio.presupuesto_asignado) || 0),
@@ -143,6 +149,66 @@ export function Dashboard() {
   })
 
   const ultimosRegistros = ordenarPorFechaDesc(registros).slice(0, 8)
+
+  // Personal global: proyección agregada + meses por asentar + bajas.
+  const personalGlobal = servicios.map((servicio) => ({
+    servicio,
+    proyeccion: proyeccionAsignaciones(todasLasAsignaciones, servicio, registros),
+  }))
+  const personalGastado = personalGlobal.reduce((s, p) => s + p.proyeccion.gastado, 0)
+  const personalProyectado = personalGlobal.reduce((s, p) => s + p.proyeccion.proyectado, 0)
+  const mesesPorAsentar = personalGlobal
+    .flatMap(({ servicio, proyeccion }) =>
+      proyeccion.porMes
+        .filter((m) => m.estimado && m.mes <= mesActual && m.monto > 0)
+        .map((m) => ({ servicio, mes: m.mes, monto: m.monto })),
+    )
+    .sort((a, b) => a.mes.localeCompare(b.mes))
+  const bajasVigentes = (todasLasAsignaciones ?? []).filter((a) => a.fecha_fin != null).length
+
+  // Cobros por servicio: quién debe + desglose por concepto.
+  const cobrosPorServicio = servicios
+    .map((servicio) => ({
+      servicio,
+      cobrado: cobradoServicio(todosLosCobros, servicio.id),
+      pendiente: porCobrar(servicio, todosLosCobros),
+    }))
+    .sort((a, b) => b.pendiente - a.pendiente)
+  const cobrosPorConcepto = (todosLosCobros ?? []).reduce((acum, c) => {
+    const clave = c.concepto || 'otro'
+    acum[clave] = (acum[clave] || 0) + (Number(c.monto) || 0)
+    return acum
+  }, {})
+
+  // Cronograma global: avance por obra en curso + vencimientos.
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const diasPara = (fechaISO) => {
+    const [anio, mes, dia] = fechaISO.split('-').map(Number)
+    return Math.round((new Date(anio, mes - 1, dia) - hoy) / 86400000)
+  }
+  const tieneHijas = (id) => (todasLasTareas ?? []).some((t) => t.padre_id === id)
+  const cronogramaGlobal = servicios
+    .filter((s) => s.estatus === 'En curso')
+    .map((servicio) => {
+      const tareas = (todasLasTareas ?? []).filter((t) => t.servicio_id === servicio.id)
+      return { servicio, metricas: metricasCronograma(tareas) }
+    })
+  const vencimientos = (todasLasTareas ?? [])
+    .filter(
+      (t) =>
+        !tieneHijas(t.id) &&
+        (t.avance ?? 0) < 100 &&
+        t.fecha_fin &&
+        diasPara(t.fecha_fin) >= 0 &&
+        diasPara(t.fecha_fin) <= 15,
+    )
+    .sort((a, b) => a.fecha_fin.localeCompare(b.fecha_fin))
+    .slice(0, 6)
+
+  // Resultado empresa: margen de servicios menos gasto de oficina.
+  const oficinaTotal = sumarMontos(costosOficina ?? [])
+  const resultadoEmpresa = margenTotal - oficinaTotal
   const serviciosPorConsumo = [...metricas].sort(
     (a, b) => b.consumo.porcentaje - a.consumo.porcentaje,
   )
@@ -433,6 +499,195 @@ export function Dashboard() {
               )
             })}
           </ul>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+        <Card
+          titulo="Personal global"
+          descripcion="Gastado asentado, proyectado y meses por asentar"
+          className="xl:col-span-3"
+        >
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xs text-slate-500">Gastado</p>
+              <p className="font-bold text-slate-900 tabular-nums">{formatearMoneda(personalGastado)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Proyectado</p>
+              <p className="font-bold text-slate-900 tabular-nums">{formatearMoneda(personalProyectado)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Total inicio-fin</p>
+              <p className="font-bold text-slate-900 tabular-nums">
+                {formatearMoneda(personalGastado + personalProyectado)}
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 mb-2 text-sm font-medium text-slate-700">
+            Meses por asentar{bajasVigentes > 0 ? ` · ${bajasVigentes} baja(s)` : ''}
+          </p>
+          {mesesPorAsentar.length === 0 ? (
+            <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+              Al día: todo lo vigente hasta hoy está asentado.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {mesesPorAsentar.slice(0, 6).map(({ servicio, mes, monto }) => (
+                <li
+                  key={`${servicio.id}-${mes}`}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 truncate text-slate-700">
+                    <Link
+                      to={`/servicios/${servicio.id}/personal`}
+                      className="font-medium text-primary-700 hover:underline"
+                    >
+                      {servicio.nombre_servicio}
+                    </Link>{' '}
+                    · <span className="capitalize">{formatearMes(mes)}</span>
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums">{formatearMoneda(monto)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card
+          titulo="Quién debe"
+          descripcion="Por cobrar por servicio"
+          className="xl:col-span-2"
+        >
+          {cobrosPorServicio.filter((c) => c.pendiente > 0).length === 0 ? (
+            <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+              Sin saldos por cobrar.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {cobrosPorServicio
+                .filter((c) => c.pendiente > 0)
+                .slice(0, 6)
+                .map(({ servicio, pendiente, cobrado }) => (
+                  <li key={servicio.id}>
+                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                      <Link
+                        to={`/servicios/${servicio.id}/cobros`}
+                        className="truncate font-medium text-slate-800 hover:text-primary-700 hover:underline"
+                      >
+                        {servicio.nombre_servicio}
+                      </Link>
+                      <span className="font-semibold text-amber-700 tabular-nums">
+                        {formatearMoneda(pendiente)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 tabular-nums">
+                      Cobrado {formatearMoneda(cobrado)} de {formatearMoneda(servicio.presupuesto_asignado)}
+                    </p>
+                  </li>
+                ))}
+            </ul>
+          )}
+          {Object.keys(cobrosPorConcepto).length > 0 && (
+            <div className="mt-4 border-t border-slate-200 pt-3">
+              <p className="mb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                Por concepto
+              </p>
+              <ul className="space-y-1 text-sm">
+                {Object.entries(cobrosPorConcepto).map(([concepto, monto]) => (
+                  <li key={concepto} className="flex justify-between gap-2">
+                    <span className="text-slate-600 capitalize">{concepto}</span>
+                    <span className="tabular-nums">{formatearMoneda(monto)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+        <Card
+          titulo="Cronograma global"
+          descripcion="Avance de obras en curso y próximos vencimientos"
+          className="xl:col-span-3"
+        >
+          {cronogramaGlobal.length === 0 ? (
+            <p className="text-sm text-slate-400">Sin obras en curso.</p>
+          ) : (
+            <ul className="space-y-4">
+              {cronogramaGlobal.map(({ servicio, metricas }) => (
+                <li key={servicio.id}>
+                  <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                    <Link
+                      to={`/servicios/${servicio.id}/cronograma`}
+                      className="truncate font-medium text-slate-800 hover:text-primary-700 hover:underline"
+                    >
+                      {servicio.nombre_servicio}
+                    </Link>
+                    <span className="tabular-nums">
+                      {metricas.avanceGlobal.toFixed(0)}% · {metricas.atrasadas} atrasada(s)
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-primary-600"
+                      style={{ width: `${Math.min(100, Math.max(0, metricas.avanceGlobal))}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-4 mb-2 text-sm font-medium text-slate-700">
+            Vencen en 15 días
+          </p>
+          {vencimientos.length === 0 ? (
+            <p className="text-sm text-slate-400">Sin vencimientos próximos.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {vencimientos.map((t) => (
+                <li key={t.id} className="flex justify-between gap-2 text-sm">
+                  <Link
+                    to={`/servicios/${t.servicio_id}/cronograma`}
+                    className="min-w-0 truncate text-slate-700 hover:text-primary-700 hover:underline"
+                  >
+                    {t.nombre}
+                  </Link>
+                  <span className="shrink-0 whitespace-nowrap text-slate-500 tabular-nums">
+                    {formatearFecha(t.fecha_fin)} ({diasPara(t.fecha_fin)} d)
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card
+          titulo="Resultado empresa"
+          descripcion="Margen de servicios menos oficina"
+          className="xl:col-span-2"
+        >
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between gap-2">
+              <dt className="text-slate-500">Margen servicios</dt>
+              <dd className="font-semibold tabular-nums">{formatearMoneda(margenTotal)}</dd>
+            </div>
+            <div className="flex justify-between gap-2">
+              <dt className="text-slate-500">
+                <Link to="/oficina" className="text-primary-700 hover:underline">
+                  Gasto oficina
+                </Link>
+              </dt>
+              <dd className="font-semibold tabular-nums">{formatearMoneda(oficinaTotal)}</dd>
+            </div>
+            <div className="flex justify-between gap-2 border-t border-slate-200 pt-3">
+              <dt className="font-medium text-slate-700">Resultado</dt>
+              <dd className={`text-lg font-bold tabular-nums ${resultadoEmpresa < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                {formatearMoneda(resultadoEmpresa)}
+              </dd>
+            </div>
+          </dl>
         </Card>
       </div>
 

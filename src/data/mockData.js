@@ -4,34 +4,12 @@
 //  Sin backend, sin API, sin autenticación.
 // ============================================================
 
-export const UNIDADES_MEDIDA = [
-  'unidad',
-  'metro',
-  'm2',
-  'm3',
-  'kg',
-  'litro',
-  'galón',
-  'rollo',
-  'saco',
-  'juego',
-  'hora',
-]
-
-export const ESTADOS_OPERATIVOS = [
-  'Operativo',
-  'En mantenimiento',
-  'De baja',
-]
-
 export const ESTATUS_SERVICIO = [
   'Pendiente',
   'En curso',
   'Finalizado',
   'Cancelado',
 ]
-
-export const TIPOS_REGISTRO = ['material', 'personal', 'gasto', 'equipo']
 
 // ------------------------------------------------------------
 //  1. Catálogos maestros

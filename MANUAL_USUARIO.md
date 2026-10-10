@@ -44,11 +44,11 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | La vista de toda la empresa: cuánto se contrató en total, cuánto se gastó, cuánto queda y qué obras están en riesgo. También están aquí los botones de respaldo. |
+| **Dashboard** | La vista de toda la empresa: montos (contratado, gastado, cobrado, por cobrar, utilidad), personal (gastado, proyectado, meses por asentar), quién debe por servicio, avance global del cronograma, resultado empresa y obras en riesgo. También están aquí los botones de respaldo. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
-| **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. |
+| **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
-| **Oficina** | Los gastos de la oficina (sueldos administrativos, alquiler, etc.), separados de las obras. |
+| **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. |
 
 ---
 
@@ -57,9 +57,13 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 Entre a **Servicios** y pulse una obra. Adentro verá su propio menú:
 
 ### Resumen
-La foto de la obra: presupuesto, gastado, saldo, fechas, alertas (por ejemplo,
-"presupuesto casi agotado") y si va dejando ganancia (ahorro) o generando
-sobrecosto.
+La foto de la obra: presupuesto, gastado, saldo, cobrado y por cobrar,
+fechas y alertas (por ejemplo, "presupuesto casi agotado"). Más abajo:
+movimientos por tipo (materiales, personal, gastos, equipos), avance del
+cronograma (global, completadas, atrasadas), cascada del presupuesto
+(presupuesto menos cada tipo = saldo) y rentabilidad (margen proyectado, ritmo
+de gasto CPI, ritmo de avance SPI y costo final estimado). También se puede
+imprimir el reporte.
 
 ### Materiales (compras)
 Aquí se registran las **compras de materiales** para la obra. Cada compra
@@ -205,9 +209,12 @@ tal como figura en la factura, para poder ubicarla después.
 **Cada vez que compra material:** regístrelo el mismo día en la pestaña
 Materiales de la obra, con su factura a la mano.
 
-**Cada fin de mes:** actualice los % de avance en el Cronograma, revise los
-montos en Partidas y mire el margen por tarea. Lo que esté en rojo necesita
-atención.
+**Cada vez que cobra:** regístrelo el mismo día en la pestaña Cobros, con su
+recibo a la mano.
+
+**Cada fin de mes:** asiente el mes en Personal (botón Asentar), actualice
+los % de avance en el Cronograma, revise los montos en Partidas y mire el
+margen por tarea. Lo que esté en rojo necesita atención.
 
 **Cada semana:** pulse **"Exportar respaldo"** en el Dashboard y guarde el
 archivo fuera de la computadora.

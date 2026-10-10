@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useData } from '../../context/useData'
 
 export const SECCIONES_NAVEGACION = [
   {
@@ -47,6 +48,12 @@ export function Icono({ nombre, className = 'size-5' }) {
 }
 
 export function Sidebar({ abierto, onCerrar, colapsado = false }) {
+  const { estado } = useData()
+  const conteos = {
+    '/servicios': (estado.servicios ?? []).filter((s) => s.estatus === 'En curso').length,
+    '/personal': (estado.personal ?? []).length,
+    '/equipos': (estado.equipos ?? []).length,
+  }
   return (
     <>
       {abierto && (
@@ -98,6 +105,11 @@ export function Sidebar({ abierto, onCerrar, colapsado = false }) {
                     >
                       <Icono nombre={enlace.icono} className="size-5 shrink-0" />
                       <span className={colapsado ? 'md:hidden' : ''}>{enlace.label}</span>
+                      {!colapsado && conteos[enlace.to] > 0 && (
+                        <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 tabular-nums">
+                          {conteos[enlace.to]}
+                        </span>
+                      )}
                     </NavLink>
                   </li>
                 ))}

@@ -162,7 +162,7 @@ export function dataReducer(estado, accion) {
         return {
           ...estado,
           tareas: estado.tareas.filter((tarea) => !porBorrar.has(tarea.id)),
-          // Los costos no se borran: conservan su partida y quedan sin tarea.
+          // Los costos no se borran: quedan sin tarea.
           registros_servicio: estado.registros_servicio.map((registro) =>
             porBorrar.has(registro.tarea_id)
               ? { ...registro, tarea_id: null }
