@@ -381,7 +381,7 @@ export function ResumenServicio() {
               {formatearMoneda(cobrado)}
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
-              Plata que realmente entró ·{' '}
+              Ingresos efectivamente recibidos ·{' '}
               <Link to="cobros" className="font-medium text-primary-700 underline">
                 Ver cobros
               </Link>

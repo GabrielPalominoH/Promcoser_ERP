@@ -9,14 +9,14 @@
 Es un programa para llevar las cuentas de las obras de la empresa constructora.
 Responde tres preguntas todos los días:
 
-1. **¿Cuánta plata contrataron por cada obra?** (el presupuesto, o monto contratado)
-2. **¿Cuánta plata ya gasté?** (materiales, gente, equipos, gastos)
+1. **¿Cuál es el monto contratado por cada obra?** (el presupuesto)
+2. **¿Cuánto se ha gastado?** (materiales, personal, equipos, gastos)
 3. **¿La obra deja ganancia?** (comparar lo cobrado con lo gastado: la
    utilidad real. Y comparar lo presupuestado con lo gastado: lo que ahorres
    frente al presupuesto también es ganancia)
 
 Antes esto se llevaba en cuadernos o archivos sueltos. El sistema lo junta todo
-en un solo lugar: cada obra muestra su plata, su gente, sus materiales y su
+en un solo lugar: cada obra muestra sus montos, su personal, sus materiales y su
 avance, y el panel principal muestra cómo va toda la empresa.
 
 **Lo que el sistema NO es:** no es un programa de contabilidad oficial (no
@@ -63,7 +63,7 @@ sobrecosto.
 
 ### Materiales (compras)
 Aquí se registran las **compras de materiales** para la obra. Cada compra
-**suma al gastado de la obra** (porque la plata ya salió). No hay almacén ni
+**suma al gastado de la obra** (porque el egreso ya se realizó). No hay almacén ni
 control de stock: el sistema lleva los costos de los materiales por servicio.
 
 Pasos: escriba el nombre del material, ponga cantidad, costo total, fecha y,
@@ -97,7 +97,7 @@ Gastos extra que no son ni material ni gente ni equipo: fletes, alquileres,
 movilidad, etc. También aceptan tarea; si no se indica, quedan sin asignar.
 
 ### Cobros (lo que entra)
-Aquí se registra la plata que el cliente paga por la obra: adelantos, pagos
+Aquí se registran los ingresos que el cliente paga por la obra: adelantos, pagos
 de valorización y pagos anuales (también sirve para misceláneas cortas y
 contratos anuales: todo se cobra por servicio). Cada cobro lleva fecha,
 monto, concepto y documento opcional. Arriba verá 3 números:
@@ -105,7 +105,7 @@ monto, concepto y documento opcional. Arriba verá 3 números:
 - **Cobrado:** lo que realmente entró.
 - **Por cobrar:** monto contratado menos cobrado, o sea lo que te deben. Si
   sale negativo, el cliente pagó de más.
-- **Utilidad real:** cobrado menos gastado. Es la plata de verdad, distinta
+- **Utilidad real:** cobrado menos gastado. Es el resultado económico efectivo, distinto
   del margen (que mide eficiencia contra el presupuesto).
 
 ### Cronograma
@@ -132,7 +132,7 @@ no recibir más dinero.
 La pantalla muestra la **misma lista de tareas del Cronograma**, con padres
 e hijas, y estas columnas:
 
-- **Monto:** la plata asignada a ese trabajo. Se escribe directo en la lista
+- **Monto:** el importe asignado a ese trabajo. Se escribe directo en la lista
   (se guarda al salir del campo). Las tareas principales **suman solas** lo
   de sus hijas y no se pueden escribir: así es imposible que se descuadren.
 - **Valorizado:** monto × avance. Es lo ya ejecutado, a precios del
@@ -153,8 +153,8 @@ Tenga en cuenta:
 
 - Las tareas se crean y se borran **en el Cronograma**; aquí solo se les pone
   monto. Las tareas nuevas empiezan en S/ 0.
-- Si borra una tarea, sus costos no se borran: quedan como "sin tarea". La
-  plata nunca desaparece.
+- Si borra una tarea, sus costos no se borran: quedan como "sin tarea". Los
+  montos registrados se conservan.
 
 **El flujo de cada mes, en 3 pasos:** 1) durante el mes registre los costos
 eligiendo su tarea; 2) actualice los % en el Cronograma y los montos aquí si
@@ -181,7 +181,7 @@ tal como figura en la factura, para poder ubicarla después.
 ## 6. Palabras que usa el sistema (glosario)
 
 - **Servicio:** cada obra o trabajo contratado. Todo cuelga de un servicio.
-- **Presupuesto:** la plata total contratada por la obra (lo que el cliente
+- **Presupuesto:** el monto total contratado por la obra (lo que el cliente
   va a pagar).
 - **Gastado:** todo lo que ya se gastó en la obra.
 - **Saldo / disponible:** presupuesto menos gastado. Lo que queda.
@@ -192,9 +192,9 @@ tal como figura en la factura, para poder ubicarla después.
   lo que ya se ganó del monto fijo.
 - **Margen:** valorizado menos costo. Positivo = ahorro (va gastando menos de
   lo presupuestado, y eso es su ganancia); negativo = sobrecosto.
-- **Cobrado:** plata que realmente entró por cobros registrados.
+- **Cobrado:** ingresos efectivamente recibidos por cobros registrados.
 - **Por cobrar:** monto contratado menos cobrado; lo que el cliente aún debe.
-- **Utilidad real:** cobrado menos gastado; la plata de verdad.
+- **Utilidad real:** cobrado menos gastado; el resultado económico efectivo.
 - **Respaldo:** el archivo con toda la información, para guardarla y
   recuperarla.
 

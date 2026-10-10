@@ -226,7 +226,7 @@ export function Dashboard() {
         <StatCard
           titulo="Cobrado total"
           valor={formatearMoneda(cobradoTotal)}
-          detalle="Plata que realmente entró"
+          detalle="Ingresos efectivamente recibidos"
           tono="success"
           icono={<Icono nombre="billete" className="size-5" />}
         />
@@ -240,7 +240,7 @@ export function Dashboard() {
         <StatCard
           titulo="Gastado total"
           valor={formatearMoneda(gastadoTotal)}
-          detalle="Plata que realmente salió"
+          detalle="Egresos efectivamente realizados"
           tono="slate"
           icono={
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5" aria-hidden="true">

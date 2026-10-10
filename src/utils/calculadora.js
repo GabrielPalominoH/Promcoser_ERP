@@ -175,7 +175,7 @@ export function porCobrar(servicio, cobros) {
   return contratado - cobradoServicio(cobros, servicio.id)
 }
 
-// Utilidad real: cobrado menos gastado (la plata de verdad).
+// Utilidad real: cobrado menos gastado (resultado económico efectivo).
 export function utilidadReal(cobrado, gastado) {
   const redondear = (n) => Math.round(n * 100) / 100
   return redondear(cobrado) - redondear(gastado)

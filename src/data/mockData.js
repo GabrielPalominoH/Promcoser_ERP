@@ -373,7 +373,7 @@ export const asignaciones = [
 ]
 
 // ------------------------------------------------------------
-//  Cobros por servicio: la plata que realmente entra (adelantos,
+//  Cobros por servicio: los ingresos efectivamente recibidos (adelantos,
 //  pagos de valorización, pagos anuales). Por cobrar = contratado −
 //  cobrado; utilidad real = cobrado − gastado.
 // ------------------------------------------------------------

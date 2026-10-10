@@ -77,7 +77,7 @@ export function CobrosServicio() {
           <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
             {formatearMoneda(cobrado)}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">Plata que realmente entró</p>
+          <p className="mt-0.5 text-xs text-slate-500">Ingresos efectivamente recibidos</p>
         </Card>
         <Card>
           <p className="text-sm text-slate-500">Por cobrar</p>
