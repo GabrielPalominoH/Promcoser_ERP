@@ -1,4 +1,4 @@
-import { ESTATUS_SERVICIO } from '../data/mockData'
+import { ESTATUS_SERVICIO, TIPOS_SERVICIO } from '../data/mockData'
 import { BadgeEstatus } from '../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../utils/formatters'
 import { consumoPresupuesto, rentabilidadServicio } from '../utils/calculadora'
@@ -219,8 +219,8 @@ export const CATALOGO_SERVICIOS = {
   // La edición y eliminación viven solo en la página del servicio,
   // no en la tabla del listado.
   soloDetalle: true,
-  claveBusqueda: (item) => `${item.nombre_servicio} ${item.cliente} ${item.estatus}`,
-  placeholderBusqueda: 'Buscar por servicio, cliente o estatus…',
+  claveBusqueda: (item) => `${item.nombre_servicio} ${item.cliente} ${item.tipo ?? ''} ${item.estatus}`,
+  placeholderBusqueda: 'Buscar por servicio, cliente, tipo o estatus…',
   mensajeVacio: 'No hay servicios que coincidan con la búsqueda.',
   mensajeSinRegistros: 'Aún no hay servicios registrados.',
   tieneActivo: false,
@@ -318,6 +318,10 @@ export const CATALOGO_SERVICIOS = {
       },
     },
     {
+      etiqueta: 'Tipo',
+      render: (item) => <span className="text-slate-600">{item.tipo ?? 'Obra'}</span>,
+    },
+    {
       etiqueta: 'Estatus',
       render: (item) => <BadgeEstatus estatus={item.estatus} />,
     },
@@ -360,6 +364,13 @@ export const CATALOGO_SERVICIOS = {
       requerido: false,
     },
     {
+      name: 'tipo',
+      etiqueta: 'Tipo',
+      tipo: 'select',
+      requerido: true,
+      opciones: opciones(TIPOS_SERVICIO),
+    },
+    {
       name: 'estatus',
       etiqueta: 'Estatus',
       tipo: 'select',
@@ -371,6 +382,7 @@ export const CATALOGO_SERVICIOS = {
   valoresIniciales: () => ({
     nombre_servicio: '',
     cliente: '',
+    tipo: 'Obra',
     presupuesto_asignado: '',
     fecha_inicio: new Date().toISOString().slice(0, 10),
     fecha_fin_estimada: '',
@@ -380,6 +392,7 @@ export const CATALOGO_SERVICIOS = {
   normalizar: (valores) => ({
     nombre_servicio: valores.nombre_servicio.trim(),
     cliente: valores.cliente.trim(),
+    tipo: valores.tipo || 'Obra',
     presupuesto_asignado: Number(valores.presupuesto_asignado),
     fecha_inicio: valores.fecha_inicio,
     fecha_fin_estimada: valores.fecha_fin_estimada || '',

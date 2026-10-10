@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Campo, Input, Select } from '../../components/ui/Field'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
-import { ESTATUS_SERVICIO } from '../../data/mockData'
+import { ESTATUS_SERVICIO, TIPOS_SERVICIO } from '../../data/mockData'
 
 const TEXTO_CONFIRMACION = 'Eliminar servicio'
 
@@ -30,6 +30,7 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
     defaultValues: {
       nombre_servicio: servicio.nombre_servicio,
       cliente: servicio.cliente,
+      tipo: servicio.tipo ?? 'Obra',
       presupuesto_asignado: servicio.presupuesto_asignado,
       fecha_inicio: servicio.fecha_inicio,
       fecha_fin_estimada: servicio.fecha_fin_estimada ?? '',
@@ -42,6 +43,7 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
     reset({
       nombre_servicio: servicio.nombre_servicio,
       cliente: servicio.cliente,
+      tipo: servicio.tipo ?? 'Obra',
       presupuesto_asignado: servicio.presupuesto_asignado,
       fecha_inicio: servicio.fecha_inicio,
       fecha_fin_estimada: servicio.fecha_fin_estimada ?? '',
@@ -100,6 +102,14 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
             type="date"
             {...register('fecha_fin_estimada')}
           />
+        </Campo>
+        <Campo label="Tipo" error={errors.tipo?.message} htmlFor="tipo">
+          <Select id="tipo" {...register('tipo', { required: 'Tipo es obligatorio' })}>
+            <option value="" disabled>Selecciona una opción…</option>
+            {TIPOS_SERVICIO.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </Select>
         </Campo>
         <Campo label="Estatus" error={errors.estatus?.message} htmlFor="estatus">
           <Select id="estatus" {...register('estatus', { required: 'Estatus es obligatorio' })}>

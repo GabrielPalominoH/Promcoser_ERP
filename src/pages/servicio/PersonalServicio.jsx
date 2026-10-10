@@ -30,6 +30,7 @@ import {
   proyeccionAsignaciones,
   ultimoDiaMes,
 } from '../../utils/calculadora'
+import { mesCerrado, redondear2 } from '../../utils/finanzas'
 
 function nombreCompleto(item) {
   return `${item.nombre} ${item.apellido ?? ''}`.trim()
@@ -64,7 +65,7 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
       fecha_fin: '',
     },
   })
-  const { agregarItem } = useData()
+  const { agregarItem, estado } = useData()
   const personalId = watch('personal_id')
 
   useEffect(() => {
@@ -79,6 +80,13 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
       notificar('error', 'La fecha de fin no puede ser anterior al inicio.')
       return
     }
+    const traslape = (estado.asignaciones ?? []).some(
+      (a) =>
+        a.servicio_id !== servicio.id &&
+        Number(a.personal_id) === Number(personal_id) &&
+        !a.fecha_fin &&
+        (!fecha_fin || a.fecha_inicio <= fecha_fin),
+    )
     agregarItem('asignaciones', {
       servicio_id: servicio.id,
       personal_id: Number(personal_id),
@@ -88,7 +96,12 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
       fecha_inicio,
       fecha_fin: fecha_fin || null,
     })
-    notificar('exito', 'Personal asignado. El gasto se genera al asentar cada mes.')
+    notificar(
+      traslape ? 'info' : 'exito',
+      traslape
+        ? 'Personal asignado. Ojo: ya está vigente en otro servicio en ese periodo (horas compartidas, no duplicadas: cada servicio asienta lo suyo).'
+        : 'Personal asignado. El gasto se genera al asentar cada mes.',
+    )
     reset()
   }
 
@@ -196,6 +209,179 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
   )
 }
 
+// Tareo diario: horas normales + extras por persona, día y tarea, con
+// tarifa fija al momento del registro (no cambia retroactivamente).
+// Solo el tareo APROBADO alimenta el asentamiento mensual.
+function FormularioTareo({ servicio, personal, tareas, tareos, notificar }) {
+  const elegibles = useMemo(
+    () => [...personal].filter((p) => (p.ambito ?? 'Obra') !== 'Oficina'),
+    [personal],
+  )
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    control,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      fecha: new Date().toISOString().slice(0, 10),
+      personal_id: '',
+      tarea_id: '',
+      horas_normales: '',
+      horas_extras: '',
+      tarifa_hora: '',
+      tarifa_extra: '',
+      observaciones: '',
+    },
+  })
+  const { agregarItem } = useData()
+  const personalId = watch('personal_id')
+  const hn = Number(watch('horas_normales')) || 0
+  const he = Number(watch('horas_extras')) || 0
+  const th = Number(watch('tarifa_hora')) || 0
+  const te = watch('tarifa_extra') === '' ? th * 1.5 : Number(watch('tarifa_extra'))
+  const importe = redondear2(hn * th + he * te)
+
+  useEffect(() => {
+    const ficha = elegibles.find((p) => String(p.id) === String(personalId))
+    if (ficha && Number(ficha.tarifa_por_hora) > 0) {
+      setValue('tarifa_hora', ficha.tarifa_por_hora)
+    }
+  }, [personalId, elegibles, setValue])
+
+  const enviar = ({ fecha, personal_id, tarea_id, horas_normales, horas_extras, tarifa_hora, tarifa_extra, observaciones }) => {
+    const normales = Number(horas_normales) || 0
+    const extras = Number(horas_extras) || 0
+    if (normales < 0 || extras < 0) {
+      notificar('error', 'Las horas no pueden ser negativas.')
+      return
+    }
+    if (normales + extras === 0) {
+      notificar('error', 'Ingresa al menos alguna hora (normal o extra).')
+      return
+    }
+    if (normales + extras > 24) {
+      notificar('error', 'Un día no puede superar 24 horas en total.')
+      return
+    }
+    const duplicado = tareos.some(
+      (t) =>
+        String(t.personal_id) === String(personal_id) &&
+        t.fecha === fecha &&
+        String(t.tarea_id ?? '') === String(tarea_id ?? ''),
+    )
+    agregarItem('tareos', {
+      fecha,
+      personal_id: Number(personal_id),
+      servicio_id: servicio.id,
+      tarea_id: tarea_id ? Number(tarea_id) : null,
+      horas_normales: normales,
+      horas_extras: extras,
+      tarifa_hora: Number(tarifa_hora),
+      tarifa_extra: tarifa_extra === '' ? redondear2(Number(tarifa_hora) * 1.5) : Number(tarifa_extra),
+      importe,
+      estado: 'pendiente',
+      observaciones: observaciones.trim() || null,
+    })
+    notificar(
+      duplicado ? 'info' : 'exito',
+      duplicado
+        ? 'Tareo registrado, pero OJO: ya existe otro igual ese día (posible duplicado). Apruébalo solo si corresponde.'
+        : `Tareo registrado por ${formatearMoneda(importe)}. Queda pendiente de aprobación.`,
+    )
+    reset()
+  }
+
+  return (
+    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <Campo label="Fecha" error={errors.fecha?.message} htmlFor="tar-fecha">
+          <Input id="tar-fecha" type="date" {...register('fecha', { required: 'Indica la fecha' })} />
+        </Campo>
+        <Campo
+          label="Persona"
+          error={errors.personal_id?.message}
+          htmlFor="tar-persona"
+          className="sm:col-span-2"
+        >
+          <CampoComboBox
+            id="tar-persona"
+            control={control}
+            name="personal_id"
+            rules={{ required: 'Selecciona a una persona' }}
+            placeholder="Escribe para buscar…"
+            opciones={elegibles.map((p) => ({
+              valor: String(p.id),
+              etiqueta: `${nombreCompleto(p)} — ${p.cargo}`,
+            }))}
+          />
+        </Campo>
+        <Campo label="Tarea (opcional)" error={errors.tarea_id?.message} htmlFor="tar-tarea">
+          <CampoComboBox
+            id="tar-tarea"
+            control={control}
+            name="tarea_id"
+            placeholder="Sin tarea…"
+            opciones={tareas.map((t) => ({ valor: String(t.id), etiqueta: t.nombre }))}
+          />
+        </Campo>
+        <Campo label="Horas normales" error={errors.horas_normales?.message} htmlFor="tar-hn">
+          <Input
+            id="tar-hn"
+            type="number"
+            step="0.25"
+            min="0"
+            placeholder="8"
+            {...register('horas_normales', { required: 'Ingresa las horas' })}
+          />
+        </Campo>
+        <Campo label="Horas extras" error={errors.horas_extras?.message} htmlFor="tar-he">
+          <Input id="tar-he" type="number" step="0.25" min="0" placeholder="0" {...register('horas_extras')} />
+        </Campo>
+        <Campo label="Tarifa hora (S/)" error={errors.tarifa_hora?.message} htmlFor="tar-th">
+          <Input
+            id="tar-th"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            {...register('tarifa_hora', { required: 'Ingresa la tarifa' })}
+          />
+        </Campo>
+        <Campo
+          label="Tarifa extra (S/)"
+          error={errors.tarifa_extra?.message}
+          htmlFor="tar-te"
+          hint="Vacío = 1.5× la normal"
+        >
+          <Input id="tar-te" type="number" step="0.01" placeholder="—" {...register('tarifa_extra')} />
+        </Campo>
+        <Campo
+          label="Observaciones"
+          error={errors.observaciones?.message}
+          htmlFor="tar-obs"
+          className="sm:col-span-4"
+        >
+          <Input id="tar-obs" placeholder="Opcional" {...register('observaciones')} />
+        </Campo>
+      </div>
+      {hn + he > 12 && (
+        <p className="rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">
+          Jornada mayor a 12 horas: verifica que corresponda antes de aprobar.
+        </p>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-slate-600">
+          Importe: <span className="font-bold tabular-nums">{formatearMoneda(importe)}</span>
+        </p>
+        <Button type="submit">Registrar tareo</Button>
+      </div>
+    </form>
+  )
+}
+
 export function PersonalServicio() {
   const { servicio } = useOutletContext()
   const { estado, agregarItem, actualizarItem, eliminarItem } = useData()
@@ -217,6 +403,11 @@ export function PersonalServicio() {
     () => (estado.asignaciones ?? []).filter((a) => a.servicio_id === servicio.id),
     [estado.asignaciones, servicio.id],
   )
+  const tareos = useMemo(
+    () => (estado.tareos ?? []).filter((t) => t.servicio_id === servicio.id),
+    [estado.tareos, servicio.id],
+  )
+  const [mesTareo, setMesTareo] = useState(new Date().toISOString().slice(0, 7))
 
   const proyeccion = useMemo(
     () => proyeccionAsignaciones(asignaciones, servicio, estado.registros_servicio),
@@ -230,13 +421,59 @@ export function PersonalServicio() {
   const asentadoPor = (asignacionId) =>
     registros.filter((r) => r.asignacion_id === asignacionId)
 
-  // Asentar un mes: un registro por asignación vigente (prorrateado si
-  // entró o salió dentro del mes). No se puede asentar dos veces.
+  // Asentar un mes: si hay tareo aprobado de la persona en el mes, el gasto
+  // sale del tareo (agrupado por tarea); si no hay tareo, de la proyección
+  // (prorrateado). Tareo pendiente bloquea a esa persona hasta aprobarlo.
+  // No se puede asentar dos veces.
   const asentarMes = (mes) => {
+    if (mesCerrado(mes, estado.cierres)) {
+      notificar('error', `El mes ${formatearMes(mes)} está cerrado. Reábrelo con motivo para corregirlo.`)
+      return
+    }
     let creados = 0
+    const bloqueados = []
     for (const a of asignaciones) {
       if (asentamientoDe(a.id, estado.registros_servicio, mes)) continue
-      const { dias, horas, monto } = costoMensualAsignacion(a, mes, servicio)
+      const tareoMes = tareos.filter(
+        (t) =>
+          t.personal_id === a.personal_id &&
+          t.servicio_id === servicio.id &&
+          t.fecha?.slice(0, 7) === mes,
+      )
+      const pendientes = tareoMes.filter((t) => t.estado !== 'aprobado')
+      if (pendientes.length > 0) {
+        const nombre = personaDe(a.personal_id)
+          ? nombreCompleto(personaDe(a.personal_id))
+          : `ID ${a.personal_id}`
+        bloqueados.push(nombre)
+        continue
+      }
+      if (tareoMes.length > 0) {
+        const porTarea = new Map()
+        for (const t of tareoMes) {
+          const clave = t.tarea_id ?? 'x'
+          if (!porTarea.has(clave)) porTarea.set(clave, { tarea_id: t.tarea_id ?? null, horas: 0, monto: 0 })
+          const g = porTarea.get(clave)
+          g.horas += Number(t.horas_normales) + Number(t.horas_extras)
+          g.monto += Number(t.horas_normales) * Number(t.tarifa_hora) + Number(t.horas_extras) * Number(t.tarifa_extra)
+        }
+        for (const g of porTarea.values()) {
+          agregarItem('registros_servicio', {
+            servicio_id: servicio.id,
+            tipo_registro: 'personal',
+            modalidad: 'mensual',
+            referencia_id: a.personal_id,
+            tarea_id: g.tarea_id,
+            asignacion_id: a.id,
+            cantidad_o_horas: redondear2(g.horas),
+            monto_calculado: redondear2(g.monto),
+            fecha: ultimoDiaMes(mes),
+          })
+          creados += 1
+        }
+        continue
+      }
+      const { monto, horas } = costoMensualAsignacion(a, mes, servicio)
       if (monto <= 0) continue
       agregarItem('registros_servicio', {
         servicio_id: servicio.id,
@@ -252,14 +489,19 @@ export function PersonalServicio() {
       creados += 1
     }
     notificar(
-      'exito',
-      creados > 0
-        ? `Mes ${formatearMes(mes)} asentado: ${creados} registro(s). Resta del presupuesto.`
-        : `El mes ${formatearMes(mes)} no tiene personal vigente por asentar.`,
+      creados > 0 ? 'exito' : 'info',
+      `Mes ${formatearMes(mes)} asentado: ${creados} registro(s).` +
+        (bloqueados.length > 0
+          ? ` Pendiente de aprobar tareo: ${[...new Set(bloqueados)].join(', ')}.`
+          : ' Resta del presupuesto.'),
     )
   }
 
   const desasentarMes = (mes) => {
+    if (mesCerrado(mes, estado.cierres)) {
+      notificar('error', `El mes ${formatearMes(mes)} está cerrado. Reábrelo con motivo para corregirlo.`)
+      return
+    }
     const ids = registros
       .filter((r) => r.asignacion_id != null && r.fecha?.slice(0, 7) === mes)
       .map((r) => r.id)
@@ -428,8 +670,153 @@ export function PersonalServicio() {
       </Card>
 
       <Card
+        titulo="Tareo diario"
+        descripcion="Horas normales y extras por persona y día. Solo lo aprobado alimenta el asentamiento."
+      >
+        <FormularioTareo
+          servicio={servicio}
+          personal={personal}
+          tareas={tareas}
+          tareos={tareos}
+          notificar={notificar}
+        />
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Campo label="Mes" htmlFor="tar-mes">
+            <Input
+              id="tar-mes"
+              type="month"
+              value={mesTareo}
+              onChange={(e) => setMesTareo(e.target.value)}
+            />
+          </Campo>
+          {(() => {
+            const lista = tareos
+              .filter((t) => t.fecha?.slice(0, 7) === mesTareo)
+              .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id)
+            const aprobados = lista.filter((t) => t.estado === 'aprobado')
+            const hn = aprobados.reduce((s, t) => s + Number(t.horas_normales), 0)
+            const he = aprobados.reduce((s, t) => s + Number(t.horas_extras), 0)
+            const costo = aprobados.reduce((s, t) => s + Number(t.importe), 0)
+            const pendientesTar = lista.filter((t) => t.estado !== 'aprobado').length
+            return (
+              <p className="text-sm text-slate-600">
+                <span className="font-semibold tabular-nums">
+                  {formatearCantidad(hn + he)} h.h.
+                </span>{' '}
+                ({formatearCantidad(hn)} normales + {formatearCantidad(he)} extras) ·{' '}
+                <span className="font-semibold tabular-nums">{formatearMoneda(costo)}</span>
+                {pendientesTar > 0 && (
+                  <span className="ml-2 font-medium text-amber-700">
+                    · {pendientesTar} por aprobar
+                  </span>
+                )}
+              </p>
+            )
+          })()}
+        </div>
+
+        <Table>
+          <TableHead>
+            <TableRow>
+              <Th>Fecha</Th>
+              <Th>Persona</Th>
+              <Th alinear="right">HN / HE</Th>
+              <Th alinear="right">Importe</Th>
+              <Th alinear="right">Estado</Th>
+              <Th alinear="right">Acciones</Th>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {tareos.filter((t) => t.fecha?.slice(0, 7) === mesTareo).length === 0 ? (
+              <TableEmpty colSpan={6} mensaje="Sin tareo este mes." />
+            ) : (
+              tareos
+                .filter((t) => t.fecha?.slice(0, 7) === mesTareo)
+                .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id)
+                .map((t) => {
+                  const persona = personaDe(t.personal_id)
+                  const aprobado = t.estado === 'aprobado'
+                  return (
+                    <TableRow key={t.id}>
+                      <Td className="whitespace-nowrap text-slate-500">
+                        {formatearFecha(t.fecha)}
+                      </Td>
+                      <Td>
+                        <span className="font-medium text-slate-900">
+                          {persona ? nombreCompleto(persona) : 'Personal eliminado'}
+                        </span>
+                        {t.tarea_id != null && (
+                          <span className="block text-xs text-slate-500">
+                            ↳ {nombreTarea(tareas, t.tarea_id)}
+                          </span>
+                        )}
+                      </Td>
+                      <Td alinear="right" className="tabular-nums">
+                        {formatearCantidad(t.horas_normales)} / {formatearCantidad(t.horas_extras)}
+                      </Td>
+                      <Td alinear="right" className="tabular-nums">
+                        {formatearMoneda(t.importe)}
+                      </Td>
+                      <Td alinear="right">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                            aprobado
+                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                              : 'bg-amber-50 text-amber-700 ring-amber-200'
+                          }`}
+                        >
+                          {aprobado ? 'Aprobado' : 'Pendiente'}
+                        </span>
+                      </Td>
+                      <Td alinear="right">
+                        <span className="inline-flex gap-1.5">
+                          {!aprobado && (
+                            <Button
+                              tamano="sm"
+                              onClick={() => {
+                                actualizarItem('tareos', { id: t.id, estado: 'aprobado' })
+                                notificar('exito', 'Tareo aprobado: alimentará el asentamiento.')
+                              }}
+                            >
+                              Aprobar
+                            </Button>
+                          )}
+                          {aprobado && (
+                            <Button
+                              variante="secundario"
+                              tamano="sm"
+                              onClick={() => {
+                                actualizarItem('tareos', { id: t.id, estado: 'pendiente' })
+                                notificar('info', 'Tareo devuelto a pendiente.')
+                              }}
+                            >
+                              Revertir
+                            </Button>
+                          )}
+                          <Button
+                            variante="peligro"
+                            tamano="sm"
+                            onClick={() => {
+                              eliminarItem('tareos', t.id)
+                              notificar('info', 'Tareo eliminado.')
+                            }}
+                          >
+                            Eliminar
+                          </Button>
+                        </span>
+                      </Td>
+                    </TableRow>
+                  )
+                })
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Card
         titulo="Asentar mes"
-        descripcion="Cada mes pendiente genera un registro por persona vigente y resta del presupuesto."
+        descripcion="Cada mes pendiente genera registros por persona vigente y resta del presupuesto. Con tareo aprobado, el gasto sale del tareo; si no hay tareo, de la proyección."
       >
         {pendientes.length === 0 ? (
           <p className="text-sm text-slate-400">

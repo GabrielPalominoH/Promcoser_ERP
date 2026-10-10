@@ -95,3 +95,134 @@ export function enRango(fechaISO, desdeISO, hastaISO) {
   if (hastaISO && fechaISO > hastaISO) return false
   return true
 }
+
+// ------------------------------------------------------------
+//  Facturas, pagos y caja (Etapas 4–5)
+// ------------------------------------------------------------
+
+// Cobros aplicados a una factura (por factura_id). Sin vínculo = adelanto.
+export function cobrosDeFactura(facturaId, cobros) {
+  return (cobros ?? []).filter((c) => c.factura_id === facturaId)
+}
+
+// Saldo de factura = total − cobros aplicados − notas de crédito.
+export function saldoFactura(factura, cobros) {
+  const aplicado = cobrosDeFactura(factura.id, cobros).reduce(
+    (s, c) => s + N(c.monto),
+    0,
+  )
+  return redondear2(N(factura.total) - aplicado - N(factura.notas_credito))
+}
+
+// Estado calculado (no se guarda: deriva de saldo y vencimiento).
+export function estadoFactura(factura, cobros, hoyISO = '') {
+  if (factura.estado === 'anulada') return 'anulada'
+  const saldo = saldoFactura(factura, cobros)
+  if (saldo <= 0) return 'cobrada'
+  if (saldo < N(factura.total)) return 'parcial'
+  const hoy = hoyISO || new Date().toISOString().slice(0, 10)
+  if (factura.fecha_vencimiento && factura.fecha_vencimiento < hoy) return 'vencida'
+  return 'emitida'
+}
+
+// Pagos aplicados a un gasto (por gasto_id = id del registro de gasto).
+export function pagosDeGasto(gastoId, pagos) {
+  return (pagos ?? []).filter((p) => p.gasto_id === gastoId)
+}
+
+// Saldo por pagar de un gasto = reconocido − pagos aplicados.
+export function saldoGasto(gastoMonto, gastoId, pagos) {
+  const pagado = pagosDeGasto(gastoId, pagos).reduce((s, p) => s + N(p.monto), 0)
+  return redondear2(N(gastoMonto) - pagado)
+}
+
+// Flujo de un mes = cobros + entradas manuales − pagos − salidas manuales.
+// Los movimientos de caja manuales son solo ajustes/otros (no duplican
+// cobros ni pagos: Regla 1, una fuente por hecho económico).
+export function flujoMes(mesISO, cobros, pagos, movimientos) {
+  const suma = (lista, campo = 'monto') =>
+    (lista ?? [])
+      .filter((m) => enMes(m.fecha, mesISO))
+      .reduce((s, m) => s + N(m[campo]), 0)
+  const entradasManuales = (movimientos ?? [])
+    .filter((m) => enMes(m.fecha, mesISO) && m.tipo === 'entrada')
+    .reduce((s, m) => s + N(m.monto), 0)
+  const salidasManuales = (movimientos ?? [])
+    .filter((m) => enMes(m.fecha, mesISO) && m.tipo === 'salida')
+    .reduce((s, m) => s + N(m.monto), 0)
+  return redondear2(suma(cobros) + entradasManuales - suma(pagos) - salidasManuales)
+}
+
+// Horas hombre del mes: tareo aprobado cuando existe; si no hay tareo,
+// registros de personal del mes (supuesto explícito y reversible).
+export function horasMes(mesISO, registros, tareos) {
+  const tareoAprobado = (tareos ?? []).filter(
+    (t) => enMes(t.fecha, mesISO) && t.estado === 'aprobado',
+  )
+  if (tareoAprobado.length > 0) {
+    const normales = tareoAprobado.reduce((s, t) => s + N(t.horas_normales), 0)
+    const extras = tareoAprobado.reduce((s, t) => s + N(t.horas_extras), 0)
+    const costo = tareoAprobado.reduce(
+      (s, t) => s + N(t.horas_normales) * N(t.tarifa_hora) + N(t.horas_extras) * N(t.tarifa_extra),
+      0,
+    )
+    return { normales, extras, total: normales + extras, costo: redondear2(costo), fuente: 'tareo' }
+  }
+  const regs = (registros ?? []).filter(
+    (r) => r.tipo_registro === 'personal' && enMes(r.fecha, mesISO),
+  )
+  const total = regs.reduce((s, r) => s + N(r.cantidad_o_horas), 0)
+  return {
+    normales: total,
+    extras: 0,
+    total,
+    costo: redondear2(regs.reduce((s, r) => s + N(r.monto_calculado), 0)),
+    fuente: 'registros',
+  }
+}
+
+// ¿Mes con cierre vigente? Las correcciones exigen reapertura con motivo.
+export function mesCerrado(mesISO, cierres) {
+  return (cierres ?? []).some((c) => c.mes === mesISO && c.estado === 'cerrado')
+}
+
+// Snapshot de cierre mensual: foto congelada de los totales del mes.
+// Las correcciones posteriores no alteran este objeto (trazabilidad).
+export function generarCierre(mesISO, estado) {
+  const regs = (estado.registros_servicio ?? []).filter((r) => enMes(r.fecha, mesISO))
+  const facturas = (estado.facturas ?? []).filter((f) => enMes(f.fecha_emision, mesISO))
+  const cobros = (estado.cobros ?? []).filter((c) => enMes(c.fecha, mesISO))
+  const pagos = (estado.pagos ?? []).filter((p) => enMes(p.fecha, mesISO))
+  const facturado = redondear2(facturas.reduce((s, f) => s + N(f.total), 0))
+  const cobrado = redondear2(cobros.reduce((s, c) => s + N(c.monto), 0))
+  const gastado = redondear2(regs.reduce((s, r) => s + N(r.monto_calculado), 0))
+  const pagado = redondear2(pagos.reduce((s, p) => s + N(p.monto), 0))
+  const horas = horasMes(mesISO, estado.registros_servicio, estado.tareos)
+  const porServicio = (estado.servicios ?? []).map((s) => {
+    const rs = regs.filter((r) => r.servicio_id === s.id)
+    const fs = facturas.filter((f) => f.servicio_id === s.id)
+    const cs = cobros.filter((c) => c.servicio_id === s.id)
+    return {
+      servicio_id: s.id,
+      nombre: s.nombre_servicio,
+      facturado: redondear2(fs.reduce((t, f) => t + N(f.total), 0)),
+      cobrado: redondear2(cs.reduce((t, c) => t + N(c.monto), 0)),
+      gastado: redondear2(rs.reduce((t, r) => t + N(r.monto_calculado), 0)),
+      resultado: redondear2(
+        fs.reduce((t, f) => t + N(f.total), 0) - rs.reduce((t, r) => t + N(r.monto_calculado), 0),
+      ),
+    }
+  })
+  return {
+    mes: mesISO,
+    fecha_generacion: new Date().toISOString(),
+    facturado,
+    cobrado,
+    gastado,
+    pagado,
+    flujo: flujoNetoCaja(cobrado, pagado),
+    resultado: redondear2(facturado - gastado),
+    horas,
+    porServicio,
+  }
+}

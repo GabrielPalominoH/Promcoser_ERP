@@ -11,6 +11,13 @@ export const ESTATUS_SERVICIO = [
   'Cancelado',
 ]
 
+export const TIPOS_SERVICIO = ['Obra', 'Misceláneo', 'Anual', 'Adicional']
+
+// Tipo de servicio con valor por defecto para datos antiguos.
+export function tipoServicio(servicio) {
+  return servicio?.tipo ?? 'Obra'
+}
+
 // ------------------------------------------------------------
 //  1. Catálogos maestros
 // ------------------------------------------------------------
@@ -159,6 +166,7 @@ export const servicios = [
     id: 6,
     nombre_servicio: 'Construcción de almacén industrial',
     cliente: 'Logística del Pacífico S.A.C.',
+    tipo: 'Obra',
     presupuesto_asignado: 120000,
     fecha_inicio: '2026-07-01',
     fecha_fin_estimada: '2026-12-20',
@@ -374,6 +382,7 @@ export const facturas = []
 export const pagos = []
 export const movimientos_caja = []
 export const tareos = []
+export const cierres = []
 export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN' }]
 
 export const ESTADO_INICIAL = {
@@ -389,6 +398,7 @@ export const ESTADO_INICIAL = {
   pagos,
   movimientos_caja,
   tareos,
+  cierres,
   config,
 }
 

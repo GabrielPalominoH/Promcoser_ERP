@@ -16,6 +16,7 @@ import {
   Td,
   Th,
 } from '../../components/ui/Table'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { formatearFecha, formatearMoneda, redondearMonto } from '../../utils/formatters'
 import {
   cobradoServicio,
@@ -24,6 +25,7 @@ import {
   registrosDeServicio,
   utilidadReal,
 } from '../../utils/calculadora'
+import { mesCerrado, saldoFactura } from '../../utils/finanzas'
 import { fechaHoyISO, reglasNumeroMayorACero } from './compartido'
 
 const CONCEPTOS = ['adelanto', 'valorización', 'pago anual', 'otro']
@@ -42,28 +44,53 @@ export function CobrosServicio() {
   const gastado = sumarMontos(registrosDeServicio(estado.registros_servicio, servicio.id))
   const utilidad = utilidadReal(cobrado, gastado)
 
+  const facturasVigentes = (estado.facturas ?? []).filter(
+    (f) => f.servicio_id === servicio.id && f.estado !== 'anulada' && f.estado !== 'cobrada',
+  )
+
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm({
-    defaultValues: { fecha: fechaHoyISO(), monto: '', concepto: 'valorización', documento: '' },
+    defaultValues: { fecha: fechaHoyISO(), monto: '', concepto: 'valorización', documento: '', factura_id: '' },
   })
 
-  const enviar = ({ fecha, monto, concepto, documento }) => {
+  const enviar = ({ fecha, monto, concepto, documento, factura_id }) => {
+    if (mesCerrado(fecha.slice(0, 7), estado.cierres)) {
+      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
+      return
+    }
+    const factura = factura_id ? facturasVigentes.find((f) => String(f.id) === String(factura_id)) : null
+    // Regla 6: lo aplicado a una factura no excede su saldo (sin factura = adelanto).
+    if (factura && Number(monto) - saldoFactura(factura, estado.cobros) > 0.005) {
+      setAviso({
+        tipo: 'error',
+        mensaje: `Excede el saldo de ${factura.numero} (${formatearMoneda(saldoFactura(factura, estado.cobros))}). Regístralo sin factura como adelanto.`,
+      })
+      return
+    }
     agregarItem('cobros', {
       servicio_id: servicio.id,
       fecha,
       monto: redondearMonto(monto),
       concepto,
       documento: documento.trim() || null,
+      factura_id: factura ? factura.id : null,
     })
     setAviso({ tipo: 'exito', mensaje: `Cobro registrado por ${formatearMoneda(redondearMonto(monto))}.` })
     reset()
   }
 
   const confirmarEliminar = () => {
+    const cobro = (estado.cobros ?? []).find((c) => c.id === porEliminar)
+    if (cobro && mesCerrado(cobro.fecha.slice(0, 7), estado.cierres)) {
+      setPorEliminar(null)
+      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
+      return
+    }
     eliminarItem('cobros', porEliminar)
     setPorEliminar(null)
     setAviso({ tipo: 'info', mensaje: 'Cobro eliminado. Los totales se actualizan.' })
@@ -85,7 +112,7 @@ export function CobrosServicio() {
             {formatearMoneda(pendiente)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">
-            {pendiente < 0 ? 'Sobrepago del cliente' : 'Lo que te deben del contratado'}
+            {pendiente < 0 ? 'Sobrepago del cliente' : 'Pendiente de cobro del monto contratado'}
           </p>
         </Card>
         <Card>
@@ -128,6 +155,25 @@ export function CobrosServicio() {
                 ))}
               </Select>
             </Campo>
+            {facturasVigentes.length > 0 && (
+              <Campo
+                label="Factura (opcional)"
+                error={errors.factura_id?.message}
+                htmlFor="cob-factura"
+                hint="Sin factura = adelanto"
+              >
+                <CampoComboBox
+                  id="cob-factura"
+                  control={control}
+                  name="factura_id"
+                  placeholder="Sin factura…"
+                  opciones={facturasVigentes.map((f) => ({
+                    valor: String(f.id),
+                    etiqueta: `${f.numero} (saldo ${formatearMoneda(saldoFactura(f, estado.cobros))})`,
+                  }))}
+                />
+              </Campo>
+            )}
             <Campo label="Documento (opcional)" error={errors.documento?.message} htmlFor="cob-doc">
               <Input
                 id="cob-doc"
@@ -163,6 +209,13 @@ export function CobrosServicio() {
                   </Td>
                   <Td>
                     <span className="font-medium capitalize text-slate-800">{c.concepto}</span>
+                    {c.factura_id != null &&
+                      (() => {
+                        const f = (estado.facturas ?? []).find((x) => x.id === c.factura_id)
+                        return f ? (
+                          <span className="block text-xs text-slate-500">→ {f.numero}</span>
+                        ) : null
+                      })()}
                     {c.documento && (
                       <span className="block text-xs text-slate-500">{c.documento}</span>
                     )}

@@ -10,6 +10,8 @@ export const SECCIONES_NAVEGACION = [
       { to: '/personal', label: 'Personal', icono: 'users' },
       { to: '/equipos', label: 'Equipos', icono: 'truck' },
       { to: '/oficina', label: 'Oficina', icono: 'oficina' },
+      { to: '/caja', label: 'Caja', icono: 'caja' },
+      { to: '/cierre', label: 'Cierre', icono: 'candado' },
     ],
   },
 ]
@@ -26,6 +28,9 @@ const ICONOS = {
   recibo: 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6',
   layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
   billete: 'M2 7h20v10H2zM12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M6 12h.01M18 12h.01',
+  factura: 'M7 2h7l5 5v15H7zM14 2v5h5M10 13h5m-5 4h5',
+  caja: 'M3 8h18v11H3zM3 8l2-4h14l2 4M10 12h4',
+  candado: 'M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5zM12 14v3',
 }
 
 export { ICONOS }

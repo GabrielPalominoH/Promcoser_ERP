@@ -1,7 +1,7 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
-import { COLECCIONES, ESTADO_INICIAL, migrarPresupuestoATareas } from '../src/data/mockData'
+import { COLECCIONES, ESTADO_INICIAL, TIPOS_SERVICIO, migrarPresupuestoATareas, tipoServicio } from '../src/data/mockData'
 import {
   cargarEstado,
   guardarEstado,
@@ -10,16 +10,24 @@ import {
   validarRespaldo,
 } from '../src/data/store'
 import {
+  cobrosDeFactura,
   desviacionPresupuesto,
   enMes,
   enRango,
   esVigente,
+  estadoFactura,
+  flujoMes,
   flujoNetoCaja,
+  generarCierre,
+  horasMes,
   margenBruto,
+  mesCerrado,
   porcentajeEjecucion,
   resultadoBruto,
   resultadoOperativoEstimado,
   resultadoPorServicio,
+  saldoFactura,
+  saldoGasto,
   saldoPorCobrar,
   saldoPorPagar,
   soloVigentes,
@@ -418,7 +426,65 @@ comprobar('K normalizado conserva todo', normalizado && COLECCIONES.every((c) =>
 comprobar('K inválido se rechaza sin tocar nada', validarRespaldo({ foo: 1 }).ok === false && validarRespaldo(null).ok === false && normalizarRespaldo({ foo: 1 }) === null)
 
 // ============================================================
-//  6. Render de rutas
+//  6. Etapas 3–5: tareo, facturas, pagos, caja, cierre
+// ============================================================
+
+console.log('\n[ etapas 3-5 ]')
+
+// Tareo: importe con extras y tarifa snapshot.
+const tareoDemo = { horas_normales: 8, horas_extras: 2, tarifa_hora: 25, tarifa_extra: 37.5 }
+comprobar(
+  'tareo 8×25 + 2×37.5 = 275',
+  tareoDemo.horas_normales * tareoDemo.tarifa_hora + tareoDemo.horas_extras * tareoDemo.tarifa_extra === 275,
+)
+// Factura 10000, cobros 4000 + 6000 → saldo 0 (Caso F §24).
+const facDemo = { id: 1, total: 10000, fecha_vencimiento: '2026-10-31', estado: 'emitida' }
+const cobrosDemo = [
+  { factura_id: 1, monto: 4000 },
+  { factura_id: 1, monto: 6000 },
+]
+comprobar('cobros aplicados suman 10000', cobrosDeFactura(1, cobrosDemo).length === 2)
+comprobar('F saldo pasa 6000 → 0', saldoFactura(facDemo, [{ factura_id: 1, monto: 4000 }]) === 6000 && saldoFactura(facDemo, cobrosDemo) === 0)
+comprobar('factura cobrada con saldo 0', estadoFactura(facDemo, cobrosDemo, '2026-10-10') === 'cobrada')
+comprobar('factura vencida sin cobros', estadoFactura({ ...facDemo, id: 2 }, [], '2026-11-05') === 'vencida')
+comprobar('factura anulada no cuenta', estadoFactura({ ...facDemo, estado: 'anulada' }, [], '2026-11-05') === 'anulada')
+// Pagos: gasto 2000, pago 800 → saldo 1200 (Caso E §24).
+comprobar('saldo gasto 2000 − 800 = 1200', saldoGasto(2000, 9, [{ gasto_id: 9, monto: 800 }]) === 1200)
+// Caja: cobros + entradas − pagos − salidas.
+comprobar(
+  'flujo mes = 10000 + 500 − 6000 − 200',
+  flujoMes('2026-10', [{ fecha: '2026-10-05', monto: 10000 }], [{ fecha: '2026-10-06', monto: 6000 }], [{ fecha: '2026-10-07', tipo: 'entrada', monto: 500 }, { fecha: '2026-10-08', tipo: 'salida', monto: 200 }]) === 4300,
+)
+// Horas: tareo aprobado manda; si no, registros.
+const horasTar = horasMes('2026-10', [], [{ fecha: '2026-10-05', horas_normales: 8, horas_extras: 2, tarifa_hora: 25, tarifa_extra: 37.5, estado: 'aprobado' }])
+comprobar('horas de tareo aprobado (10 h, 275)', horasTar.total === 10 && horasTar.costo === 275 && horasTar.fuente === 'tareo')
+const horasReg = horasMes('2026-10', [{ tipo_registro: 'personal', fecha: '2026-10-05', cantidad_o_horas: 8, monto_calculado: 200 }], [])
+comprobar('horas de registros sin tareo', horasReg.total === 8 && horasReg.fuente === 'registros')
+// Cierre: snapshot + mes cerrado bloquea.
+const cierreDemo = generarCierre('2026-10', {
+  servicios: [{ id: 6, nombre_servicio: 'Demo' }],
+  registros_servicio: [{ servicio_id: 6, fecha: '2026-10-05', monto_calculado: 100 }],
+  facturas: [{ id: 1, servicio_id: 6, fecha_emision: '2026-10-02', total: 1000 }],
+  cobros: [{ servicio_id: 6, fecha: '2026-10-06', monto: 400 }],
+  pagos: [{ servicio_id: 6, fecha: '2026-10-07', monto: 60 }],
+  tareos: [],
+})
+comprobar(
+  'cierre congela totales',
+  cierreDemo.facturado === 1000 && cierreDemo.cobrado === 400 && cierreDemo.gastado === 100 && cierreDemo.pagado === 60 && cierreDemo.flujo === 340 && cierreDemo.resultado === 900,
+  JSON.stringify(cierreDemo),
+)
+comprobar('mes cerrado detectado', mesCerrado('2026-10', [{ mes: '2026-10', estado: 'cerrado' }]) && !mesCerrado('2026-10', [{ mes: '2026-10', estado: 'reabierto' }]))
+// Tipos de servicio y colecciones nuevas vacías.
+comprobar('tipos incluyen Obra/Misceláneo/Anual', ['Obra', 'Misceláneo', 'Anual'].every((t) => TIPOS_SERVICIO.includes(t)))
+comprobar('tipo por defecto Obra', tipoServicio({}) === 'Obra' && tipoServicio({ tipo: 'Anual' }) === 'Anual')
+comprobar(
+  'colecciones nuevas existen y vacías',
+  ['facturas', 'pagos', 'movimientos_caja', 'tareos', 'cierres'].every((c) => Array.isArray(ESTADO_INICIAL[c]) && ESTADO_INICIAL[c].length === 0),
+)
+
+// ============================================================
+//  7. Render de rutas
 // ============================================================
 
 console.log('\n[ render ]')
@@ -432,6 +498,10 @@ const rutas = [
   { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
   { ruta: '/servicios/6/cobros', etiqueta: 'Panel cobros', monto: true },
+  { ruta: '/servicios/6/facturacion', etiqueta: 'Panel facturación', monto: true },
+  { ruta: '/servicios/6/pagos', etiqueta: 'Panel pagos', monto: true },
+  { ruta: '/caja', etiqueta: 'Caja', monto: true },
+  { ruta: '/cierre', etiqueta: 'Cierre', monto: true },
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },

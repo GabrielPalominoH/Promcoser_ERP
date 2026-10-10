@@ -49,6 +49,8 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
 | **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. |
+| **Caja** | Entradas y salidas reales de dinero del mes: cobros y pagos entran solos; aquí solo ajustes manuales. |
+| **Cierre** | Cierre mensual gerencial: revisa pendientes, genera el resultado del mes, lo congela e imprime el reporte. |
 
 ---
 
@@ -92,6 +94,15 @@ Ya no genera gasto en los meses siguientes (el total inicio-fin baja), pero
 lo ya asentado se conserva: lo gastado no se quita. El mes de la baja sale
 prorrateado por los días trabajados. Si fue un error, se puede reactivar.
 
+**Tareo diario (opcional pero recomendado):** horas normales y extras por
+persona, día y tarea, con la tarifa de ese momento (si la tarifa cambia
+después, lo ya registrado no cambia). Cada tareo queda **pendiente** hasta
+que alguien lo **aprueba**. Al asentar el mes, el gasto sale del tareo
+aprobado; si no hay tareo, de la proyección. Tareo pendiente bloquea el
+asentamiento de esa persona hasta aprobarlo. Más de 12 horas en un día
+muestra advertencia; más de 24 no se permite; si ya existe el mismo día se
+avisa de posible duplicado.
+
 ### Equipos
 Aquí se anota qué máquina se usó y cuántas horas. El costo sale del costo por
 hora del equipo. También se puede asignar a una **tarea**.
@@ -111,6 +122,28 @@ monto, concepto y documento opcional. Arriba verá 3 números:
   sale negativo, el cliente pagó de más.
 - **Utilidad real:** cobrado menos gastado. Es el resultado económico efectivo, distinto
   del margen (que mide eficiencia contra el presupuesto).
+
+### Facturación
+Documentos internos de control (no son comprobantes SUNAT oficiales): número,
+emisión, vencimiento, base, impuestos y total. Cada factura muestra su saldo
+(total menos cobros aplicados) y su estado (emitida, parcial, cobrada,
+vencida o anulada). Anular conserva el historial y la saca de los saldos; no
+hay borrado físico.
+
+### Pagos
+Pagos a gastos del servicio (fecha, monto, medio y gasto al que aplican). Sin
+gasto vinculado es un anticipo. Cada gasto muestra reconocido, pagado y saldo.
+Lo aplicado a un gasto no puede exceder su saldo.
+
+### Cierre mensual
+En la página **Cierre** se elige el mes, se revisan los pendientes (tareo sin
+aprobar, costos sin tarea, facturas vencidas, asignaciones sin asentar), se
+genera el resultado y se **confirma el cierre** con responsable: la foto
+queda congelada e imprimible (reporte con facturado, cobrado, gastado,
+pagado, flujo, resultado, horas y detalle por servicio). Mes cerrado bloquea
+asentamientos y movimientos fechados en él; para corregir se **reabre con
+motivo**, y queda registrado. Es un cierre gerencial interno, no contable
+oficial.
 
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
@@ -199,6 +232,12 @@ tal como figura en la factura, para poder ubicarla después.
 - **Cobrado:** ingresos efectivamente recibidos por cobros registrados.
 - **Por cobrar:** monto contratado menos cobrado; lo que el cliente aún debe.
 - **Utilidad real:** cobrado menos gastado; el resultado económico efectivo.
+- **Tareo:** horas trabajadas por día (normales + extras) con su tarifa; solo
+  lo aprobado alimenta el gasto.
+- **Factura (interna):** documento de control con total, cobros aplicados,
+  saldo y estado; no es comprobante oficial.
+- **Cierre:** foto congelada de los totales de un mes, con responsable y
+  reapertura motivada.
 - **Respaldo:** el archivo con toda la información, para guardarla y
   recuperarla.
 
@@ -212,9 +251,10 @@ Materiales de la obra, con su factura a la mano.
 **Cada vez que cobra:** regístrelo el mismo día en la pestaña Cobros, con su
 recibo a la mano.
 
-**Cada fin de mes:** asiente el mes en Personal (botón Asentar), actualice
-los % de avance en el Cronograma, revise los montos en Partidas y mire el
-margen por tarea. Lo que esté en rojo necesita atención.
+**Cada fin de mes:** apruebe el tareo, asiente el mes en Personal (botón
+Asentar), registre facturas y cobros, actualice los % de avance en el
+Cronograma, revise los montos en Partidas y mire el margen por tarea. Lo que
+esté en rojo necesita atención. Luego genere y confirme el **Cierre** del mes.
 
 **Cada semana:** pulse **"Exportar respaldo"** en el Dashboard y guarde el
 archivo fuera de la computadora.

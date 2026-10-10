@@ -18,7 +18,9 @@ const SECCIONES = [
       { id: 'personal', etiqueta: 'Personal', icono: 'users' },
       { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
       { id: 'gastos', etiqueta: 'Gastos', icono: 'recibo' },
+      { id: 'facturacion', etiqueta: 'Facturación', icono: 'factura' },
       { id: 'cobros', etiqueta: 'Cobros', icono: 'billete' },
+      { id: 'pagos', etiqueta: 'Pagos', icono: 'caja' },
     ],
   },
   {
@@ -46,7 +48,7 @@ function Contador({ valor }) {
 export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
   const { servicio } = usePanelServicio()
   const {
-    estado: { registros_servicio: todos, tareas, cobros: todosCobros },
+    estado: { registros_servicio: todos, tareas, cobros: todosCobros, facturas: todasFacturas, pagos: todosPagos },
   } = useData()
 
   const conteo = (tipo) =>
@@ -67,6 +69,8 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
     gastos: conteo('gasto'),
     cronograma: tareas.filter((t) => t.servicio_id === servicio.id && t.padre_id == null).length,
     cobros: (todosCobros ?? []).filter((c) => c.servicio_id === servicio.id).length,
+    facturacion: (todasFacturas ?? []).filter((f) => f.servicio_id === servicio.id && f.estado !== 'anulada').length,
+    pagos: (todosPagos ?? []).filter((p) => p.servicio_id === servicio.id).length,
   }
 
   const base = `/servicios/${servicio.id}`

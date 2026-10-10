@@ -6,6 +6,7 @@ import { StatCard } from '../components/ui/StatCard'
 import { Badge, BadgeEstatus } from '../components/ui/Badge'
 import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../components/ui/Table'
 import { Icono } from '../components/layout/Sidebar'
+import { Campo, Input } from '../components/ui/Field'
 import { Button } from '../components/ui/Button'
 import { Aviso } from '../components/ui/Aviso'
 import { COLECCIONES } from '../data/mockData'
@@ -35,6 +36,7 @@ import {
   sumarMontos,
   utilidadReal,
 } from '../utils/calculadora'
+import { generarCierre } from '../utils/finanzas'
 
 function BarraPresupuesto({ porcentaje, excedido }) {
   const ancho = Math.min(100, Math.max(0, porcentaje))
@@ -207,6 +209,52 @@ export function Dashboard() {
   // Resultado empresa: margen de servicios menos gasto de oficina.
   const oficinaTotal = sumarMontos(costosOficina ?? [])
   const resultadoEmpresa = margenTotal - oficinaTotal
+
+  // Resultado del mes + acumulado + tendencia (filtros de periodo).
+  const [mesFiltro, setMesFiltro] = useState(mesActual)
+  const cierreMes = generarCierre(mesFiltro, estado)
+  const [aPrev, mPrev] = mesFiltro.split('-').map(Number)
+  const mesPrevio = `${mPrev === 1 ? aPrev - 1 : aPrev}-${String(mPrev === 1 ? 12 : mPrev - 1).padStart(2, '0')}`
+  const cierrePrevio = generarCierre(mesPrevio, estado)
+  const tendencia = (() => {
+    const lista = []
+    let [a, m] = mesFiltro.split('-').map(Number)
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(a, m - 1 - i, 1)
+      const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      lista.push({ mes: clave, ...generarCierre(clave, estado) })
+    }
+    return lista
+  })()
+  const maxTendencia = Math.max(1, ...tendencia.map((t) => Math.max(t.facturado, t.gastado)))
+
+  const exportarCSV = () => {
+    const filas = [
+      ['mes', 'facturado', 'cobrado', 'gastado', 'pagado', 'flujo', 'resultado', 'horas_hombre', 'costo_laboral'],
+      ...tendencia.map((t) => [
+        t.mes,
+        t.facturado,
+        t.cobrado,
+        t.gastado,
+        t.pagado,
+        t.flujo,
+        t.resultado,
+        t.horas.total,
+        t.horas.costo,
+      ]),
+    ]
+    const csv = filas.map((f) => f.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.download = `promcoser-mensual-${mesFiltro}.csv`
+    document.body.appendChild(enlace)
+    enlace.click()
+    enlace.remove()
+    URL.revokeObjectURL(url)
+    setAviso({ tipo: 'exito', mensaje: 'CSV descargado con el resumen de los últimos 6 meses.' })
+  }
   const serviciosPorConsumo = [...metricas].sort(
     (a, b) => b.consumo.porcentaje - a.consumo.porcentaje,
   )
@@ -688,6 +736,63 @@ export function Dashboard() {
           </dl>
         </Card>
       </div>
+
+      <Card
+        titulo="Resultado del mes"
+        descripcion="Indicadores del periodo seleccionado vs. mes anterior"
+        acciones={
+          <span className="flex items-end gap-2">
+            <Campo label="Mes" htmlFor="dash-mes">
+              <Input id="dash-mes" type="month" value={mesFiltro} onChange={(e) => e.target.value && setMesFiltro(e.target.value)} />
+            </Campo>
+            <Button variante="secundario" tamano="sm" onClick={exportarCSV}>
+              Exportar CSV
+            </Button>
+          </span>
+        }
+      >
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            ['Facturado', cierreMes.facturado],
+            ['Cobrado', cierreMes.cobrado],
+            ['Gastado', cierreMes.gastado],
+            ['Pagado', cierreMes.pagado],
+            ['Flujo neto', cierreMes.flujo],
+            ['Resultado', cierreMes.resultado],
+            ['Horas hombre', `${cierreMes.horas.total} h`],
+            ['Costo laboral', cierreMes.horas.costo],
+          ].map(([etiqueta, valor]) => (
+            <div key={etiqueta} className="rounded-xl border border-slate-200 p-3">
+              <p className="text-xs text-slate-500">{etiqueta}</p>
+              <p className="font-bold tabular-nums">{typeof valor === 'number' ? formatearMoneda(valor) : valor}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-sm text-slate-600">
+          Mes anterior ({formatearMes(mesPrevio)}): facturado {formatearMoneda(cierrePrevio.facturado)} ·
+          gastado {formatearMoneda(cierrePrevio.gastado)} · resultado{' '}
+          {formatearMoneda(cierrePrevio.resultado)}
+        </p>
+        <p className="mt-4 mb-2 text-sm font-medium text-slate-700">Tendencia 6 meses (facturado vs. gastado)</p>
+        <ul className="space-y-2">
+          {tendencia.map((t) => (
+            <li key={t.mes} className="grid grid-cols-[64px_1fr_auto] items-center gap-2 text-xs">
+              <span className="text-slate-500 tabular-nums">{t.mes}</span>
+              <span className="space-y-1">
+                <span className="block h-2 overflow-hidden rounded-full bg-slate-100">
+                  <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${(t.facturado / maxTendencia) * 100}%` }} />
+                </span>
+                <span className="block h-2 overflow-hidden rounded-full bg-slate-100">
+                  <span className="block h-full rounded-full bg-red-400" style={{ width: `${(t.gastado / maxTendencia) * 100}%` }} />
+                </span>
+              </span>
+              <span className="text-slate-500 tabular-nums">
+                {formatearMoneda(t.facturado)} / {formatearMoneda(t.gastado)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
 
       <Card
         titulo="Movimientos recientes"
