@@ -158,6 +158,29 @@ export function proyeccionAsignaciones(asignaciones, servicio, registros) {
   return { porMes, gastado, proyectado, total: gastado + proyectado }
 }
 
+// ------------------------------------------------------------
+//  Cobros: lo que realmente entra por cada servicio
+// ------------------------------------------------------------
+
+// Total cobrado de un servicio.
+export function cobradoServicio(cobros, servicioId) {
+  return (cobros ?? [])
+    .filter((c) => c.servicio_id === servicioId)
+    .reduce((total, c) => total + (Number(c.monto) || 0), 0)
+}
+
+// Por cobrar: monto contratado menos cobrado. Negativo = sobrepago.
+export function porCobrar(servicio, cobros) {
+  const contratado = Number(servicio.presupuesto_asignado) || 0
+  return contratado - cobradoServicio(cobros, servicio.id)
+}
+
+// Utilidad real: cobrado menos gastado (la plata de verdad).
+export function utilidadReal(cobrado, gastado) {
+  const redondear = (n) => Math.round(n * 100) / 100
+  return redondear(cobrado) - redondear(gastado)
+}
+
 export function sumarMontos(registros) {
   return registros.reduce((total, registro) => total + (Number(registro.monto_calculado) || 0), 0)
 }

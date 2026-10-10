@@ -2,7 +2,7 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { ESTADO_INICIAL, migrarPresupuestoATareas } from '../src/data/mockData'
-import { agruparPersonalPorMes, alertasServicio, asentamientoDe, avanceEfectivo, coberturaTareo, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, valorizadoTarea } from '../src/utils/calculadora'
+import { agruparPersonalPorMes, alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, coberturaTareo, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diasLaborables, esDomingo, fechasDelMes, fechasHastaFinDeMes, fechasLaborables, fechasLaborablesMes, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, proyeccionLaboral, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import App from '../src/App'
@@ -297,6 +297,17 @@ comprobar('sin baja el total sería mayor (44920)', proyAsigSinBaja.total === 44
 comprobar('la baja baja el total', proyAsigSinBaja.total > proyAsig6.total)
 comprobar('sin asentamiento devuelve null', asentamientoDe(1, ESTADO_INICIAL.registros_servicio, '2026-08') === null)
 comprobar('cascada servicio borra asignaciones', !(sinServicio.asignaciones ?? []).some((a) => a.servicio_id === 6))
+
+console.log('\n[ cobros ]')
+
+const { cobros } = ESTADO_INICIAL
+comprobar('serv. 6 tiene 2 cobros', cobros.filter((c) => c.servicio_id === 6).length === 2)
+comprobar('cobrado serv. 6 = 54000', cobradoServicio(cobros, 6) === 54000, String(cobradoServicio(cobros, 6)))
+comprobar('por cobrar serv. 6 = 66000', porCobrar(servSeis, cobros) === 66000, String(porCobrar(servSeis, cobros)))
+const gastado6 = sumarMontos(registrosDeServicio(ESTADO_INICIAL.registros_servicio, 6))
+comprobar('utilidad real = cobrado − gastado', utilidadReal(cobradoServicio(cobros, 6), gastado6) === 54000 - gastado6)
+comprobar('sobrepago da negativo', porCobrar({ id: 7, presupuesto_asignado: 1000 }, [{ servicio_id: 7, monto: 1500 }]) === -500)
+comprobar('cascada servicio borra cobros', !(sinServicio.cobros ?? []).some((c) => c.servicio_id === 6))
 const spi6 = indiceAvance(servicio6, 54, '2026-10-06')
 comprobar('SPI serv. 6 ≈ 0.96', spi6 && Math.abs(spi6.spi - 0.96) < 0.01, String(spi6?.spi))
 comprobar('sin plazo no hay SPI', indiceAvance({ fecha_inicio: '', fecha_fin_estimada: '' }, 50, '2026-10-06') === null)
@@ -402,6 +413,7 @@ const rutas = [
   { ruta: '/servicios/6/personal', etiqueta: 'Panel personal', monto: true },
   { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
+  { ruta: '/servicios/6/cobros', etiqueta: 'Panel cobros', monto: true },
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },

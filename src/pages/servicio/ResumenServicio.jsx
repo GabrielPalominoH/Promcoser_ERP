@@ -10,6 +10,7 @@ import {
 } from '../../utils/formatters'
 import {
   alertasServicio,
+  cobradoServicio,
   coberturaTareo,
   consumoPresupuesto,
   cuentaComoManoDeObra,
@@ -18,6 +19,7 @@ import {
   gastoPorMes,
   indiceAvance,
   metricasCronograma,
+  porCobrar,
   registrosDeServicio,
   rentabilidadServicio,
 } from '../../utils/calculadora'
@@ -194,7 +196,7 @@ export function ResumenServicio() {
   const { servicio } = useOutletContext()
   const { abrirEditar } = usePanelServicio()
   const {
-    estado: { registros_servicio: todosLosRegistros, tareas: todasLasTareas, personal },
+    estado: { registros_servicio: todosLosRegistros, tareas: todasLasTareas, personal, cobros: todosLosCobros },
   } = useData()
 
   // La mano de obra (personal con costo) sí suma al gastado, igual que
@@ -205,6 +207,8 @@ export function ResumenServicio() {
   const dias = diasRestantes(servicio.fecha_fin_estimada)
 
   const registros = registrosDeServicio(registrosVigentes, servicio.id)
+  const cobrado = cobradoServicio(todosLosCobros, servicio.id)
+  const pendiente = porCobrar(servicio, todosLosCobros)
   const desglose = desglosePorTipo(registros)
   const conteoTipo = {
     material: registros.filter((r) => r.tipo_registro === 'material').length,
@@ -364,6 +368,34 @@ export function ResumenServicio() {
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
               {consumo.excedido ? 'Superó lo presupuestado' : 'Aún por comprometer'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 text-center sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Cobrado
+            </p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {formatearMoneda(cobrado)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Plata que realmente entró ·{' '}
+              <Link to="cobros" className="font-medium text-primary-700 underline">
+                Ver cobros
+              </Link>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Por cobrar
+            </p>
+            <p className={`mt-1 text-xl font-bold tabular-nums ${pendiente < 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+              {formatearMoneda(pendiente)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {pendiente < 0 ? 'Sobrepago del cliente' : 'Lo que te deben del contratado'}
             </p>
           </div>
         </div>

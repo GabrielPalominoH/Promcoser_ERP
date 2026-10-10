@@ -373,6 +373,17 @@ export const asignaciones = [
 ]
 
 // ------------------------------------------------------------
+//  Cobros por servicio: la plata que realmente entra (adelantos,
+//  pagos de valorización, pagos anuales). Por cobrar = contratado −
+//  cobrado; utilidad real = cobrado − gastado.
+// ------------------------------------------------------------
+
+export const cobros = [
+  { id: 1, servicio_id: 6, fecha: '2026-07-05', monto: 24000, concepto: 'adelanto', documento: 'REC-001' },
+  { id: 2, servicio_id: 6, fecha: '2026-09-10', monto: 30000, concepto: 'valorización', documento: 'FAC-101' },
+]
+
+// ------------------------------------------------------------
 //  Estado inicial consolidado
 // ------------------------------------------------------------
 
@@ -384,6 +395,7 @@ export const ESTADO_INICIAL = {
   tareas,
   costos_oficina,
   asignaciones,
+  cobros,
 }
 
 export const COLECCIONES = Object.keys(ESTADO_INICIAL)

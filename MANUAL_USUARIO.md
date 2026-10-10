@@ -11,9 +11,9 @@ Responde tres preguntas todos los días:
 
 1. **¿Cuánta plata contrataron por cada obra?** (el presupuesto, o monto contratado)
 2. **¿Cuánta plata ya gasté?** (materiales, gente, equipos, gastos)
-3. **¿La obra deja ganancia?** (comparar lo presupuestado con lo gastado: el
-   cliente paga un monto fijo, así que todo lo que ahorres frente al
-   presupuesto es tu ganancia)
+3. **¿La obra deja ganancia?** (comparar lo cobrado con lo gastado: la
+   utilidad real. Y comparar lo presupuestado con lo gastado: lo que ahorres
+   frente al presupuesto también es ganancia)
 
 Antes esto se llevaba en cuadernos o archivos sueltos. El sistema lo junta todo
 en un solo lugar: cada obra muestra su plata, su gente, sus materiales y su
@@ -95,6 +95,18 @@ hora del equipo. También se puede asignar a una **tarea**.
 ### Gastos
 Gastos extra que no son ni material ni gente ni equipo: fletes, alquileres,
 movilidad, etc. También aceptan tarea; si no se indica, quedan sin asignar.
+
+### Cobros (lo que entra)
+Aquí se registra la plata que el cliente paga por la obra: adelantos, pagos
+de valorización y pagos anuales (también sirve para misceláneas cortas y
+contratos anuales: todo se cobra por servicio). Cada cobro lleva fecha,
+monto, concepto y documento opcional. Arriba verá 3 números:
+
+- **Cobrado:** lo que realmente entró.
+- **Por cobrar:** monto contratado menos cobrado, o sea lo que te deben. Si
+  sale negativo, el cliente pagó de más.
+- **Utilidad real:** cobrado menos gastado. Es la plata de verdad, distinta
+  del margen (que mide eficiencia contra el presupuesto).
 
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
@@ -180,6 +192,9 @@ tal como figura en la factura, para poder ubicarla después.
   lo que ya se ganó del monto fijo.
 - **Margen:** valorizado menos costo. Positivo = ahorro (va gastando menos de
   lo presupuestado, y eso es su ganancia); negativo = sobrecosto.
+- **Cobrado:** plata que realmente entró por cobros registrados.
+- **Por cobrar:** monto contratado menos cobrado; lo que el cliente aún debe.
+- **Utilidad real:** cobrado menos gastado; la plata de verdad.
 - **Respaldo:** el archivo con toda la información, para guardarla y
   recuperarla.
 

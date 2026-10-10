@@ -24,6 +24,7 @@ const ICONOS = {
   oficina: 'M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 8h2a2 2 0 0 1 2 2v11M3 21h18M8 7h2m-2 4h2m-2 4h2',
   recibo: 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6',
   layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+  billete: 'M2 7h20v10H2zM12 12m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M6 12h.01M18 12h.01',
 }
 
 export { ICONOS }

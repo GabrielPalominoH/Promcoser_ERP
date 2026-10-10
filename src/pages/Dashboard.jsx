@@ -15,13 +15,16 @@ import {
   formatearMoneda,
 } from '../utils/formatters'
 import {
+  cobradoServicio,
   consumoPresupuesto,
   desglosePorTipo,
   diasRestantes,
   nombreReferencia,
   ordenarPorFechaDesc,
+  porCobrar,
   rentabilidadServicio,
   sumarMontos,
+  utilidadReal,
 } from '../utils/calculadora'
 
 function BarraPresupuesto({ porcentaje, excedido }) {
@@ -98,6 +101,7 @@ export function Dashboard() {
     servicios,
     registros_servicio: registros,
     tareas: todasLasTareas,
+    cobros: todosLosCobros,
   } = estado
 
   const presupuestoTotal = servicios.reduce(
@@ -105,6 +109,15 @@ export function Dashboard() {
     0,
   )
   const gastadoTotal = sumarMontos(registros)
+  const cobradoTotal = servicios.reduce(
+    (total, servicio) => total + cobradoServicio(todosLosCobros, servicio.id),
+    0,
+  )
+  const porCobrarTotal = servicios.reduce(
+    (total, servicio) => total + porCobrar(servicio, todosLosCobros),
+    0,
+  )
+  const utilidadTotal = utilidadReal(cobradoTotal, gastadoTotal)
   const serviciosEnCurso = servicios.filter((s) => s.estatus === 'En curso').length
   const totalPersonal = personal.length
   const totalEquipos = equipos.length
@@ -206,6 +219,41 @@ export function Dashboard() {
           detalle="Personal registrado / equipos registrados"
           tono="warning"
           icono={<Icono nombre="users" className="size-5" />}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          titulo="Cobrado total"
+          valor={formatearMoneda(cobradoTotal)}
+          detalle="Plata que realmente entró"
+          tono="success"
+          icono={<Icono nombre="billete" className="size-5" />}
+        />
+        <StatCard
+          titulo="Por cobrar"
+          valor={formatearMoneda(porCobrarTotal)}
+          detalle="Lo que deben del contratado"
+          tono={porCobrarTotal < 0 ? 'warning' : 'slate'}
+          icono={<Icono nombre="recibo" className="size-5" />}
+        />
+        <StatCard
+          titulo="Gastado total"
+          valor={formatearMoneda(gastadoTotal)}
+          detalle="Plata que realmente salió"
+          tono="slate"
+          icono={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5" aria-hidden="true">
+              <path d="M3 17l6-6 4 4 8-8M21 7h-5m5 0v5" />
+            </svg>
+          }
+        />
+        <StatCard
+          titulo="Utilidad real"
+          valor={formatearMoneda(utilidadTotal)}
+          detalle="Cobrado menos gastado"
+          tono={utilidadTotal < 0 ? 'danger' : 'success'}
+          icono={<Icono nombre="grid" className="size-5" />}
         />
       </div>
 

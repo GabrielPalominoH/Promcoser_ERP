@@ -18,6 +18,7 @@ const SECCIONES = [
       { id: 'personal', etiqueta: 'Personal', icono: 'users' },
       { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
       { id: 'gastos', etiqueta: 'Gastos', icono: 'recibo' },
+      { id: 'cobros', etiqueta: 'Cobros', icono: 'billete' },
     ],
   },
   {
@@ -45,7 +46,7 @@ function Contador({ valor }) {
 export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
   const { servicio } = usePanelServicio()
   const {
-    estado: { registros_servicio: todos, tareas },
+    estado: { registros_servicio: todos, tareas, cobros: todosCobros },
   } = useData()
 
   const conteo = (tipo) =>
@@ -65,6 +66,7 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
     equipos: conteo('equipo'),
     gastos: conteo('gasto'),
     cronograma: tareas.filter((t) => t.servicio_id === servicio.id && t.padre_id == null).length,
+    cobros: (todosCobros ?? []).filter((c) => c.servicio_id === servicio.id).length,
   }
 
   const base = `/servicios/${servicio.id}`
