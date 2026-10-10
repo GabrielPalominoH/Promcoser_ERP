@@ -365,6 +365,17 @@ export const cobros = [
 //  Estado inicial consolidado
 // ------------------------------------------------------------
 
+// ------------------------------------------------------------
+//  Etapa 2: entidades financieras y operativas (empiezan vacías; sin
+//  datos ficticios). Se usan desde sus módulos y reportes.
+// ------------------------------------------------------------
+
+export const facturas = []
+export const pagos = []
+export const movimientos_caja = []
+export const tareos = []
+export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN' }]
+
 export const ESTADO_INICIAL = {
   personal,
   equipos,
@@ -374,6 +385,11 @@ export const ESTADO_INICIAL = {
   costos_oficina,
   asignaciones,
   cobros,
+  facturas,
+  pagos,
+  movimientos_caja,
+  tareos,
+  config,
 }
 
 export const COLECCIONES = Object.keys(ESTADO_INICIAL)

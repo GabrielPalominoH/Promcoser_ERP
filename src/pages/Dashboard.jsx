@@ -10,6 +10,12 @@ import { Button } from '../components/ui/Button'
 import { Aviso } from '../components/ui/Aviso'
 import { COLECCIONES } from '../data/mockData'
 import {
+  nombreRespaldo,
+  normalizarRespaldo,
+  serializarRespaldo,
+  validarRespaldo,
+} from '../data/store'
+import {
   formatearCantidad,
   formatearFecha,
   formatearMes,
@@ -45,20 +51,13 @@ function BarraPresupuesto({ porcentaje, excedido }) {
   )
 }
 
-function nombreRespaldo() {
-  const ahora = new Date()
-  const mes = String(ahora.getMonth() + 1).padStart(2, '0')
-  const dia = String(ahora.getDate()).padStart(2, '0')
-  return `promcoser-respaldo-${ahora.getFullYear()}-${mes}-${dia}.json`
-}
-
 export function Dashboard() {
   const { estado, restablecer, reemplazarColeccion } = useData()
   const [aviso, setAviso] = useState(null)
   const inputArchivo = useRef(null)
 
   const exportarRespaldo = () => {
-    const blob = new Blob([JSON.stringify(estado, null, 2)], { type: 'application/json' })
+    const blob = new Blob([serializarRespaldo(estado)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const enlace = document.createElement('a')
     enlace.href = url
@@ -79,16 +78,15 @@ export function Dashboard() {
     lector.onload = () => {
       try {
         const datos = JSON.parse(lector.result)
-        const valido =
-          datos &&
-          typeof datos === 'object' &&
-          COLECCIONES.every((coleccion) => Array.isArray(datos[coleccion]))
-        if (!valido) {
-          setAviso({ tipo: 'error', mensaje: 'Archivo inválido: no es un respaldo PROMCOSER.' })
+        const { ok, errores } = validarRespaldo(datos)
+        if (!ok) {
+          setAviso({ tipo: 'error', mensaje: `Archivo inválido: ${errores[0]}` })
           return
         }
+        const normalizado = normalizarRespaldo(datos)
+        // Recomendación: exporta tu respaldo actual antes de reemplazar.
         for (const coleccion of COLECCIONES) {
-          reemplazarColeccion(coleccion, datos[coleccion])
+          reemplazarColeccion(coleccion, normalizado[coleccion])
         }
         setAviso({ tipo: 'exito', mensaje: 'Respaldo importado correctamente.' })
       } catch {

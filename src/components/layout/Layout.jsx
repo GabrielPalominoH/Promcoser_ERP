@@ -48,6 +48,7 @@ export function Layout() {
   const { servicioId } = useParams()
   const {
     estado: { servicios },
+    falloGuardado,
   } = useData()
 
   const servicioEnPanel = coincideServicio
@@ -69,6 +70,12 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-100">
+      {falloGuardado && (
+        <p role="alert" className="bg-red-600 px-4 py-2 text-center text-sm font-medium text-white">
+          No se pudo guardar en este navegador (almacenamiento lleno o bloqueado). Exporta un
+          respaldo desde el Dashboard para no perder tu información.
+        </p>
+      )}
       {servicioEnPanel ? (
         <PanelProveedor servicio={servicioEnPanel}>
           <SidebarServicio abierto={menuAbierto} onCerrar={cerrarMenu} colapsado={colapsado} />

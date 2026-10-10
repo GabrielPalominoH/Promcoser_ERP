@@ -15,6 +15,11 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `asignaciones` | `id` | Personal asignado: servicio, persona, tarea?, horas/día, tarifa, inicio, fin? (vacío = vigente) |
 | `costos_oficina` | `id` | Gasto general: persona (ámbito Oficina), mes, monto. Sin servicio |
 | `cobros` | `id` | Ingresos: servicio, fecha, monto, concepto, documento? |
+| `facturas` | `id` | Facturación (Etapa 5): servicio, número, emisión, vencimiento, importes, estado, saldo (vacía) |
+| `pagos` | `id` | Pagos a obligaciones (Etapa 5): fecha, importe, origen, medio (vacía) |
+| `movimientos_caja` | `id` | Caja real: fecha, tipo entrada/salida, importe, concepto, referencia (vacía) |
+| `tareos` | `id` | Horas por día (Etapa 3): fecha, trabajador, servicio, tarea, horas normales/extras, tarifa, estado (vacía) |
+| `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN |
 
 ## Relaciones
 
@@ -47,6 +52,19 @@ servicios 1──N cobros (servicio_id)
 - `migrarPresupuestoATareas`: del esquema con `partidas/valorizaciones` al actual (una sola vez al cargar; luego se re-guardia migrado).
 - `migrarEstadoV1`: del esquema `promcoser_mvp_v1` (rellena avance, fin estimada, costo/hora).
 - Se conservan aunque el código ya no use esos campos: protegen navegadores con datos antiguos.
+
+## Persistencia (Etapa 2)
+
+- Único acceso a `localStorage`: `src/data/store.js` (`cargarEstado`,
+  `guardarEstado` con informe de fallo, `validar/normalizar/serializarRespaldo`,
+  `siguienteId`). Los componentes no tocan `localStorage` (salvo preferencia
+  visual del sidebar). Si el guardado falla, `Layout` muestra alerta y pide
+  exportar respaldo.
+- Versión de esquema `_v: 3`; respaldos de versión mayor se rechazan; lo
+  inválido no destruye lo guardado.
+- Finanzas centralizadas en `src/utils/finanzas.js` (resultado/margen bruto,
+  desviación, ejecución, saldos, flujo, vigencia, periodos). Política: PEN,
+  céntimos, ingresos reconocidos = valorizado salvo criterio formal.
 
 ## Convenciones de UI
 

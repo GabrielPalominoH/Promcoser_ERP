@@ -2,6 +2,28 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { COLECCIONES, ESTADO_INICIAL, migrarPresupuestoATareas } from '../src/data/mockData'
+import {
+  cargarEstado,
+  guardarEstado,
+  normalizarRespaldo,
+  serializarRespaldo,
+  validarRespaldo,
+} from '../src/data/store'
+import {
+  desviacionPresupuesto,
+  enMes,
+  enRango,
+  esVigente,
+  flujoNetoCaja,
+  margenBruto,
+  porcentajeEjecucion,
+  resultadoBruto,
+  resultadoOperativoEstimado,
+  resultadoPorServicio,
+  saldoPorCobrar,
+  saldoPorPagar,
+  soloVigentes,
+} from '../src/utils/finanzas'
 import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, esDomingo, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
@@ -338,7 +360,65 @@ comprobar('filtra parcial', filtrarOpciones(OPCIONES, 'er').length === 2)
 comprobar('sin coincidencias = []', filtrarOpciones(OPCIONES, 'zzz').length === 0)
 
 // ============================================================
-//  4. Render de rutas
+//  4. Núcleo financiero centralizado (Casos A–F, H–J)
+// ============================================================
+
+console.log('\n[ finanzas ]')
+
+// Caso A: servicio rentable.
+comprobar('A bruto = 4500', resultadoBruto(10000, 5500) === 4500)
+comprobar('A margen = 45%', margenBruto(4500, 10000) === 45)
+// Caso B: servicio con pérdidas.
+comprobar('B bruto = −1200', resultadoBruto(8000, 9200) === -1200)
+comprobar('B margen = −15%', margenBruto(-1200, 8000) === -15)
+// Caso C: factura 10000 + cobro 4000 (no son 14000 de ingresos).
+comprobar('C facturado/cobrado/saldo', saldoPorCobrar(10000, 4000) === 6000 && 4000 + 6000 === 10000)
+// Caso D: gasto sin pago no mueve caja.
+comprobar('D saldo pendiente 1500 y caja 0', saldoPorPagar(1500, 0) === 1500 && flujoNetoCaja(0, 0) === 0)
+// Caso E: pago parcial.
+comprobar('E saldo 1200', saldoPorPagar(2000, 800) === 1200)
+// Caso F: desviación y ejecución.
+comprobar('F desviación 1500', desviacionPresupuesto(11500, 10000) === 1500)
+comprobar('F ejecución 115%', porcentajeEjecucion(11500, 10000) === 115)
+// Caso H: anulados/duplicados no duplican.
+const conRuido = [
+  { id: 1, monto_calculado: 100 },
+  { id: 2, monto_calculado: 100, estado: 'anulado' },
+  { id: 3, monto_calculado: 200, duplicado_de: 1 },
+]
+comprobar('H vigentes excluyen anulado/duplicado', soloVigentes(conRuido).length === 1 && esVigente(conRuido[0]))
+// Caso I: atribución por periodo.
+comprobar('I mes exacto', enMes('2026-09-15', '2026-09') && !enMes('2026-10-01', '2026-09'))
+comprobar('I rango inclusivo', enRango('2026-09-30', '2026-09-01', '2026-09-30') && !enRango('2026-10-01', '2026-09-01', '2026-09-30'))
+// Caso J: sin datos no hay NaN ni ficticios.
+comprobar('J ceros seguros', resultadoBruto(0, 0) === 0 && flujoNetoCaja(0, 0) === 0 && saldoPorCobrar(0, 0) === 0)
+comprobar('J márgenes nulos sin base', margenBruto(0, 0) === null && porcentajeEjecucion(500, 0) === null)
+// Operativo y por servicio.
+comprobar('operativo resta indirectos', resultadoOperativoEstimado(4500, 1000, 500) === 3000)
+const rps = resultadoPorServicio({ ingresos: 20000, directos: 12000, indirectos: 2000 })
+comprobar('por servicio: bruto 8000, margen 40, operativo 6000', rps.resultadoBruto === 8000 && rps.margenBruto === 40 && rps.resultadoOperativo === 6000)
+
+// ============================================================
+//  5. Persistencia centralizada (Casos G, K)
+// ============================================================
+
+console.log('\n[ persistencia ]')
+
+comprobar('guardar informa éxito', guardarEstado(ESTADO_INICIAL) === true)
+const recargado = cargarEstado()
+comprobar(
+  'G recarga conserva colecciones y totales',
+  COLECCIONES.every((c) => Array.isArray(recargado[c]) && recargado[c].length === ESTADO_INICIAL[c].length),
+)
+const serial = serializarRespaldo(ESTADO_INICIAL)
+const valido = validarRespaldo(JSON.parse(serial))
+comprobar('K respaldo válido pasa', valido.ok, JSON.stringify(valido.errores))
+const normalizado = normalizarRespaldo(JSON.parse(serial))
+comprobar('K normalizado conserva todo', normalizado && COLECCIONES.every((c) => normalizado[c].length === ESTADO_INICIAL[c].length))
+comprobar('K inválido se rechaza sin tocar nada', validarRespaldo({ foo: 1 }).ok === false && validarRespaldo(null).ok === false && normalizarRespaldo({ foo: 1 }) === null)
+
+// ============================================================
+//  6. Render de rutas
 // ============================================================
 
 console.log('\n[ render ]')
