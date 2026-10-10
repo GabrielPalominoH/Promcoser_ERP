@@ -5,6 +5,7 @@ import { Campo, Input } from '../../components/ui/Field'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
+import { CATEGORIAS_GASTO } from '../../data/mockData'
 import {
   SeccionRegistros,
   fechaHoyISO,
@@ -19,7 +20,7 @@ function FormularioGasto({ servicio, registrar }) {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '' },
+    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '' },
   })
   const {
     estado: { tareas: todasTareas },
@@ -28,7 +29,7 @@ function FormularioGasto({ servicio, registrar }) {
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
-  const enviar = ({ concepto, monto, fecha, tarea_id }) => {
+  const enviar = ({ concepto, monto, fecha, tarea_id, categoria }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'gasto',
@@ -38,8 +39,9 @@ function FormularioGasto({ servicio, registrar }) {
       monto_calculado: redondearMonto(monto),
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
+      categoria: categoria || null,
     })
-    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '' })
+    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '' })
   }
 
   return (
@@ -89,6 +91,20 @@ function FormularioGasto({ servicio, registrar }) {
             />
           </Campo>
         )}
+        <Campo
+          label="Categoría (opcional)"
+          error={errors.categoria?.message}
+          htmlFor="gasto-categoria"
+          hint="Para el presupuesto por categorías"
+        >
+          <CampoComboBox
+            id="gasto-categoria"
+            control={control}
+            name="categoria"
+            placeholder="Sin categoría…"
+            opciones={CATEGORIAS_GASTO.map((c) => ({ valor: c, etiqueta: c }))}
+          />
+        </Campo>
         <div className="flex items-end">
           <Button type="submit" className="w-full">
             Agregar gasto

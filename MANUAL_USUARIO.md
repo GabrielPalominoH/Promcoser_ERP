@@ -51,6 +51,7 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 | **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. |
 | **Caja** | Entradas y salidas reales de dinero del mes: cobros y pagos entran solos; aquí solo ajustes manuales. |
 | **Cierre** | Cierre mensual gerencial: revisa pendientes, genera el resultado del mes, lo congela e imprime el reporte. |
+| **Contratos** | Contratos marco que agrupan servicios, con consolidado (contratado, gastado, cobrado, resultado por servicio). |
 
 ---
 
@@ -110,6 +111,17 @@ hora del equipo. También se puede asignar a una **tarea**.
 ### Gastos
 Gastos extra que no son ni material ni gente ni equipo: fletes, alquileres,
 movilidad, etc. También aceptan tarea; si no se indica, quedan sin asignar.
+Llevan **categoría** opcional (Transporte, Subcontratos, etc.): sirve para el
+presupuesto por categorías; sin categoría se avisan aparte.
+
+### Presupuesto
+Presupuesto de costos por **categoría** (Mano de obra, Equipos propios y
+alquilados, Materiales, Transporte, Subcontratos, etc.): se registra el
+**inicial** una vez y los **adicionales** con motivo de aprobación. El
+**vigente** es la suma. Se compara contra el costo real (una sola fuente, sin
+duplicar) con **desviación** y **% de ejecución** por categoría; las
+excedidas se alertan en rojo y los gastos sin categoría en ámbar. Los equipos
+distinguen propios de alquilados según su ficha.
 
 ### Cobros (lo que entra)
 Aquí se registran los ingresos que el cliente paga por la obra: adelantos, pagos
@@ -232,6 +244,11 @@ tal como figura en la factura, para poder ubicarla después.
 - **Cobrado:** ingresos efectivamente recibidos por cobros registrados.
 - **Por cobrar:** monto contratado menos cobrado; lo que el cliente aún debe.
 - **Utilidad real:** cobrado menos gastado; el resultado económico efectivo.
+- **Presupuesto vigente:** inicial + adicionales aprobados, por categoría.
+- **Desviación:** costo real − presupuesto vigente (+ = sobrecosto).
+- **Ejecución:** costo real ÷ presupuesto × 100 (N/D si es cero).
+- **Indirectos:** gasto de oficina atribuido por regla (horas, costos o
+  ingresos) o mostrado por separado sin regla.
 - **Tareo:** horas trabajadas por día (normales + extras) con su tarifa; solo
   lo aprobado alimenta el gasto.
 - **Factura (interna):** documento de control con total, cobros aplicados,
@@ -252,9 +269,13 @@ Materiales de la obra, con su factura a la mano.
 recibo a la mano.
 
 **Cada fin de mes:** apruebe el tareo, asiente el mes en Personal (botón
-Asentar), registre facturas y cobros, actualice los % de avance en el
+Asentar), registre facturas, cobros y pagos, actualice los % de avance en el
 Cronograma, revise los montos en Partidas y mire el margen por tarea. Lo que
 esté en rojo necesita atención. Luego genere y confirme el **Cierre** del mes.
+
+**Filtros del Dashboard:** cliente y tipo alcanzan a todo lo que es por
+servicio (Oficina y resultado empresa son de la empresa y no se filtran). El
+CSV mensual y el de rentabilidad por servicio descargan lo que se ve.
 
 **Cada semana:** pulse **"Exportar respaldo"** en el Dashboard y guarde el
 archivo fuera de la computadora.

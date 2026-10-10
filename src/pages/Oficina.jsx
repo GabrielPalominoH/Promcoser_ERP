@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../context/useData'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Campo, Input } from '../components/ui/Field'
+import { Campo, Input, Select } from '../components/ui/Field'
 import { CampoComboBox } from '../components/ui/ComboBox'
 import { Modal } from '../components/ui/Modal'
 import { Aviso } from '../components/ui/Aviso'
@@ -18,6 +18,9 @@ import {
 } from '../components/ui/Table'
 import { formatearMoneda, redondearMonto } from '../utils/formatters'
 import { consumoPresupuesto } from '../utils/calculadora'
+import { REGLAS_INDIRECTOS, distribuirIndirectos } from '../utils/finanzas'
+import { cobradoServicio } from '../utils/calculadora'
+import { leerConfig } from '../data/store'
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
@@ -122,8 +125,10 @@ function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
 }
 
 export function Oficina() {
-  const { estado, agregarItem, eliminarItem } = useData()
+  const { estado, agregarItem, actualizarItem, eliminarItem } = useData()
   const { personal, servicios, registros_servicio, costos_oficina: costos } = estado
+  const config = leerConfig(estado)
+  const regla = config.distribucion_indirectos ?? 'ninguna'
 
   const [mes, setMes] = useState(mesActual())
   const [aviso, setAviso] = useState(null)
@@ -145,6 +150,30 @@ export function Oficina() {
   )
   const totalOficina = costosMes.reduce((t, c) => t + (Number(c.monto_calculado) || 0), 0)
   const resultado = margenTotal - totalOficina
+
+  // Distribución de indirectos del mes por regla configurable. Bases del
+  // mismo mes que la oficina (coherencia de periodo). Sin regla, se muestran
+  // por separado (no se oculta el margen directo).
+  const distribucion = useMemo(() => {
+    if (regla === 'ninguna') return { regla: 'ninguna', distribuido: [], sinDistribuir: totalOficina }
+    const enMesSel = (fecha) => typeof fecha === 'string' && fecha.slice(0, 7) === mes
+    const bases = servicios.map((s) => {
+      const regs = registros_servicio.filter((r) => r.servicio_id === s.id && enMesSel(r.fecha))
+      const base =
+        regla === 'horas'
+          ? regs.filter((r) => r.tipo_registro === 'personal').reduce((t, r) => t + Number(r.cantidad_o_horas), 0)
+          : regla === 'ingresos'
+            ? (estado.cobros ?? []).filter((c) => c.servicio_id === s.id && enMesSel(c.fecha)).reduce((t, c) => t + Number(c.monto), 0)
+            : regs.reduce((t, r) => t + Number(r.monto_calculado), 0)
+      return { servicio_id: s.id, base }
+    })
+    return distribuirIndirectos(totalOficina, bases)
+  }, [regla, servicios, registros_servicio, estado.cobros, totalOficina, mes])
+
+  const cambiarRegla = (nueva) => {
+    actualizarItem('config', { id: 1, distribucion_indirectos: nueva })
+    setAviso({ tipo: 'exito', mensaje: `Regla de distribución: ${nueva}.` })
+  }
 
   const nombrePersona = (id) => {
     const p = personal.find((x) => x.id === id)
@@ -236,6 +265,61 @@ export function Oficina() {
             )}
           </TableBody>
         </Table>
+      </Card>
+
+      <Card
+        titulo="Distribución de indirectos"
+        descripcion="Regla configurable para atribuir la oficina a cada servicio. Sin regla se muestran por separado."
+        acciones={
+          <Campo label="Regla" htmlFor="ofi-regla" className="w-44">
+            <Select id="ofi-regla" value={regla} onChange={(e) => cambiarRegla(e.target.value)}>
+              {REGLAS_INDIRECTOS.map((r) => (
+                <option key={r} value={r}>
+                  {r === 'ninguna' ? 'Sin distribuir' : `Por ${r}`}
+                </option>
+              ))}
+            </Select>
+          </Campo>
+        }
+      >
+        {distribucion.regla === 'ninguna' ? (
+          <p className="text-sm text-slate-500">
+            Sin regla: {formatearMoneda(distribucion.sinDistribuir)} de oficina no se atribuyen a
+            ningún servicio (el margen directo no se oculta).
+          </p>
+        ) : (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <Th>Servicio</Th>
+                <Th alinear="right">Base ({regla})</Th>
+                <Th alinear="right">Atribuido</Th>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {distribucion.distribuido.length === 0 ? (
+                <TableEmpty colSpan={3} mensaje="Sin bases para distribuir este mes." />
+              ) : (
+                distribucion.distribuido.map((d) => {
+                  const servicio = servicios.find((s) => s.id === d.servicio_id)
+                  return (
+                    <TableRow key={d.servicio_id}>
+                      <Td className="font-medium text-slate-800">
+                        {servicio?.nombre_servicio ?? 'Servicio eliminado'}
+                      </Td>
+                      <Td alinear="right" className="tabular-nums">{formatearMoneda(d.base)}</Td>
+                      <Td alinear="right" className="font-semibold tabular-nums">{formatearMoneda(d.monto)}</Td>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        )}
+        <p className="mt-2 text-xs text-slate-400">
+          Criterio aplicado: {regla === 'ninguna' ? 'ninguno (separado)' : `prorrateo por ${regla} del mes ${mes}`}.
+          Suma exacta por redondeo al mayor.
+        </p>
       </Card>
 
       <Card

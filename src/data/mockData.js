@@ -13,6 +13,54 @@ export const ESTATUS_SERVICIO = [
 
 export const TIPOS_SERVICIO = ['Obra', 'Misceláneo', 'Anual', 'Adicional']
 
+// Categorías de gasto (clasificación del egreso reconocido).
+export const CATEGORIAS_GASTO = [
+  'Mano de obra',
+  'Equipos',
+  'Materiales',
+  'Transporte',
+  'Alimentación',
+  'Alojamiento',
+  'Combustible',
+  'Herramientas',
+  'Subcontratos',
+  'Administración',
+  'Alquileres',
+  'Servicios generales',
+  'Otros',
+]
+
+// Categorías del presupuesto de costos por servicio.
+export const CATEGORIAS_PRESUPUESTO = [
+  'Mano de obra',
+  'Equipos propios',
+  'Equipos alquilados',
+  'Materiales',
+  'Herramientas y consumibles',
+  'Transporte y movilización',
+  'Subcontratos',
+  'Viáticos y alojamiento',
+  'Otros costos directos',
+  'Costos indirectos',
+  'Contingencia',
+]
+
+// De categoría de gasto (o tipo de registro) a categoría de presupuesto.
+// Lo no mapeado cae en 'Otros costos directos'; sin categoría se avisa.
+export function categoriaPresupuestoDe({ tipo_registro, categoria }) {
+  if (tipo_registro === 'personal') return 'Mano de obra'
+  if (tipo_registro === 'material') return 'Materiales'
+  if (tipo_registro === 'equipo') return null // depende de propiedad del equipo
+  const mapa = {
+    Transporte: 'Transporte y movilización',
+    Alimentación: 'Viáticos y alojamiento',
+    Alojamiento: 'Viáticos y alojamiento',
+    Herramientas: 'Herramientas y consumibles',
+    Subcontratos: 'Subcontratos',
+  }
+  return mapa[categoria] ?? 'Otros costos directos'
+}
+
 // Tipo de servicio con valor por defecto para datos antiguos.
 export function tipoServicio(servicio) {
   return servicio?.tipo ?? 'Obra'
@@ -130,31 +178,31 @@ export const personal = [
 ]
 
 export const equipos = [
-  { id: 1, nombre: 'Camioneta BSI-922', costo_por_hora: 60 },
-  { id: 2, nombre: 'Cisterna de Agua BEA-747', costo_por_hora: 150 },
-  { id: 3, nombre: 'Volquete BRP-888', costo_por_hora: 150 },
-  { id: 4, nombre: 'Camioneta BJU-824', costo_por_hora: 60 },
-  { id: 5, nombre: 'Camión Baranda CCJ-900', costo_por_hora: 150 },
-  { id: 6, nombre: 'Volquete BRP-887', costo_por_hora: 150 },
-  { id: 7, nombre: 'Camión Baranda BXQ-768', costo_por_hora: 150 },
-  { id: 8, nombre: 'Miniván CPR-012', costo_por_hora: 60 },
-  { id: 9, nombre: 'Miniván CWF-344', costo_por_hora: 60 },
-  { id: 10, nombre: 'Camioneta BBD-873', costo_por_hora: 60 },
-  { id: 11, nombre: 'Volquete BMI-757', costo_por_hora: 150 },
-  { id: 12, nombre: 'Volquete BMI-856', costo_por_hora: 150 },
-  { id: 13, nombre: 'Camioneta BVR-788', costo_por_hora: 60 },
-  { id: 14, nombre: 'Camioneta BVW-820', costo_por_hora: 60 },
-  { id: 15, nombre: 'Camioneta CEB-793', costo_por_hora: 60 },
-  { id: 16, nombre: 'Camioneta CEM-838', costo_por_hora: 60 },
-  { id: 17, nombre: 'Camioneta CHP-770', costo_por_hora: 60 },
-  { id: 18, nombre: 'Camioneta CJI-818', costo_por_hora: 60 },
-  { id: 19, nombre: 'Miniván BVW-497', costo_por_hora: 60 },
-  { id: 20, nombre: 'Camioneta CHL-803', costo_por_hora: 60 },
-  { id: 21, nombre: 'Camioneta CNP-931', costo_por_hora: 60 },
-  { id: 22, nombre: 'Camioneta CNS-898', costo_por_hora: 60 },
-  { id: 23, nombre: 'Mezcladora de concreto', costo_por_hora: 80 },
-  { id: 24, nombre: 'Generador diesel 15 kVA', costo_por_hora: 80 },
-  { id: 25, nombre: 'Andamio modular', costo_por_hora: 80 },
+  { id: 1, nombre: 'Camioneta BSI-922', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 2, nombre: 'Cisterna de Agua BEA-747', costo_por_hora: 150, propiedad: 'Propio' },
+  { id: 3, nombre: 'Volquete BRP-888', costo_por_hora: 150, propiedad: 'Propio' },
+  { id: 4, nombre: 'Camioneta BJU-824', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 5, nombre: 'Camión Baranda CCJ-900', costo_por_hora: 150, propiedad: 'Propio' },
+  { id: 6, nombre: 'Volquete BRP-887', costo_por_hora: 150, propiedad: 'Propio' },
+  { id: 7, nombre: 'Camión Baranda BXQ-768', costo_por_hora: 150, propiedad: 'Propio' },
+  { id: 8, nombre: 'Miniván CPR-012', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 9, nombre: 'Miniván CWF-344', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 10, nombre: 'Camioneta BBD-873', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 11, nombre: 'Volquete BMI-757', costo_por_hora: 150, propiedad: 'Propio' },
+  { id: 12, nombre: 'Volquete BMI-856', costo_por_hora: 150, propiedad: 'Propio' },
+  { id: 13, nombre: 'Camioneta BVR-788', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 14, nombre: 'Camioneta BVW-820', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 15, nombre: 'Camioneta CEB-793', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 16, nombre: 'Camioneta CEM-838', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 17, nombre: 'Camioneta CHP-770', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 18, nombre: 'Camioneta CJI-818', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 19, nombre: 'Miniván BVW-497', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 20, nombre: 'Camioneta CHL-803', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 21, nombre: 'Camioneta CNP-931', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 22, nombre: 'Camioneta CNS-898', costo_por_hora: 60, propiedad: 'Propio' },
+  { id: 23, nombre: 'Mezcladora de concreto', costo_por_hora: 80, propiedad: 'Alquilado' },
+  { id: 24, nombre: 'Generador diesel 15 kVA', costo_por_hora: 80, propiedad: 'Alquilado' },
+  { id: 25, nombre: 'Andamio modular', costo_por_hora: 80, propiedad: 'Propio' },
 ]
 
 // ------------------------------------------------------------
@@ -383,6 +431,8 @@ export const pagos = []
 export const movimientos_caja = []
 export const tareos = []
 export const cierres = []
+export const presupuestos = []
+export const contratos = []
 export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN' }]
 
 export const ESTADO_INICIAL = {
@@ -399,6 +449,8 @@ export const ESTADO_INICIAL = {
   movimientos_caja,
   tareos,
   cierres,
+  presupuestos,
+  contratos,
   config,
 }
 

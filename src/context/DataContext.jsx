@@ -81,6 +81,23 @@ export function dataReducer(estado, accion) {
           pagos: (estado.pagos ?? []).filter(
             (pago) => pago.servicio_id !== payload.id,
           ),
+          presupuestos: (estado.presupuestos ?? []).filter(
+            (presupuesto) => presupuesto.servicio_id !== payload.id,
+          ),
+        }
+      }
+
+      // Al borrar un contrato los servicios NO se borran: quedan sin
+      // contrato (cada servicio cuenta una sola vez, sin duplicar).
+      if (payload.coleccion === 'contratos') {
+        return {
+          ...estado,
+          contratos: restantes,
+          servicios: estado.servicios.map((servicio) =>
+            servicio.contrato_id === payload.id
+              ? { ...servicio, contrato_id: null }
+              : servicio,
+          ),
         }
       }
 

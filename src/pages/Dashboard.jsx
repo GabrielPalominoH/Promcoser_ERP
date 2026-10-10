@@ -6,7 +6,7 @@ import { StatCard } from '../components/ui/StatCard'
 import { Badge, BadgeEstatus } from '../components/ui/Badge'
 import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../components/ui/Table'
 import { Icono } from '../components/layout/Sidebar'
-import { Campo, Input } from '../components/ui/Field'
+import { Campo, Input, Select } from '../components/ui/Field'
 import { Button } from '../components/ui/Button'
 import { Aviso } from '../components/ui/Aviso'
 import { COLECCIONES } from '../data/mockData'
@@ -110,28 +110,58 @@ export function Dashboard() {
   } = estado
   const mesActual = new Date().toISOString().slice(0, 7)
 
-  const presupuestoTotal = servicios.reduce(
+  // Filtros cliente/tipo: alcanzan a todo lo que es por servicio. Oficina y
+  // resultado empresa son de la empresa y no se filtran (se indica).
+  const [filtroCliente, setFiltroCliente] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('')
+  const clientes = [...new Set(servicios.map((s) => s.cliente))].sort((a, b) => a.localeCompare(b, 'es'))
+  const tipos = [...new Set(servicios.map((s) => s.tipo ?? 'Obra'))].sort((a, b) => a.localeCompare(b, 'es'))
+  const filtrado = filtroCliente !== '' || filtroTipo !== ''
+  const serviciosF = servicios.filter(
+    (s) =>
+      (!filtroCliente || s.cliente === filtroCliente) &&
+      (!filtroTipo || (s.tipo ?? 'Obra') === filtroTipo),
+  )
+  const idsF = new Set(serviciosF.map((s) => s.id))
+  const registrosF = registros.filter((r) => idsF.has(r.servicio_id))
+  const cobrosF = (todosLosCobros ?? []).filter((c) => idsF.has(c.servicio_id))
+  const pagosF = (estado.pagos ?? []).filter((p) => idsF.has(p.servicio_id))
+  const tareasF = (todasLasTareas ?? []).filter((t) => idsF.has(t.servicio_id))
+  const asigF = (todasLasAsignaciones ?? []).filter((a) => idsF.has(a.servicio_id))
+  const facturasF = (estado.facturas ?? []).filter((f) => idsF.has(f.servicio_id))
+  const estadoF = {
+    ...estado,
+    servicios: serviciosF,
+    registros_servicio: registrosF,
+    tareas: tareasF,
+    cobros: cobrosF,
+    pagos: pagosF,
+    asignaciones: asigF,
+    facturas: facturasF,
+  }
+
+  const presupuestoTotal = serviciosF.reduce(
     (total, servicio) => total + (Number(servicio.presupuesto_asignado) || 0),
     0,
   )
-  const gastadoTotal = sumarMontos(registros)
-  const cobradoTotal = servicios.reduce(
-    (total, servicio) => total + cobradoServicio(todosLosCobros, servicio.id),
+  const gastadoTotal = sumarMontos(registrosF)
+  const cobradoTotal = serviciosF.reduce(
+    (total, servicio) => total + cobradoServicio(cobrosF, servicio.id),
     0,
   )
   const porCobrarTotal = servicios.reduce(
-    (total, servicio) => total + porCobrar(servicio, todosLosCobros),
+    (total, servicio) => total + porCobrar(servicio, cobrosF),
     0,
   )
   const utilidadTotal = utilidadReal(cobradoTotal, gastadoTotal)
-  const serviciosEnCurso = servicios.filter((s) => s.estatus === 'En curso').length
+  const serviciosEnCurso = serviciosF.filter((s) => s.estatus === 'En curso').length
   const totalPersonal = personal.length
   const totalEquipos = equipos.length
 
-  const metricas = servicios.map((servicio) => {
-    const tareas = todasLasTareas.filter((t) => t.servicio_id === servicio.id)
-    const consumo = consumoPresupuesto(servicio, registros)
-    const rent = rentabilidadServicio(servicio, registros, tareas)
+  const metricas = serviciosF.map((servicio) => {
+    const tareas = tareasF.filter((t) => t.servicio_id === servicio.id)
+    const consumo = consumoPresupuesto(servicio, registrosF)
+    const rent = rentabilidadServicio(servicio, registrosF, tareas)
     const dias = diasRestantes(servicio.fecha_fin_estimada)
     const motivos = []
     if (consumo.excedido) motivos.push('excedido')
@@ -148,12 +178,12 @@ export function Dashboard() {
     return b.margen / Math.max(1, pb) - a.margen / Math.max(1, pa)
   })
 
-  const ultimosRegistros = ordenarPorFechaDesc(registros).slice(0, 8)
+  const ultimosRegistros = ordenarPorFechaDesc(registrosF).slice(0, 8)
 
   // Personal global: proyección agregada + meses por asentar + bajas.
-  const personalGlobal = servicios.map((servicio) => ({
+  const personalGlobal = serviciosF.map((servicio) => ({
     servicio,
-    proyeccion: proyeccionAsignaciones(todasLasAsignaciones, servicio, registros),
+    proyeccion: proyeccionAsignaciones(asigF, servicio, registrosF),
   }))
   const personalGastado = personalGlobal.reduce((s, p) => s + p.proyeccion.gastado, 0)
   const personalProyectado = personalGlobal.reduce((s, p) => s + p.proyeccion.proyectado, 0)
@@ -164,17 +194,17 @@ export function Dashboard() {
         .map((m) => ({ servicio, mes: m.mes, monto: m.monto })),
     )
     .sort((a, b) => a.mes.localeCompare(b.mes))
-  const bajasVigentes = (todasLasAsignaciones ?? []).filter((a) => a.fecha_fin != null).length
+  const bajasVigentes = asigF.filter((a) => a.fecha_fin != null).length
 
   // Cobros por servicio: quién debe + desglose por concepto.
-  const cobrosPorServicio = servicios
+  const cobrosPorServicio = serviciosF
     .map((servicio) => ({
       servicio,
-      cobrado: cobradoServicio(todosLosCobros, servicio.id),
-      pendiente: porCobrar(servicio, todosLosCobros),
+      cobrado: cobradoServicio(cobrosF, servicio.id),
+      pendiente: porCobrar(servicio, cobrosF),
     }))
     .sort((a, b) => b.pendiente - a.pendiente)
-  const cobrosPorConcepto = (todosLosCobros ?? []).reduce((acum, c) => {
+  const cobrosPorConcepto = cobrosF.reduce((acum, c) => {
     const clave = c.concepto || 'otro'
     acum[clave] = (acum[clave] || 0) + (Number(c.monto) || 0)
     return acum
@@ -187,14 +217,14 @@ export function Dashboard() {
     const [anio, mes, dia] = fechaISO.split('-').map(Number)
     return Math.round((new Date(anio, mes - 1, dia) - hoy) / 86400000)
   }
-  const tieneHijas = (id) => (todasLasTareas ?? []).some((t) => t.padre_id === id)
-  const cronogramaGlobal = servicios
+  const tieneHijas = (id) => tareasF.some((t) => t.padre_id === id)
+  const cronogramaGlobal = serviciosF
     .filter((s) => s.estatus === 'En curso')
     .map((servicio) => {
-      const tareas = (todasLasTareas ?? []).filter((t) => t.servicio_id === servicio.id)
+      const tareas = tareasF.filter((t) => t.servicio_id === servicio.id)
       return { servicio, metricas: metricasCronograma(tareas) }
     })
-  const vencimientos = (todasLasTareas ?? [])
+  const vencimientos = tareasF
     .filter(
       (t) =>
         !tieneHijas(t.id) &&
@@ -212,24 +242,37 @@ export function Dashboard() {
 
   // Resultado del mes + acumulado + tendencia (filtros de periodo).
   const [mesFiltro, setMesFiltro] = useState(mesActual)
-  const cierreMes = generarCierre(mesFiltro, estado)
+  const cierreMes = generarCierre(mesFiltro, estadoF)
   const [aPrev, mPrev] = mesFiltro.split('-').map(Number)
   const mesPrevio = `${mPrev === 1 ? aPrev - 1 : aPrev}-${String(mPrev === 1 ? 12 : mPrev - 1).padStart(2, '0')}`
-  const cierrePrevio = generarCierre(mesPrevio, estado)
+  const cierrePrevio = generarCierre(mesPrevio, estadoF)
   const tendencia = (() => {
     const lista = []
     let [a, m] = mesFiltro.split('-').map(Number)
     for (let i = 5; i >= 0; i -= 1) {
       const d = new Date(a, m - 1 - i, 1)
       const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      lista.push({ mes: clave, ...generarCierre(clave, estado) })
+      lista.push({ mes: clave, ...generarCierre(clave, estadoF) })
     }
     return lista
   })()
   const maxTendencia = Math.max(1, ...tendencia.map((t) => Math.max(t.facturado, t.gastado)))
 
+  const descargarCSV = (nombre, filas) => {
+    const csv = filas.map((f) => f.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.download = nombre
+    document.body.appendChild(enlace)
+    enlace.click()
+    enlace.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const exportarCSV = () => {
-    const filas = [
+    descargarCSV(`promcoser-mensual-${mesFiltro}.csv`, [
       ['mes', 'facturado', 'cobrado', 'gastado', 'pagado', 'flujo', 'resultado', 'horas_hombre', 'costo_laboral'],
       ...tendencia.map((t) => [
         t.mes,
@@ -242,18 +285,33 @@ export function Dashboard() {
         t.horas.total,
         t.horas.costo,
       ]),
-    ]
-    const csv = filas.map((f) => f.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const enlace = document.createElement('a')
-    enlace.href = url
-    enlace.download = `promcoser-mensual-${mesFiltro}.csv`
-    document.body.appendChild(enlace)
-    enlace.click()
-    enlace.remove()
-    URL.revokeObjectURL(url)
+    ])
     setAviso({ tipo: 'exito', mensaje: 'CSV descargado con el resumen de los últimos 6 meses.' })
+  }
+
+  const exportarCSVServicios = () => {
+    const paraCSV = (texto) => `"${String(texto ?? '').replace(/"/g, '""')}"`
+    descargarCSV('promcoser-rentabilidad-servicios.csv', [
+      ['servicio', 'cliente', 'tipo', 'presupuesto', 'gastado', 'cobrado', 'por_cobrar', 'utilidad', 'margen_pct'],
+      ...metricas.map(({ servicio, consumo }) => {
+        const cobrado = cobradoServicio(cobrosF, servicio.id)
+        const pendiente = porCobrar(servicio, cobrosF)
+        const utilidad = cobrado - consumo.gastado
+        const margen = cobrado > 0 ? Math.round((utilidad / cobrado) * 100 * 100) / 100 : ''
+        return [
+          paraCSV(servicio.nombre_servicio),
+          paraCSV(servicio.cliente),
+          paraCSV(servicio.tipo ?? 'Obra'),
+          servicio.presupuesto_asignado,
+          consumo.gastado,
+          cobrado,
+          pendiente,
+          utilidad,
+          margen,
+        ]
+      }),
+    ])
+    setAviso({ tipo: 'exito', mensaje: 'CSV descargado con la rentabilidad por servicio.' })
   }
   const serviciosPorConsumo = [...metricas].sort(
     (a, b) => b.consumo.porcentaje - a.consumo.porcentaje,
@@ -291,11 +349,38 @@ export function Dashboard() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <Campo label="Cliente" htmlFor="dash-cliente" className="w-56">
+          <Select id="dash-cliente" value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)}>
+            <option value="">Todos</option>
+            {clientes.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </Select>
+        </Campo>
+        <Campo label="Tipo" htmlFor="dash-tipo" className="w-44">
+          <Select id="dash-tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+            <option value="">Todos</option>
+            {tipos.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </Select>
+        </Campo>
+        {filtrado && (
+          <Button variante="secundario" tamano="sm" onClick={() => { setFiltroCliente(''); setFiltroTipo('') }}>
+            Limpiar filtros
+          </Button>
+        )}
+        <p className="w-full text-xs text-slate-400">
+          Filtros por servicio. Oficina y resultado empresa son de la empresa y no se filtran.
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           titulo="Margen total"
           valor={formatearMoneda(margenTotal)}
-          detalle={`${servicios.length} servicios · ${serviciosEnCurso} en curso`}
+          detalle={`${serviciosF.length} servicios · ${serviciosEnCurso} en curso${filtrado ? ' (filtrado)' : ''}`}
           tono={margenTotal < 0 ? 'danger' : 'success'}
           icono={<Icono nombre="clipboard" className="size-5" />}
         />
@@ -374,6 +459,11 @@ export function Dashboard() {
           titulo="Consumo por servicio"
           descripcion="Ordenado de mayor a menor avance presupuestal"
           className="xl:col-span-3"
+          acciones={
+            <Button variante="secundario" tamano="sm" onClick={exportarCSVServicios}>
+              Exportar CSV
+            </Button>
+          }
         >
           <ul className="space-y-5">
             {serviciosPorConsumo.map(({ servicio, consumo, rent }) => (
@@ -418,7 +508,7 @@ export function Dashboard() {
           className="xl:col-span-2"
         >
           <ul className="space-y-4">
-            {Object.entries(desglosePorTipo(registros)).map(([tipo, monto]) => {
+            {Object.entries(desglosePorTipo(registrosF)).map(([tipo, monto]) => {
               const porcentaje = gastadoTotal ? (monto / gastadoTotal) * 100 : 0
 
               return (
@@ -459,7 +549,7 @@ export function Dashboard() {
             <div>
               <dt className="text-slate-500">Servicios finalizados</dt>
               <dd className="font-semibold text-slate-800">
-                {servicios.filter((s) => s.estatus === 'Finalizado').length}
+                {serviciosF.filter((s) => s.estatus === 'Finalizado').length}
               </dd>
             </div>
           </dl>
@@ -826,7 +916,7 @@ export function Dashboard() {
                     {formatearFecha(registro.fecha)}
                   </Td>
                   <Td className="max-w-xs truncate">
-                    {servicios.find((s) => s.id === registro.servicio_id)?.nombre_servicio ??
+                    {serviciosF.find((s) => s.id === registro.servicio_id)?.nombre_servicio ??
                       'Servicio eliminado'}
                   </Td>
                   <Td>{nombreReferencia(registro, { personal, equipos })}</Td>

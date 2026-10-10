@@ -162,7 +162,12 @@ export const CATALOGO_EQUIPOS = {
     {
       etiqueta: 'Equipo',
       render: (item) => (
-        <span className="font-medium text-slate-900">{item.nombre}</span>
+        <span className="font-medium text-slate-900">
+          {item.nombre}
+          <span className="block text-xs font-normal text-slate-500">
+            {(item.propiedad ?? 'Propio') === 'Alquilado' ? 'Alquilado' : 'Propio'}
+          </span>
+        </span>
       ),
     },
     {
@@ -192,16 +197,26 @@ export const CATALOGO_EQUIPOS = {
       paso: '0.01',
       hint: 'Se sugiere al cargar uso en un servicio.',
     },
+    {
+      name: 'propiedad',
+      etiqueta: 'Propiedad',
+      tipo: 'select',
+      requerido: true,
+      opciones: opciones(['Propio', 'Alquilado']),
+      hint: 'Define si su uso va a equipos propios o alquilados en el presupuesto.',
+    },
   ],
 
   valoresIniciales: {
     nombre: '',
     costo_por_hora: '',
+    propiedad: 'Propio',
   },
 
   normalizar: (valores) => ({
     nombre: valores.nombre.trim(),
     costo_por_hora: Number(valores.costo_por_hora),
+    propiedad: valores.propiedad || 'Propio',
   }),
 }
 
@@ -228,12 +243,18 @@ export const CATALOGO_SERVICIOS = {
   columnas: [
     {
       etiqueta: 'Servicio',
-      render: (item) => (
-        <div>
-          <p className="font-medium text-slate-900">{item.nombre_servicio}</p>
-          <p className="text-xs text-slate-500">{item.cliente}</p>
-        </div>
-      ),
+      render: (item, ctx) => {
+        const contrato = (ctx.estado.contratos ?? []).find((c) => c.id === item.contrato_id)
+        return (
+          <div>
+            <p className="font-medium text-slate-900">{item.nombre_servicio}</p>
+            <p className="text-xs text-slate-500">
+              {item.cliente} · {item.tipo ?? 'Obra'}
+              {contrato ? ` · ${contrato.codigo}` : ''}
+            </p>
+          </div>
+        )
+      },
     },
     {
       etiqueta: 'Inicio',
@@ -408,4 +429,111 @@ export const CATALOGO_SERVICIOS = {
       Ver
     </Link>
   ),
+}
+
+// ------------------------------------------------------------
+//  Contratos (agrupan servicios sin duplicar resultados)
+// ------------------------------------------------------------
+
+export const CATALOGO_CONTRATOS = {
+  coleccion: 'contratos',
+  titulo: 'Contratos',
+  descripcion: 'Contratos marco que agrupan uno o varios servicios. Cada servicio pertenece máximo a un contrato.',
+  nombreSingular: 'contrato',
+  etiquetaContador: 'contratos',
+  claveBusqueda: (item) => `${item.codigo ?? ''} ${item.nombre} ${item.cliente}`,
+  placeholderBusqueda: 'Buscar por código, nombre o cliente…',
+  mensajeVacio: 'No hay contratos que coincidan con la búsqueda.',
+  mensajeSinRegistros: 'Aún no hay contratos registrados.',
+  tieneActivo: false,
+
+  columnas: [
+    {
+      etiqueta: 'Contrato',
+      render: (item) => (
+        <div>
+          <p className="font-medium text-slate-900">{item.nombre}</p>
+          <p className="text-xs text-slate-500">{item.codigo} · {item.cliente}</p>
+        </div>
+      ),
+    },
+    {
+      etiqueta: 'Vigencia',
+      render: (item) => (
+        <span className="whitespace-nowrap text-slate-500">
+          {formatearFecha(item.fecha_inicio)} → {item.fecha_fin ? formatearFecha(item.fecha_fin) : 'abierto'}
+        </span>
+      ),
+    },
+    {
+      etiqueta: 'Monto',
+      alinear: 'right',
+      render: (item) => (
+        <span className="tabular-nums">{formatearMoneda(item.monto_contratado)}</span>
+      ),
+    },
+  ],
+
+  campos: [
+    {
+      name: 'codigo',
+      etiqueta: 'Código',
+      tipo: 'texto',
+      requerido: true,
+      placeholder: 'Ej. CT-2026-001',
+    },
+    {
+      name: 'nombre',
+      etiqueta: 'Nombre del contrato',
+      tipo: 'texto',
+      requerido: true,
+      ancho: 'completo',
+      placeholder: 'Ej. Mantenimiento anual planta norte',
+    },
+    {
+      name: 'cliente',
+      etiqueta: 'Cliente',
+      tipo: 'texto',
+      requerido: true,
+      placeholder: 'Ej. Logística del Pacífico S.A.C.',
+    },
+    {
+      name: 'monto_contratado',
+      etiqueta: 'Monto contratado (S/)',
+      tipo: 'numero',
+      requerido: true,
+      min: 0,
+      paso: '0.01',
+    },
+    {
+      name: 'fecha_inicio',
+      etiqueta: 'Fecha de inicio',
+      tipo: 'fecha',
+      requerido: true,
+    },
+    {
+      name: 'fecha_fin',
+      etiqueta: 'Fecha de fin',
+      tipo: 'fecha',
+      requerido: false,
+    },
+  ],
+
+  valoresIniciales: {
+    codigo: '',
+    nombre: '',
+    cliente: '',
+    monto_contratado: '',
+    fecha_inicio: new Date().toISOString().slice(0, 10),
+    fecha_fin: '',
+  },
+
+  normalizar: (valores) => ({
+    codigo: valores.codigo.trim(),
+    nombre: valores.nombre.trim(),
+    cliente: valores.cliente.trim(),
+    monto_contratado: Number(valores.monto_contratado),
+    fecha_inicio: valores.fecha_inicio,
+    fecha_fin: valores.fecha_fin || null,
+  }),
 }

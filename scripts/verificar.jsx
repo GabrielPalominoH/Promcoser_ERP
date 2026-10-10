@@ -11,7 +11,9 @@ import {
 } from '../src/data/store'
 import {
   cobrosDeFactura,
+  desviacionCategoria,
   desviacionPresupuesto,
+  distribuirIndirectos,
   enMes,
   enRango,
   esVigente,
@@ -23,6 +25,8 @@ import {
   margenBruto,
   mesCerrado,
   porcentajeEjecucion,
+  presupuestoPorCategoria,
+  realPorCategoria,
   resultadoBruto,
   resultadoOperativoEstimado,
   resultadoPorServicio,
@@ -484,7 +488,66 @@ comprobar(
 )
 
 // ============================================================
-//  7. Render de rutas
+//  7. Presupuesto, indirectos y contratos
+// ============================================================
+
+console.log('\n[ presupuesto e indirectos ]')
+
+const pptoDemo = [
+  { servicio_id: 6, categoria: 'Mano de obra', monto: 40000, version: 'inicial' },
+  { servicio_id: 6, categoria: 'Mano de obra', monto: 5000, version: 'adicional' },
+  { servicio_id: 6, categoria: 'Materiales', monto: 30000, version: 'inicial' },
+]
+const ppto = presupuestoPorCategoria(pptoDemo, 6)
+comprobar('vigente suma inicial + adicional', ppto.porCategoria['Mano de obra'].vigente === 45000)
+comprobar('totales 70000/5000/75000', ppto.inicialTotal === 70000 && ppto.adicionalTotal === 5000 && ppto.vigenteTotal === 75000)
+const equiposDemo = [
+  { id: 1, propiedad: 'Propio' },
+  { id: 2, propiedad: 'Alquilado' },
+]
+const regsDemo = [
+  { servicio_id: 6, tipo_registro: 'personal', monto_calculado: 1000 },
+  { servicio_id: 6, tipo_registro: 'equipo', referencia_id: 1, monto_calculado: 500 },
+  { servicio_id: 6, tipo_registro: 'equipo', referencia_id: 2, monto_calculado: 300 },
+  { servicio_id: 6, tipo_registro: 'material', monto_calculado: 200 },
+  { servicio_id: 6, tipo_registro: 'gasto', categoria: 'Transporte', monto_calculado: 100 },
+  { servicio_id: 6, tipo_registro: 'gasto', monto_calculado: 50 },
+]
+const real = realPorCategoria(regsDemo, 6, equiposDemo)
+comprobar(
+  'real mapea categorías',
+  real.porCategoria['Mano de obra'] === 1000 &&
+    real.porCategoria['Equipos propios'] === 500 &&
+    real.porCategoria['Equipos alquilados'] === 300 &&
+    real.porCategoria['Materiales'] === 200 &&
+    real.porCategoria['Transporte y movilización'] === 100 &&
+    real.sinCategoria === 50,
+  JSON.stringify(real),
+)
+const desv = desviacionCategoria(10000, 11500)
+comprobar('desviación 1500 y ejecución 115%', desv.desviacion === 1500 && desv.ejecucion === 115 && desv.excedida)
+comprobar('ejecución N/D sin presupuesto', desviacionCategoria(0, 500).ejecucion === null)
+const dist = distribuirIndirectos(1000, [
+  { servicio_id: 6, base: 3 },
+  { servicio_id: 7, base: 1 },
+])
+comprobar(
+  'prorrateo exacto 750/250',
+  dist.distribuido.find((d) => d.servicio_id === 6).monto === 750 &&
+    dist.distribuido.find((d) => d.servicio_id === 7).monto === 250 &&
+    dist.sinDistribuir === 0,
+  JSON.stringify(dist),
+)
+comprobar('sin regla queda separado', distribuirIndirectos(1000, []).sinDistribuir === 1000)
+const sinContrato = dataReducer(
+  { ...ESTADO_INICIAL, servicios: [{ id: 6, contrato_id: 2 }], contratos: [{ id: 2 }] },
+  { type: 'ELIMINAR_ITEM', payload: { coleccion: 'contratos', id: 2 } },
+)
+comprobar('borrar contrato no borra servicios', sinContrato.servicios.length === 1 && sinContrato.servicios[0].contrato_id === null)
+comprobar('cascada servicio borra presupuestos', !(dataReducer(ESTADO_INICIAL, { type: 'ELIMINAR_ITEM', payload: { coleccion: 'servicios', id: 6 } }).presupuestos ?? []).some((p) => p.servicio_id === 6))
+
+// ============================================================
+//  8. Render de rutas
 // ============================================================
 
 console.log('\n[ render ]')
@@ -500,8 +563,10 @@ const rutas = [
   { ruta: '/servicios/6/cobros', etiqueta: 'Panel cobros', monto: true },
   { ruta: '/servicios/6/facturacion', etiqueta: 'Panel facturación', monto: true },
   { ruta: '/servicios/6/pagos', etiqueta: 'Panel pagos', monto: true },
+  { ruta: '/servicios/6/presupuesto', etiqueta: 'Panel presupuesto', monto: true },
   { ruta: '/caja', etiqueta: 'Caja', monto: true },
   { ruta: '/cierre', etiqueta: 'Cierre', monto: true },
+  { ruta: '/contratos', etiqueta: 'Contratos', monto: false },
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
