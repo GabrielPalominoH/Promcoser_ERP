@@ -44,11 +44,11 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | La vista de toda la empresa: montos (contratado, gastado, cobrado, por cobrar, utilidad), personal (gastado, proyectado, meses por asentar), quién debe por servicio, avance global del cronograma, resultado empresa y obras en riesgo. También están aquí los botones de respaldo. |
+| **Dashboard** | La vista de toda la empresa: montos (contratado, gastado, cobrado, por cobrar, utilidad), personal (gastado, proyectado, meses por asentar), quién debe por servicio, avance global del cronograma, resultado empresa y obras en riesgo. Con filtros por cliente y tipo, sección **Resultado del mes** (filtro por mes, comparativa con el anterior, tendencia de 6 meses y export CSV) y botones de respaldo. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
-| **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. |
+| **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. Incluye regla configurable para distribuir indirectos por horas, costos o ingresos (o mostrarlos por separado). |
 | **Caja** | Entradas y salidas reales de dinero del mes: cobros y pagos entran solos; aquí solo ajustes manuales. |
 | **Cierre** | Cierre mensual gerencial: revisa pendientes, genera el resultado del mes, lo congela e imprime el reporte. |
 | **Contratos** | Contratos marco que agrupan servicios, con consolidado (contratado, gastado, cobrado, resultado por servicio). |
@@ -130,8 +130,8 @@ contratos anuales: todo se cobra por servicio). Cada cobro lleva fecha,
 monto, concepto y documento opcional. Arriba verá 3 números:
 
 - **Cobrado:** lo que realmente entró.
-- **Por cobrar:** monto contratado menos cobrado, o sea lo que te deben. Si
-  sale negativo, el cliente pagó de más.
+- **Por cobrar:** monto contratado menos cobrado, o sea lo que el cliente aún
+  debe. Si sale negativo, el cliente pagó de más.
 - **Utilidad real:** cobrado menos gastado. Es el resultado económico efectivo, distinto
   del margen (que mide eficiencia contra el presupuesto).
 
@@ -174,16 +174,18 @@ trabajos reales: por ejemplo, "Cimentación" S/ 21,600, "Estructuras"
 S/ 39,900. ¿Para qué sirve? Para saber **qué trabajo deja ahorro y cuál
 genera sobrecosto**: sin esto solo sabría si la obra en general va bien o
 mal; aquí ve, por ejemplo, que la cimentación dejó ahorro pero los acabados
-generaron sobrecosto. Eso le dice dónde mirar. Recuerde: el cliente paga un
-monto fijo, así que "ganar" aquí significa gastar menos de lo presupuestado,
-no recibir más dinero.
+generaron sobrecosto. Eso le dice dónde mirar. Recuerde: el cliente paga lo
+contratado (más adicionales aprobados), así que "ganar" aquí significa gastar
+menos de lo presupuestado; el sobrecosto no se cobra solo, requiere un
+adicional aprobado por el cliente.
 
 La pantalla muestra la **misma lista de tareas del Cronograma**, con padres
 e hijas, y estas columnas:
 
-- **Monto:** el importe asignado a ese trabajo. Se escribe directo en la lista
-  (se guarda al salir del campo). Las tareas principales **suman solas** lo
-  de sus hijas y no se pueden escribir: así es imposible que se descuadren.
+- **Monto:** el importe asignado a ese trabajo. A la derecha del nombre hay un
+  botón **Editar** que abre la ventana del monto (se guarda con Enter o el
+  botón Guardar). Las tareas principales **suman solas** lo de sus hijas y no
+  llevan botón: así es imposible que se descuadren.
 - **Valorizado:** monto × avance. Es lo ya ejecutado, a precios del
   presupuesto: lo que ya se ganó del monto fijo.
 - **Avance:** el % que se marca en el Cronograma (aquí solo se ve, se cambia
@@ -191,8 +193,8 @@ e hijas, y estas columnas:
 - **Costo:** lo gastado en ese trabajo: sus costos directos más los de sus
   hijas.
 - **Margen:** valorizado menos costo. Si sale en rojo, ese trabajo genera
-  sobrecosto: ya gastó más de lo que vale lo hecho, y nadie le va a dar más
-  dinero por esa diferencia.
+  sobrecosto: ya gastó más de lo que vale lo hecho. Ese extra solo se
+  recupera con un adicional aprobado por el cliente.
 
 Arriba verá los totales: presupuesto (suma de las principales), valorizado,
 avance y margen de toda la obra. Debajo del total aparece lo registrado
@@ -210,9 +212,13 @@ eligiendo su tarea; 2) actualice los % en el Cronograma y los montos aquí si
 cambiaron; 3) revise el tablero: todo margen en rojo necesita atención.
 
 ### Opciones
-Datos de la obra (nombre, cliente, fechas) y la opción de eliminarla. Eliminar
-una obra borra todo lo suyo (registros y tareas), así que pide escribir
-"Eliminar servicio" para confirmar que es en serio.
+Datos de la obra (nombre, cliente, tipo, contrato, fechas, estatus) y la
+opción de eliminarla. El **tipo** (Obra, Misceláneo, Anual, Adicional) sirve
+para filtrar en el Dashboard; el **contrato** vincula la obra a un contrato
+marco para ver el consolidado en la página Contratos. Eliminar una obra borra
+todo lo suyo (registros, tareas, asignaciones, tareo, facturas, cobros, pagos
+y presupuestos), así que pide escribir "Eliminar servicio" para confirmar que
+es en serio.
 
 ---
 
@@ -251,6 +257,12 @@ tal como figura en la factura, para poder ubicarla después.
   ingresos) o mostrado por separado sin regla.
 - **Tareo:** horas trabajadas por día (normales + extras) con su tarifa; solo
   lo aprobado alimenta el gasto.
+- **Asignación:** persona asignada a una obra con pago y vigencia; de aquí
+  sale la proyección.
+- **Asentar:** convertir un mes de proyección en gasto real (un registro por
+  persona vigente).
+- **Baja:** fin de una asignación (renuncia); quita meses futuros sin borrar
+  lo gastado.
 - **Factura (interna):** documento de control con total, cobros aplicados,
   saldo y estado; no es comprobante oficial.
 - **Cierre:** foto congelada de los totales de un mes, con responsable y
@@ -277,6 +289,11 @@ esté en rojo necesita atención. Luego genere y confirme el **Cierre** del mes.
 servicio (Oficina y resultado empresa son de la empresa y no se filtran). El
 CSV mensual y el de rentabilidad por servicio descargan lo que se ve.
 
+**Resultado del mes:** en el Dashboard se elige el mes y se ven facturado,
+cobrado, gastado, pagado, flujo, resultado, horas y costo laboral, junto a la
+comparativa con el mes anterior y la tendencia de 6 meses (facturado vs.
+gastado).
+
 **Cada semana:** pulse **"Exportar respaldo"** en el Dashboard y guarde el
 archivo fuera de la computadora.
 
@@ -293,8 +310,9 @@ No por ahora: es de un solo usuario. Si dos personas cargan datos en
 computadoras distintas, tendrán información diferente.
 
 **¿Borrar una obra borra todo?**
-Sí: sus registros y tareas (con sus montos). Por eso pide confirmación
-escrita. Exporte un respaldo antes si tiene dudas.
+Sí: sus registros, tareas, asignaciones, tareo, facturas, cobros, pagos y
+presupuestos. Por eso pide confirmación escrita. Exporte un respaldo antes
+si tiene dudas.
 
 **¿Se cayó internet, pierdo algo?**
 No: el sistema no usa internet para funcionar. Solo necesita internet si lo
