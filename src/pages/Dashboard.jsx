@@ -6,7 +6,7 @@ import { StatCard } from '../components/ui/StatCard'
 import { Badge, BadgeEstatus } from '../components/ui/Badge'
 import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../components/ui/Table'
 import { Icono } from '../components/layout/Sidebar'
-import { Campo, Input, Select } from '../components/ui/Field'
+import { Campo, Select } from '../components/ui/Field'
 import { Button } from '../components/ui/Button'
 import { Aviso } from '../components/ui/Aviso'
 import { COLECCIONES } from '../data/mockData'
@@ -36,7 +36,6 @@ import {
   sumarMontos,
   utilidadReal,
 } from '../utils/calculadora'
-import { generarCierre } from '../utils/finanzas'
 
 function BarraPresupuesto({ porcentaje, excedido }) {
   const ancho = Math.min(100, Math.max(0, porcentaje))
@@ -108,7 +107,6 @@ export function Dashboard() {
     asignaciones: todasLasAsignaciones,
     costos_oficina: costosOficina,
   } = estado
-  const mesActual = new Date().toISOString().slice(0, 7)
 
   // Filtros cliente/tipo: alcanzan a todo lo que es por servicio. Oficina y
   // resultado empresa son de la empresa y no se filtran (se indica).
@@ -125,20 +123,9 @@ export function Dashboard() {
   const idsF = new Set(serviciosF.map((s) => s.id))
   const registrosF = registros.filter((r) => idsF.has(r.servicio_id))
   const cobrosF = (todosLosCobros ?? []).filter((c) => idsF.has(c.servicio_id))
-  const pagosF = (estado.pagos ?? []).filter((p) => idsF.has(p.servicio_id))
   const tareasF = (todasLasTareas ?? []).filter((t) => idsF.has(t.servicio_id))
   const asigF = (todasLasAsignaciones ?? []).filter((a) => idsF.has(a.servicio_id))
   const facturasF = (estado.facturas ?? []).filter((f) => idsF.has(f.servicio_id))
-  const estadoF = {
-    ...estado,
-    servicios: serviciosF,
-    registros_servicio: registrosF,
-    tareas: tareasF,
-    cobros: cobrosF,
-    pagos: pagosF,
-    asignaciones: asigF,
-    facturas: facturasF,
-  }
 
   const presupuestoTotal = serviciosF.reduce(
     (total, servicio) => total + (Number(servicio.presupuesto_asignado) || 0),
@@ -180,17 +167,17 @@ export function Dashboard() {
 
   const ultimosRegistros = ordenarPorFechaDesc(registrosF).slice(0, 8)
 
-  // Personal global: proyección agregada + meses por asentar + bajas.
+  // Personal global: costo directo automático (devengado + proyectado) + bajas.
   const personalGlobal = serviciosF.map((servicio) => ({
     servicio,
     proyeccion: proyeccionAsignaciones(asigF, servicio, registrosF),
   }))
   const personalGastado = personalGlobal.reduce((s, p) => s + p.proyeccion.gastado, 0)
   const personalProyectado = personalGlobal.reduce((s, p) => s + p.proyeccion.proyectado, 0)
-  const mesesPorAsentar = personalGlobal
+  const proximosMeses = personalGlobal
     .flatMap(({ servicio, proyeccion }) =>
       proyeccion.porMes
-        .filter((m) => m.estimado && m.mes <= mesActual && m.monto > 0)
+        .filter((m) => m.estimado && m.monto > 0)
         .map((m) => ({ servicio, mes: m.mes, monto: m.monto })),
     )
     .sort((a, b) => a.mes.localeCompare(b.mes))
@@ -239,55 +226,6 @@ export function Dashboard() {
   // Resultado empresa: margen de servicios menos gasto de oficina.
   const oficinaTotal = sumarMontos(costosOficina ?? [])
   const resultadoEmpresa = margenTotal - oficinaTotal
-
-  // Resultado del mes + acumulado + tendencia (filtros de periodo).
-  const [mesFiltro, setMesFiltro] = useState(mesActual)
-  const cierreMes = generarCierre(mesFiltro, estadoF)
-  const [aPrev, mPrev] = mesFiltro.split('-').map(Number)
-  const mesPrevio = `${mPrev === 1 ? aPrev - 1 : aPrev}-${String(mPrev === 1 ? 12 : mPrev - 1).padStart(2, '0')}`
-  const cierrePrevio = generarCierre(mesPrevio, estadoF)
-  const tendencia = (() => {
-    const lista = []
-    let [a, m] = mesFiltro.split('-').map(Number)
-    for (let i = 5; i >= 0; i -= 1) {
-      const d = new Date(a, m - 1 - i, 1)
-      const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      lista.push({ mes: clave, ...generarCierre(clave, estadoF) })
-    }
-    return lista
-  })()
-  const maxTendencia = Math.max(1, ...tendencia.map((t) => Math.max(t.facturado, t.gastado)))
-
-  const descargarCSV = (nombre, filas) => {
-    const csv = filas.map((f) => f.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const enlace = document.createElement('a')
-    enlace.href = url
-    enlace.download = nombre
-    document.body.appendChild(enlace)
-    enlace.click()
-    enlace.remove()
-    URL.revokeObjectURL(url)
-  }
-
-  const exportarCSV = () => {
-    descargarCSV(`promcoser-mensual-${mesFiltro}.csv`, [
-      ['mes', 'facturado', 'cobrado', 'gastado', 'pagado', 'flujo', 'resultado', 'horas_hombre', 'costo_laboral'],
-      ...tendencia.map((t) => [
-        t.mes,
-        t.facturado,
-        t.cobrado,
-        t.gastado,
-        t.pagado,
-        t.flujo,
-        t.resultado,
-        t.horas.total,
-        t.horas.costo,
-      ]),
-    ])
-    setAviso({ tipo: 'exito', mensaje: 'CSV descargado con el resumen de los últimos 6 meses.' })
-  }
 
   const exportarCSVServicios = () => {
     const paraCSV = (texto) => `"${String(texto ?? '').replace(/"/g, '""')}"`
@@ -641,7 +579,7 @@ export function Dashboard() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card
           titulo="Personal global"
-          descripcion="Gastado asentado, proyectado y meses por asentar"
+          descripcion="Devengado automático y proyectado a fin de obra"
           className="xl:col-span-3"
         >
           <div className="grid grid-cols-3 gap-3 text-center">
@@ -661,15 +599,15 @@ export function Dashboard() {
             </div>
           </div>
           <p className="mt-4 mb-2 text-sm font-medium text-slate-700">
-            Meses por asentar{bajasVigentes > 0 ? ` · ${bajasVigentes} baja(s)` : ''}
+            Proyectado por mes{bajasVigentes > 0 ? ` · ${bajasVigentes} baja(s)` : ''}
           </p>
-          {mesesPorAsentar.length === 0 ? (
+          {proximosMeses.length === 0 ? (
             <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-              Al día: todo lo vigente hasta hoy está asentado.
+              Sin costo futuro: no hay asignaciones vigentes.
             </p>
           ) : (
             <ul className="space-y-1.5">
-              {mesesPorAsentar.slice(0, 6).map(({ servicio, mes, monto }) => (
+              {proximosMeses.slice(0, 6).map(({ servicio, mes, monto }) => (
                 <li
                   key={`${servicio.id}-${mes}`}
                   className="flex items-center justify-between gap-3 rounded-lg bg-amber-50 px-3 py-2 text-sm"
@@ -708,7 +646,7 @@ export function Dashboard() {
                   <li key={servicio.id}>
                     <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
                       <Link
-                        to={`/servicios/${servicio.id}/cobros`}
+                        to={`/servicios/${servicio.id}/ingresos`}
                         className="truncate font-medium text-slate-800 hover:text-primary-700 hover:underline"
                       >
                         {servicio.nombre_servicio}
@@ -826,63 +764,6 @@ export function Dashboard() {
           </dl>
         </Card>
       </div>
-
-      <Card
-        titulo="Resultado del mes"
-        descripcion="Indicadores del periodo seleccionado vs. mes anterior"
-        acciones={
-          <span className="flex items-end gap-2">
-            <Campo label="Mes" htmlFor="dash-mes">
-              <Input id="dash-mes" type="month" value={mesFiltro} onChange={(e) => e.target.value && setMesFiltro(e.target.value)} />
-            </Campo>
-            <Button variante="secundario" tamano="sm" onClick={exportarCSV}>
-              Exportar CSV
-            </Button>
-          </span>
-        }
-      >
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[
-            ['Facturado', cierreMes.facturado],
-            ['Cobrado', cierreMes.cobrado],
-            ['Gastado', cierreMes.gastado],
-            ['Pagado', cierreMes.pagado],
-            ['Flujo neto', cierreMes.flujo],
-            ['Resultado', cierreMes.resultado],
-            ['Horas hombre', `${cierreMes.horas.total} h`],
-            ['Costo laboral', cierreMes.horas.costo],
-          ].map(([etiqueta, valor]) => (
-            <div key={etiqueta} className="rounded-xl border border-slate-200 p-3">
-              <p className="text-xs text-slate-500">{etiqueta}</p>
-              <p className="font-bold tabular-nums">{typeof valor === 'number' ? formatearMoneda(valor) : valor}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-sm text-slate-600">
-          Mes anterior ({formatearMes(mesPrevio)}): facturado {formatearMoneda(cierrePrevio.facturado)} ·
-          gastado {formatearMoneda(cierrePrevio.gastado)} · resultado{' '}
-          {formatearMoneda(cierrePrevio.resultado)}
-        </p>
-        <p className="mt-4 mb-2 text-sm font-medium text-slate-700">Tendencia 6 meses (facturado vs. gastado)</p>
-        <ul className="space-y-2">
-          {tendencia.map((t) => (
-            <li key={t.mes} className="grid grid-cols-[64px_1fr_auto] items-center gap-2 text-xs">
-              <span className="text-slate-500 tabular-nums">{t.mes}</span>
-              <span className="space-y-1">
-                <span className="block h-2 overflow-hidden rounded-full bg-slate-100">
-                  <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${(t.facturado / maxTendencia) * 100}%` }} />
-                </span>
-                <span className="block h-2 overflow-hidden rounded-full bg-slate-100">
-                  <span className="block h-full rounded-full bg-red-400" style={{ width: `${(t.gastado / maxTendencia) * 100}%` }} />
-                </span>
-              </span>
-              <span className="text-slate-500 tabular-nums">
-                {formatearMoneda(t.facturado)} / {formatearMoneda(t.gastado)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
 
       <Card
         titulo="Movimientos recientes"

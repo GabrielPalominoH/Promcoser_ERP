@@ -18,9 +18,7 @@ const SECCIONES = [
       { id: 'personal', etiqueta: 'Personal', icono: 'users' },
       { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
       { id: 'gastos', etiqueta: 'Gastos', icono: 'recibo' },
-      { id: 'facturacion', etiqueta: 'Facturación', icono: 'factura' },
-      { id: 'cobros', etiqueta: 'Cobros', icono: 'billete' },
-      { id: 'pagos', etiqueta: 'Pagos', icono: 'caja' },
+      { id: 'ingresos', etiqueta: 'Ingresos', icono: 'billete' },
     ],
   },
   {
@@ -49,18 +47,17 @@ function Contador({ valor }) {
 export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
   const { servicio } = usePanelServicio()
   const {
-    estado: { registros_servicio: todos, tareas, cobros: todosCobros, facturas: todasFacturas, pagos: todosPagos },
+    estado: { registros_servicio: todos, tareas, cobros: todosCobros, asignaciones: todasAsignaciones },
   } = useData()
 
   const conteo = (tipo) =>
     todos.filter((r) => r.servicio_id === servicio.id && r.tipo_registro === tipo).length
 
-  // Personal cuenta personas distintas asignadas, no registros diarios
-  // (con el régimen mensual un asignado genera ~30 registros).
+  // Personal cuenta personas distintas asignadas (costo directo automático).
   const personasAsignadas = new Set(
-    todos
-      .filter((r) => r.servicio_id === servicio.id && r.tipo_registro === 'personal')
-      .map((r) => r.referencia_id),
+    (todasAsignaciones ?? [])
+      .filter((a) => a.servicio_id === servicio.id)
+      .map((a) => a.personal_id),
   ).size
 
   const conteos = {
@@ -69,9 +66,7 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
     equipos: conteo('equipo'),
     gastos: conteo('gasto'),
     cronograma: tareas.filter((t) => t.servicio_id === servicio.id && t.padre_id == null).length,
-    cobros: (todosCobros ?? []).filter((c) => c.servicio_id === servicio.id).length,
-    facturacion: (todasFacturas ?? []).filter((f) => f.servicio_id === servicio.id && f.estado !== 'anulada').length,
-    pagos: (todosPagos ?? []).filter((p) => p.servicio_id === servicio.id).length,
+    ingresos: (todosCobros ?? []).filter((c) => c.servicio_id === servicio.id).length,
   }
 
   const base = `/servicios/${servicio.id}`

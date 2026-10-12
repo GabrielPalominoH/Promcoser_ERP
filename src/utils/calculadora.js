@@ -60,7 +60,11 @@ export function costoSinTarea(registros, servicioId) {
 }
 
 // ------------------------------------------------------------
-//  Asignaciones de personal: proyección inicio→fin y meses asentados
+//  Asignaciones de personal: costo directo automático + proyección
+//  Opción A: sin tareo ni asentamiento manual. El gasto devengado de cada
+//  mes se deriva de las asignaciones vigentes (días × horas × tarifa,
+//  prorrateado) y se materializa en registros mensuales con asignacion_id.
+//  La proyección = devengado (registros) + futuro (cálculo).
 // ------------------------------------------------------------
 
 // Días calendario (incluye domingos: régimen mensual) en un rango inclusive.
@@ -78,7 +82,8 @@ export function ultimoDiaMes(mesISO) {
   return `${mesISO}-${String(new Date(anio, mes, 0).getDate()).padStart(2, '0')}`
 }
 
-// Costo de una asignación en un mes: días vigentes × horas × tarifa.
+// Costo de una asignación en un mes (régimen 30 días): mes completo = 30 ×
+// horas × tarifa; parcial = días trabajados × horas × tarifa (tope 30).
 // Si se pasa el servicio, se recorta por su inicio y fin estimado.
 export function costoMensualAsignacion(asignacion, mesISO, servicio = null) {
   const inicioMes = `${mesISO}-01`
@@ -89,8 +94,10 @@ export function costoMensualAsignacion(asignacion, mesISO, servicio = null) {
     .at(-1)
   const topes = [finMes, asignacion.fecha_fin, servicio?.fecha_fin_estimada].filter(Boolean).sort()
   const hasta = topes[0]
-  const dias = diasCalendarioRango(desde, hasta)
-  if (dias <= 0) return { dias: 0, horas: 0, monto: 0 }
+  const diasReales = diasCalendarioRango(desde, hasta)
+  if (diasReales <= 0) return { dias: 0, horas: 0, monto: 0 }
+  const cubreMesCompleto = desde <= inicioMes && hasta >= finMes
+  const dias = cubreMesCompleto ? 30 : Math.min(diasReales, 30)
   const horas = dias * (Number(asignacion.horas_por_dia) || 0)
   const monto = Math.round(horas * (Number(asignacion.tarifa) || 0) * 100) / 100
   return { dias, horas, monto }
@@ -115,7 +122,7 @@ export function mesesEntre(desdeMes, hastaMes) {
   return lista
 }
 
-// ¿El mes ya se asentó para esta asignación? (registro enlazado por mes)
+// ¿El mes ya tiene registro devengado para esta asignación?
 export function asentamientoDe(asignacionId, registros, mesISO) {
   return (registros ?? []).find(
     (r) =>
@@ -125,9 +132,26 @@ export function asentamientoDe(asignacionId, registros, mesISO) {
   ) ?? null
 }
 
+// Mes actual YYYY-MM (corte de devengo: lo pasado cuenta, lo futuro proyecta).
+export function mesHoy() {
+  return new Date().toISOString().slice(0, 7)
+}
+
+// Meses devengados de una asignación hasta hoy (inclusive), recortados por
+// vigencia de la asignación y fin estimado del servicio.
+export function mesesDevengadosAsignacion(asignacion, servicio, hoyMes) {
+  const inicioMes = (asignacion.fecha_inicio || '').slice(0, 7)
+  const finVigencia = asignacion.fecha_fin || servicio?.fecha_fin_estimada || hoyMes
+  const finMes = finVigencia.slice(0, 7)
+  const hasta = finMes < hoyMes ? finMes : hoyMes
+  const meses = mesesEntre(inicioMes, hasta)
+  return meses.filter((m) => costoMensualAsignacion(asignacion, m, servicio).monto > 0)
+}
+
 // Proyección de mano de obra inicio→fin desde las asignaciones: meses
-// reales (asentados) + meses proyectados. Al dar de baja (fecha_fin), los
-// meses futuros desaparecen y el total baja; lo asentado no cambia.
+// devengados (registros auto) + meses futuros proyectados. Al dar de baja
+// (fecha_fin), los meses futuros desaparecen y el total baja; lo devengado
+// hasta hoy se conserva.
 export function proyeccionAsignaciones(asignaciones, servicio, registros) {
   const lista = (asignaciones ?? []).filter((a) => a.servicio_id === servicio.id)
   if (lista.length === 0) {
@@ -156,6 +180,65 @@ export function proyeccionAsignaciones(asignaciones, servicio, registros) {
   const gastado = porMes.filter((m) => !m.estimado).reduce((s, m) => s + m.monto, 0)
   const proyectado = porMes.filter((m) => m.estimado).reduce((s, m) => s + m.monto, 0)
   return { porMes, gastado, proyectado, total: gastado + proyectado }
+}
+
+// Diferencia para sincronización automática (Opción A): qué registros
+// mensuales de personal crear, actualizar o eliminar para que lo devengado
+// hasta hoy refleje las asignaciones vigentes. Puro, sin efectos.
+export function diferenciaPersonalAuto(asignaciones, servicio, registros, hoyMes) {
+  const lista = (asignaciones ?? []).filter((a) => a.servicio_id === servicio.id)
+  const todos = registros ?? []
+  const porCrear = []
+  const porActualizar = []
+  const validos = new Set()
+  for (const a of lista) {
+    for (const mes of mesesDevengadosAsignacion(a, servicio, hoyMes)) {
+      const { monto, horas } = costoMensualAsignacion(a, mes, servicio)
+      if (monto <= 0) continue
+      const existente = asentamientoDe(a.id, todos, mes)
+      if (!existente) {
+        porCrear.push({
+          servicio_id: servicio.id,
+          tipo_registro: 'personal',
+          modalidad: 'mensual',
+          referencia_id: a.personal_id,
+          tarea_id: a.tarea_id,
+          asignacion_id: a.id,
+          cantidad_o_horas: horas,
+          monto_calculado: Math.round(monto * 100) / 100,
+          fecha: ultimoDiaMes(mes),
+        })
+      } else {
+        validos.add(existente.id)
+        const montoOk = Math.abs((Number(existente.monto_calculado) || 0) - monto) < 0.005
+        const horasOk = Math.abs((Number(existente.cantidad_o_horas) || 0) - horas) < 0.005
+        const tareaOk = (existente.tarea_id ?? null) === (a.tarea_id ?? null)
+        const personaOk = existente.referencia_id === a.personal_id
+        if (!montoOk || !horasOk || !tareaOk || !personaOk) {
+          porActualizar.push({
+            id: existente.id,
+            referencia_id: a.personal_id,
+            tarea_id: a.tarea_id,
+            cantidad_o_horas: horas,
+            monto_calculado: Math.round(monto * 100) / 100,
+          })
+        }
+      }
+    }
+  }
+  const idsPorEliminar = todos
+    .filter(
+      (r) =>
+        r.asignacion_id != null &&
+        r.servicio_id === servicio.id &&
+        !validos.has(r.id) &&
+        // Solo se eliminan futuros o de asignaciones ya inexistentes; lo
+        // devengado válido se conserva.
+        (r.fecha?.slice(0, 7) > hoyMes ||
+          !lista.some((a) => a.id === r.asignacion_id)),
+    )
+    .map((r) => r.id)
+  return { porCrear, porActualizar, idsPorEliminar }
 }
 
 // ------------------------------------------------------------

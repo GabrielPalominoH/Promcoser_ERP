@@ -19,8 +19,6 @@ import {
   esVigente,
   estadoFactura,
   flujoNetoCaja,
-  generarCierre,
-  horasMes,
   margenBruto,
   porcentajeEjecucion,
   presupuestoPorCategoria,
@@ -29,14 +27,14 @@ import {
   resultadoOperativoEstimado,
   resultadoPorServicio,
   saldoFactura,
-  saldoGasto,
   saldoPorCobrar,
   saldoPorPagar,
   soloVigentes,
 } from '../src/utils/finanzas'
-import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, esDomingo, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
+import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diferenciaPersonalAuto, esDomingo, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
+import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
 import App from '../src/App'
 
 let fallos = 0
@@ -243,14 +241,16 @@ comprobar('mensual Elmer ago = 4000', costoMensualAsignacion(asigs[0], '2026-08'
 comprobar('mensual Ronald sep prorrateado = 2160', costoMensualAsignacion(asigs[1], '2026-09', servSeis).monto === 2160)
 comprobar('mensual Ronald oct (baja) = 0', costoMensualAsignacion(asigs[1], '2026-10', servSeis).monto === 0)
 comprobar('diciembre se recorta al fin de obra (20 días)', costoMensualAsignacion(asigs[0], '2026-12', servSeis).dias === 20)
+comprobar('régimen 30 días: octubre completo = 6000', costoMensualAsignacion(asigs[0], '2026-10', servSeis).monto === 6000)
+comprobar('régimen 30 días: febrero completo = 30 días', costoMensualAsignacion({ fecha_inicio: '2026-02-01', fecha_fin: null, horas_por_dia: 8, tarifa: 25 }, '2026-02', { fecha_inicio: '2026-02-01', fecha_fin_estimada: '2026-02-28' }).dias === 30)
 const proyAsig6 = proyeccionAsignaciones(asigs, servSeis, ESTADO_INICIAL.registros_servicio)
-comprobar('total inicio-fin con baja = 31096', proyAsig6.total === 31096, String(proyAsig6.total))
-comprobar('sin asentar todo es proyectado', proyAsig6.gastado === 0 && proyAsig6.proyectado === 31096)
+comprobar('total inicio-fin con baja = 30896', proyAsig6.total === 30896, String(proyAsig6.total))
+comprobar('sin devengar todo es proyectado', proyAsig6.gastado === 0 && proyAsig6.proyectado === 30896)
 const sinBaja = asigs.map((a) => (a.id === 2 ? { ...a, fecha_fin: null } : a))
 const proyAsigSinBaja = proyeccionAsignaciones(sinBaja, servSeis, ESTADO_INICIAL.registros_servicio)
-comprobar('sin baja el total sería mayor (44920)', proyAsigSinBaja.total === 44920, String(proyAsigSinBaja.total))
+comprobar('sin baja el total sería mayor (44576)', proyAsigSinBaja.total === 44576, String(proyAsigSinBaja.total))
 comprobar('la baja baja el total', proyAsigSinBaja.total > proyAsig6.total)
-comprobar('sin asentamiento devuelve null', asentamientoDe(1, ESTADO_INICIAL.registros_servicio, '2026-08') === null)
+comprobar('sin devengo devuelve null', asentamientoDe(1, ESTADO_INICIAL.registros_servicio, '2026-08') === null)
 comprobar('cascada servicio borra asignaciones', !(sinServicio.asignaciones ?? []).some((a) => a.servicio_id === 6))
 
 console.log('\n[ cobros ]')
@@ -274,7 +274,7 @@ comprobar('oficina total = 23800', oficinaTotal === 23800, String(oficinaTotal))
 comprobar('resultado empresa = 47334', 120000 - gastadoDash6 - oficinaTotal === 47334)
 const porMes6 = proyeccionAsignaciones(asigs, servSeis, ESTADO_INICIAL.registros_servicio).porMes
 const pendientes6 = porMes6.filter((m) => m.estimado && m.monto > 0 && ['2026-08', '2026-09', '2026-10'].includes(m.mes))
-comprobar('ago/oct pendientes suman 6736/8160/6200', JSON.stringify(pendientes6.map((m) => m.monto)) === '[6736,8160,6200]', JSON.stringify(pendientes6.map((m) => m.monto)))
+comprobar('ago/oct proyectados suman 6736/8160/6000', JSON.stringify(pendientes6.map((m) => m.monto)) === '[6736,8160,6000]', JSON.stringify(pendientes6.map((m) => m.monto)))
 const porConcepto = cobros.reduce((a, c) => ({ ...a, [c.concepto]: (a[c.concepto] || 0) + c.monto }), {})
 comprobar('adelanto 24000 y valorización 30000', porConcepto.adelanto === 24000 && porConcepto['valorización'] === 30000)
 comprobar('COLECCIONES trae asignaciones y cobros, sin partidas', COLECCIONES.includes('asignaciones') && COLECCIONES.includes('cobros') && !COLECCIONES.includes('partidas') && !COLECCIONES.includes('valorizaciones'))
@@ -428,17 +428,10 @@ comprobar('K normalizado conserva todo', normalizado && COLECCIONES.every((c) =>
 comprobar('K inválido se rechaza sin tocar nada', validarRespaldo({ foo: 1 }).ok === false && validarRespaldo(null).ok === false && normalizarRespaldo({ foo: 1 }) === null)
 
 // ============================================================
-//  6. Etapas 3–5: tareo, facturas, pagos, caja, cierre
+//  6. Personal automático y facturas (sin pagos ni cierre mensual)
 // ============================================================
 
-console.log('\n[ tareo, facturas y pagos ]')
-
-// Tareo: importe con extras y tarifa snapshot.
-const tareoDemo = { horas_normales: 8, horas_extras: 2, tarifa_hora: 25, tarifa_extra: 37.5 }
-comprobar(
-  'tareo 8×25 + 2×37.5 = 275',
-  tareoDemo.horas_normales * tareoDemo.tarifa_hora + tareoDemo.horas_extras * tareoDemo.tarifa_extra === 275,
-)
+console.log('\n[ personal y facturas ]')
 // Factura 10000, cobros 4000 + 6000 → saldo 0 (Caso F §24).
 const facDemo = { id: 1, total: 10000, fecha_vencimiento: '2026-10-31', estado: 'emitida' }
 const cobrosDemo = [
@@ -450,33 +443,27 @@ comprobar('F saldo pasa 6000 → 0', saldoFactura(facDemo, [{ factura_id: 1, mon
 comprobar('factura cobrada con saldo 0', estadoFactura(facDemo, cobrosDemo, '2026-10-10') === 'cobrada')
 comprobar('factura vencida sin cobros', estadoFactura({ ...facDemo, id: 2 }, [], '2026-11-05') === 'vencida')
 comprobar('factura anulada no cuenta', estadoFactura({ ...facDemo, estado: 'anulada' }, [], '2026-11-05') === 'anulada')
-// Pagos: gasto 2000, pago 800 → saldo 1200 (Caso E §24).
-comprobar('saldo gasto 2000 − 800 = 1200', saldoGasto(2000, 9, [{ gasto_id: 9, monto: 800 }]) === 1200)
-// Horas: tareo aprobado manda; si no, registros.
-const horasTar = horasMes('2026-10', [], [{ fecha: '2026-10-05', horas_normales: 8, horas_extras: 2, tarifa_hora: 25, tarifa_extra: 37.5, estado: 'aprobado' }])
-comprobar('horas de tareo aprobado (10 h, 275)', horasTar.total === 10 && horasTar.costo === 275 && horasTar.fuente === 'tareo')
-const horasReg = horasMes('2026-10', [{ tipo_registro: 'personal', fecha: '2026-10-05', cantidad_o_horas: 8, monto_calculado: 200 }], [])
-comprobar('horas de registros sin tareo', horasReg.total === 8 && horasReg.fuente === 'registros')
-// Reporte mensual del Dashboard (mismos totales que la pantalla).
-const cierreDemo = generarCierre('2026-10', {
-  servicios: [{ id: 6, nombre_servicio: 'Demo' }],
-  registros_servicio: [{ servicio_id: 6, fecha: '2026-10-05', monto_calculado: 100 }],
-  facturas: [{ id: 1, servicio_id: 6, fecha_emision: '2026-10-02', total: 1000 }],
-  cobros: [{ servicio_id: 6, fecha: '2026-10-06', monto: 400 }],
-  pagos: [{ servicio_id: 6, fecha: '2026-10-07', monto: 60 }],
-  tareos: [],
-})
-comprobar(
-  'reporte mensual cuadra totales',
-  cierreDemo.facturado === 1000 && cierreDemo.cobrado === 400 && cierreDemo.gastado === 100 && cierreDemo.pagado === 60 && cierreDemo.flujo === 340 && cierreDemo.resultado === 900,
-  JSON.stringify(cierreDemo),
+// N° de factura opcional: vacío = adelanto, existente = vincular, nuevo = crear.
+const facsRes = [{ id: 7, numero: 'F001-1', estado: 'emitida', total: 10000 }]
+const cobrosRes = [{ factura_id: 7, monto: 4000 }]
+comprobar('sin número es adelanto', resolverFacturaIngreso('', facsRes, cobrosRes, 500).accion === 'adelanto')
+comprobar('número existente vincula', resolverFacturaIngreso('f001-1', facsRes, cobrosRes, 500).accion === 'vincular')
+comprobar('número nuevo crea', resolverFacturaIngreso('F001-2', facsRes, cobrosRes, 500).accion === 'crear')
+comprobar('exceso sobre saldo se bloquea', resolverFacturaIngreso('F001-1', facsRes, cobrosRes, 7000).accion === 'excede')
+// Sincronización automática: meses devengados hasta hoy se crean solos.
+const difDemo = diferenciaPersonalAuto(
+  [{ id: 1, servicio_id: 6, personal_id: 1, tarea_id: null, horas_por_dia: 8, tarifa: 25, fecha_inicio: '2026-08-12', fecha_fin: null }],
+  { id: 6, fecha_inicio: '2026-07-01', fecha_fin_estimada: '2026-12-20' },
+  [],
+  '2026-08',
 )
+comprobar('auto crea agosto devengado', difDemo.porCrear.length === 1 && difDemo.porCrear[0].monto_calculado === 4000, JSON.stringify(difDemo.porCrear))
 // Tipos de servicio y colecciones nuevas vacías.
 comprobar('tipos son Obra/Misceláneo/Contrato', JSON.stringify(TIPOS_SERVICIO) === JSON.stringify(['Obra', 'Misceláneo', 'Contrato']))
 comprobar('tipo por defecto Obra', tipoServicio({}) === 'Obra' && tipoServicio({ tipo: 'Anual' }) === 'Anual')
 comprobar(
   'colecciones nuevas existen y vacías',
-  ['facturas', 'pagos', 'tareos'].every((c) => Array.isArray(ESTADO_INICIAL[c]) && ESTADO_INICIAL[c].length === 0),
+  ['facturas'].every((c) => Array.isArray(ESTADO_INICIAL[c]) && ESTADO_INICIAL[c].length === 0),
 )
 
 // ============================================================
@@ -547,9 +534,7 @@ const rutas = [
   { ruta: '/servicios/6/personal', etiqueta: 'Panel personal', monto: true },
   { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
-  { ruta: '/servicios/6/cobros', etiqueta: 'Panel cobros', monto: true },
-  { ruta: '/servicios/6/facturacion', etiqueta: 'Panel facturación', monto: true },
-  { ruta: '/servicios/6/pagos', etiqueta: 'Panel pagos', monto: true },
+  { ruta: '/servicios/6/ingresos', etiqueta: 'Panel ingresos', monto: true },
   { ruta: '/servicios/6/presupuesto', etiqueta: 'Panel presupuesto', monto: true },
 
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },

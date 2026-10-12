@@ -79,48 +79,40 @@ contratado **S/ 8,500**.
 2. **Verás:** vigente S/ 1,850 vs. real S/ 1,715 → desviación **−S/ 135**,
    ejecución **92.7%**, ninguna categoría excedida (todo en verde/neutro).
 
-## Paso 10. Facturar y cobrar (Facturación + Cobros)
+## Paso 10. Facturar y cobrar (Facturación + Ingresos)
 1. **Facturación → Agregar**: número *F001-000077*, emisión 10-16,
    vencimiento 10-31, base 8500, impuestos 0, total **8500**, moneda PEN.
 2. **Verás:** factura *emitida* con saldo S/ 8,500.
-3. **Cobros → Agregar**: fecha 10-02, monto **3000**, concepto *adelanto*,
+3. **Ingresos → Agregar**: fecha 10-02, monto **3000**, concepto *adelanto*,
    sin factura.
-4. **Cobros → Agregar**: fecha 10-20, monto **5500**, concepto
+4. **Ingresos → Agregar**: fecha 10-20, monto **5500**, concepto
    *valorización*, factura *F001-000077* (saldo S/ 5,500).
 5. **Verás:** Cobrado **S/ 8,500**, Por cobrar **S/ 0**; la factura pasa a
    **cobrada** con saldo S/ 0. Utilidad real: **S/ 6,785** (8500 − 1715).
 
-## Paso 11. Pagar el gasto (Pagos)
-1. Pestaña **Pagos** → **Agregar**: fecha 10-21, monto **250**, medio
-   *transferencia*, gasto *Flete*.
-2. **Verás:** reconocido S/ 250, pagado S/ 250, saldo por pagar **S/ 0**;
-   el Flete figura pagado total. Si intentas pagar más de su saldo, el
-   sistema lo bloquea.
-
-## Paso 12. Tipo del servicio
+## Paso 11. Tipo del servicio
 1. Entra al servicio → **Opciones → Editar** → campo **Tipo** → verifica que
    diga *Misceláneo* (se elige al crear el servicio: Obra, Misceláneo, Anual,
    Adicional o Contrato).
 2. **Verás** en **Servicios** que la obra figura con su tipo, y en el
    **Dashboard** podrás filtrar por tipo Misceláneo para ver solo sus números.
 
-## Paso 13. Oficina y Dashboard
+## Paso 12. Oficina y Dashboard
 1. Menú → **Oficina**: registra un costo de octubre para una persona de
    Oficina (ej. S/ 1,500). **Verás** el total del mes y el resultado empresa
    actualizado; cambia la **regla de distribución** a *Por costos* y verás el
    prorrateo por servicio con su criterio.
 2. Menú → **Dashboard**: **verás** el servicio en Consumo (20.2%),
-   Quién debe en S/ 0, Cronograma global al 100%, Personal global (gastado
-   800), Resultado del mes octubre (facturado 8500, cobrado 8500, gastado
-   1715, resultado 6785) y la tendencia. Descarga el **CSV**.
+   Quién debe en S/ 0, Cronograma global al 100%, Personal global (pagado
+   800). Descarga el **CSV de rentabilidad**.
 3. Filtra por cliente *Almacenes del Sur* y por tipo *Misceláneo*: todo lo
    por servicio se recalcula (Oficina y resultado empresa no se filtran).
 
-## Paso 14. Respaldo y limpieza
+## Paso 13. Respaldo y limpieza
 1. Dashboard → **Exportar respaldo** y guárdalo.
 2. Para borrar el ejemplo: Servicios → entra a la obra → **Opciones** →
    escribe *Eliminar servicio*. **Verás** que arrastra registros, tareas,
-   asignaciones, tareo, facturas, cobros, pagos y presupuestos.
+   asignaciones, facturas, ingresos y presupuestos.
 
 ## Números esperados (verificación final)
 
@@ -130,17 +122,15 @@ contratado **S/ 8,500**.
 | Gastado total | S/ 1,715 (385 + 890 + 190 + 250 sin tarea) |
 | Desviación presupuesto | −S/ 135 (92.7%) |
 | Facturado / Cobrado / Por cobrar | 8500 / 8500 / 0 |
-| Gasto reconocido / Pagado / Por pagar | 250 / 250 / 0 |
 | Utilidad real | **S/ 6,785** (margen 79.8%) |
-| Flujo octubre | S/ 8,250 |
 | Horas hombre | 40 h.h. por S/ 800 |
 
 ## Funciones que existen fuera de este flujo
 
 - **Baja y reactivación** (Personal): con fecha de último día y prorrateo;
   útil en obras largas, no en este ejemplo de 15 días.
-- **Desasentar** un mes, **anular** factura, **eliminar** cobros/pagos/tareo,
+- **Desasentar** un mes, **anular** factura, **eliminar** ingresos/tareo,
   **reactivar** asignación.
 - **Adicionales** de presupuesto con motivo (Presupuesto).
-- **Retenciones/amortización**: vía conceptos de cobro y documento.
+- **Retenciones/amortización**: vía conceptos de ingreso y documento.
 - **Imprimir** el reporte del Resumen y **Restablecer datos de ejemplo**.

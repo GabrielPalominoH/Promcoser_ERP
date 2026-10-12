@@ -7,7 +7,7 @@ manual actualizado.
 
 ## M1. Servicios (base — completar)
 **Existe:** CRUD, tipos (Obra/Misceláneo/Contrato), panel de
-11 pestañas, búsqueda, columna tipo.
+9 pestañas, búsqueda, columna tipo.
 **Falta:**
 - Fecha fin real, responsable descriptivo (texto, sin usuarios), ubicación.
 - Filtros por tipo y estado en el listado (hoy solo búsqueda).
@@ -23,16 +23,16 @@ manual actualizado.
 - Alertas: sobrecosto previsto, margen bajo objetivo configurable.
 **Aceptación:** Casos D (300k→340k, 13.33%) y F (10k→11.5k, 115%) del programa maestro en la suite.
 
-## M3. Personal y tareo (existe base)
-**Existe:** asignaciones, tareo con aprobación, asentamiento mensual, baja con prorrateo, proyección inicio-fin.
+## M3. Personal (costo directo automático)
+**Existe:** asignaciones, costo mensual automático devengado/proyectado, baja con prorrateo, proyección inicio-fin.
+**Sin tareo ni asentamiento manual** (eliminados por decisión: Opción A).
 **Falta:**
-- Horas extras con recargo configurable + viáticos en el tareo.
 - Reportes: horas por trabajador/servicio/periodo, costo laboral por tarea.
 - Productividad: unidades producidas por tarea → costo por unidad y unid/hora-hombre.
 **Aceptación:** Caso H (trabajador en varios servicios sin duplicar) en la suite.
 
 ## M4. Equipos (existe base)
-**Existe:** fichas con propiedad, costo/hora, asignación a tareas y servicios.
+**Existe:** fichas con propiedad, costo/hora, uso registrado por servicio y tarjetas de totales en el servicio.
 **Falta:**
 - Mantenimiento y estado del equipo.
 - Horas disponibles vs. utilizadas → % utilización.
@@ -48,15 +48,15 @@ manual actualizado.
   almacén obligatorio).
 **Aceptación:** Caso G (compra→factura→pago suma una vez) y Caso H en la suite.
 
-## M6. Gastos y pagos (existe base)
-**Existe:** gastos con categoría/tarea, pagos con saldos, anticipos, CxP por gasto.
+## M6. Gastos (existe base, sin pagos)
+**Existe:** gastos con categoría/tarea y comprobante opcional.
+**Sin módulo de pagos** (eliminado por decisión, con saldos y CxP).
 **Falta:**
 - Fechas de documento, vencimiento y pago; proveedor/beneficiario.
-- CxP global por pagar (consolidado empresa, no solo por servicio).
-**Aceptación:** Casos D y E (saldos 1500 y 1200) ya en suite; agregar vencidas.
+**Aceptación:** Caso D (saldo 1500) ya en suite.
 
-## M7. Facturación y cobros (existe base)
-**Existe:** facturas con saldos/estados/anulación, cobros atados con tope, adelantos, CxC por servicio.
+## M7. Ingresos con facturas (existe base, fusionado)
+**Existe:** módulo único Ingresos: tarjetas (cobrado, por cobrar, utilidad), tabla de facturas con saldos/estados/anulación, formulario único (fecha, monto, concepto + N° factura opcional con autocreación), ingresos atados a factura con tope, adelantos, CxC por servicio. La colección interna sigue siendo `cobros`; `/cobros` y `/facturacion` redirigen a `/ingresos`.
 **Falta:**
 - Adicionales al monto contratado que recalculen contratado y por cobrar.
 - Retenciones y amortización de adelantos.
@@ -69,15 +69,15 @@ El módulo Contratos se retiró: el tipo se elige al crear/editar cada servicio
 (Obra, Misceláneo, Contrato). Sin módulo, colección ni
 consolidado separados.
 
-## M9. Resultado del mes y reportes (existe base)
-**Existe:** sección mensual en Dashboard (filtro por mes, comparativa, tendencia 6 meses), CSV mensual y de rentabilidad, reporte imprimible del Resumen.
+## M9. Reportes (existe parcial)
+**Existe:** CSV de rentabilidad por servicio, reporte imprimible del Resumen.
+**Sin resultado del mes ni cierre mensual** (eliminados por decisión: sin `generarCierre`, CSV mensual ni tendencia).
 **Falta:**
-- Reporte mensual completo de 14 puntos (resumen ejecutivo, comparativas, desviaciones, alertas) imprimible/PDF.
-- Exportación Excel vía CSV mejorado (mismo contenido del reporte).
-**Aceptación:** Caso K (respaldo) ya en suite; agregar totales CSV = pantalla.
+- Exportación Excel vía CSV mejorado.
+**Aceptación:** Caso K (respaldo) ya en suite.
 
 ## M10. Dashboard y reportes (existe base)
-**Existe:** 12 tarjetas, personal, quién debe, cronograma global, resultado empresa, mes con tendencia y CSV.
+**Existe:** 12 tarjetas, personal, quién debe, cronograma global, resultado empresa.
 **Falta:**
 - Rentabilidad por cliente y producción (depende de M3/M7).
 - Filtros por responsable/estado (requiere esos datos en M1).
@@ -85,7 +85,7 @@ consolidado separados.
 
 ## Orden de ejecución sugerido
 
-M2 → M7 → M9 (rentabilidad y reporte mensual primero) → M5/M6 → M3/M4 → M1/M10.
+M2 → M7 → M5/M6 → M3/M4 → M1/M10.
 
 ## Backlog (fuera de alcance inicial)
 

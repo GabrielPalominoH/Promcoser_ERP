@@ -9,7 +9,10 @@
 // Versiones de esquema:
 //   1 = esquema original (promcoser_mvp_v1)
 //   2 = colecciones actuales sin partidas (promcoser_mvp_v2)
-//   3 = + asignaciones, cobros, facturas, pagos, tareos, presupuestos, config
+//   3 = + asignaciones, cobros, facturas, pagos, presupuestos, config
+//   4 = sin tareos (costo personal directo automático desde asignaciones)
+//   5 = reserva (llegó a usarse para asignaciones_equipos, ya retiradas)
+//   6 = sin pagos (se quita el módulo; lo guardado se ignora)
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -19,7 +22,7 @@ import {
   migrarPresupuestoATareas,
 } from './mockData'
 
-export const VERSION_ESQUEMA = 3
+export const VERSION_ESQUEMA = 7
 
 const memoria = {}
 const backendMemoria = {

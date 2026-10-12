@@ -200,7 +200,7 @@ export function ResumenServicio() {
 
   // El personal con costo sí suma al gastado, igual que materiales y
   // gastos. Los registros diarios viejos en domingo no cuentan (régimen
-  // diario); los asentamientos mensuales siempre cuentan.
+  // diario); los mensuales automáticos siempre cuentan.
   const registrosVigentes = todosLosRegistros.filter(cuentaComoManoDeObra)
   const consumo = consumoPresupuesto(servicio, registrosVigentes)
   const dias = diasRestantes(servicio.fecha_fin_estimada)
@@ -375,8 +375,8 @@ export function ResumenServicio() {
             </p>
             <p className="mt-0.5 text-xs text-slate-500">
               Ingresos efectivamente recibidos ·{' '}
-              <Link to="cobros" className="font-medium text-primary-700 underline">
-                Ver cobros
+              <Link to="ingresos" className="font-medium text-primary-700 underline">
+                Ver ingresos
               </Link>
             </p>
           </div>

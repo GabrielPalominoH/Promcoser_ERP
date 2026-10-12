@@ -407,9 +407,9 @@ export const asignaciones = [
 ]
 
 // ------------------------------------------------------------
-//  Cobros por servicio: los ingresos efectivamente recibidos (adelantos,
-//  pagos de valorización, pagos anuales). Por cobrar = contratado −
-//  cobrado; utilidad real = cobrado − gastado.
+//  Cobros por servicio (= Ingresos en UI): lo efectivamente recibido
+//  (adelantos, cobros de valorización, ingresos anuales). Por cobrar =
+//  contratado − cobrado; utilidad real = cobrado − gastado.
 // ------------------------------------------------------------
 
 export const cobros = [
@@ -427,8 +427,6 @@ export const cobros = [
 // ------------------------------------------------------------
 
 export const facturas = []
-export const pagos = []
-export const tareos = []
 export const presupuestos = []
 export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN' }]
 
@@ -442,8 +440,6 @@ export const ESTADO_INICIAL = {
   asignaciones,
   cobros,
   facturas,
-  pagos,
-  tareos,
   presupuestos,
   config,
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
+import { Card } from '../../components/ui/Card'
 import { Campo, Input } from '../../components/ui/Field'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
@@ -243,6 +244,31 @@ export function EquiposServicio() {
       etiquetaCantidad="Horas"
       mensajeVacio="Este servicio todavía no tiene uso de equipos registrado."
       mensajeExito={(datos) => `Uso de equipo registrado por ${formatearMoneda(datos.monto_calculado)} (${formatearCantidad(datos.cantidad_o_horas)} h).`}
+      tarjetas={({ totalMonto, totalCantidad, registros }) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card>
+            <p className="text-sm text-slate-500">Gastado en equipos</p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {formatearMoneda(totalMonto)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">Uso registrado: suma al presupuesto</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-slate-500">Horas totales</p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {formatearCantidad(totalCantidad)} h
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">Horas acumuladas en este servicio</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-slate-500">Equipos en obra</p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {new Set(registros.map((r) => r.referencia_id)).size}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">Con uso registrado aquí</p>
+          </Card>
+        </div>
+      )}
     >
       {({ servicio, equipos, registrar }) => (
         <FormularioEquipo servicio={servicio} equipos={equipos} registrar={registrar} />

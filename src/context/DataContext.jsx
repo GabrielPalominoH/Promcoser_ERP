@@ -55,7 +55,7 @@ export function dataReducer(estado, accion) {
       )
 
       // Integridad referencial: al borrar un servicio se van sus registros,
-      // tareas, asignaciones, tareo, facturas, cobros y pagos.
+      // tareas, asignaciones, facturas, cobros y presupuestos.
       if (payload.coleccion === 'servicios') {
         return {
           ...estado,
@@ -69,17 +69,11 @@ export function dataReducer(estado, accion) {
           asignaciones: (estado.asignaciones ?? []).filter(
             (asignacion) => asignacion.servicio_id !== payload.id,
           ),
-          tareos: (estado.tareos ?? []).filter(
-            (tareo) => tareo.servicio_id !== payload.id,
-          ),
           facturas: (estado.facturas ?? []).filter(
             (factura) => factura.servicio_id !== payload.id,
           ),
           cobros: (estado.cobros ?? []).filter(
             (cobro) => cobro.servicio_id !== payload.id,
-          ),
-          pagos: (estado.pagos ?? []).filter(
-            (pago) => pago.servicio_id !== payload.id,
           ),
           presupuestos: (estado.presupuestos ?? []).filter(
             (presupuesto) => presupuesto.servicio_id !== payload.id,
@@ -112,6 +106,17 @@ export function dataReducer(estado, accion) {
             porBorrar.has(registro.tarea_id)
               ? { ...registro, tarea_id: null }
               : registro,
+          ),
+        }
+      }
+
+      // Al borrar una asignación se van sus registros mensuales automáticos.
+      if (payload.coleccion === 'asignaciones') {
+        return {
+          ...estado,
+          asignaciones: restantes,
+          registros_servicio: estado.registros_servicio.filter(
+            (registro) => registro.asignacion_id !== payload.id,
           ),
         }
       }

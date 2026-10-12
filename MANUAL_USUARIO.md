@@ -44,12 +44,11 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | La vista de toda la empresa: montos (contratado, gastado, cobrado, por cobrar, utilidad), personal (gastado, proyectado, meses por asentar), quién debe por servicio, avance global del cronograma, resultado empresa y obras en riesgo. Con filtros por cliente y tipo, sección **Resultado del mes** (filtro por mes, comparativa con el anterior, tendencia de 6 meses y export CSV) y botones de respaldo. |
+| **Dashboard** | La vista de toda la empresa: montos (contratado, gastado, cobrado, por cobrar, utilidad), personal (pagado, proyectado), quién debe por servicio, avance global del cronograma, resultado empresa y obras en riesgo. Con filtros por cliente y tipo y botones de respaldo. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
 | **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. Incluye regla configurable para distribuir indirectos por horas, costos o ingresos (o mostrarlos por separado). |
-| **Resultado del mes** | En el Dashboard se elige el mes y se ven facturado, cobrado, gastado, pagado, flujo, resultado, horas y costo laboral, con comparativa del mes anterior y tendencia de 6 meses. |
 | **Tipos de servicio** | Al crear o editar una obra eliges su tipo: Obra, Misceláneo o Contrato. Sirve para filtrar en el Dashboard. |
 
 ---
@@ -111,7 +110,8 @@ hora del equipo. También se puede asignar a una **tarea**.
 Gastos extra que no son ni material ni gente ni equipo: fletes, alquileres,
 movilidad, etc. También aceptan tarea; si no se indica, quedan sin asignar.
 Llevan **categoría** opcional (Transporte, Subcontratos, etc.): sirve para el
-presupuesto por categorías; sin categoría se avisan aparte.
+presupuesto por categorías; sin categoría se avisan aparte. Y **N° de
+factura / comprobante** opcional del proveedor, solo referencial.
 
 ### Presupuesto
 Presupuesto de costos por **categoría** (Mano de obra, Equipos propios y
@@ -122,10 +122,10 @@ duplicar) con **desviación** y **% de ejecución** por categoría; las
 excedidas se alertan en rojo y los gastos sin categoría en ámbar. Los equipos
 distinguen propios de alquilados según su ficha.
 
-### Cobros (lo que entra)
-Aquí se registran los ingresos que el cliente paga por la obra: adelantos, pagos
-de valorización y pagos anuales (también sirve para misceláneas cortas y
-contratos anuales: todo se cobra por servicio). Cada cobro lleva fecha,
+### Ingresos (lo que entra)
+Aquí se registran los ingresos que el cliente paga por la obra: adelantos, cobros
+de valorización e ingresos anuales (también sirve para misceláneas cortas y
+contratos anuales: todo se cobra por servicio). Cada ingreso lleva fecha,
 monto, concepto y documento opcional. Arriba verá 3 números:
 
 - **Cobrado:** lo que realmente entró.
@@ -134,17 +134,13 @@ monto, concepto y documento opcional. Arriba verá 3 números:
 - **Utilidad real:** cobrado menos gastado. Es el resultado económico efectivo, distinto
   del margen (que mide eficiencia contra el presupuesto).
 
-### Facturación
-Documentos internos de control (no son comprobantes SUNAT oficiales): número,
-emisión, vencimiento, base, impuestos y total. Cada factura muestra su saldo
-(total menos cobros aplicados) y su estado (emitida, parcial, cobrada,
-vencida o anulada). Anular conserva el historial y la saca de los saldos; no
-hay borrado físico.
-
-### Pagos
-Pagos a gastos del servicio (fecha, monto, medio y gasto al que aplican). Sin
-gasto vinculado es un anticipo. Cada gasto muestra reconocido, pagado y saldo.
-Lo aplicado a un gasto no puede exceder su saldo.
+**Facturas (opcional, en la misma pestaña):** documentos internos de control
+(no son comprobantes SUNAT oficiales): número, emisión, vencimiento, base,
+impuestos y total. Cada factura muestra su saldo y su estado (emitida,
+parcial, cobrada, vencida o anulada). Al registrar un ingreso basta escribir
+el **número de factura**: si existe se vincula (sin exceder su saldo), si es
+nuevo se crea la factura sola con ese número; vacío es un adelanto. Anular
+conserva el historial y la saca de los saldos; no hay borrado físico.
 
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
@@ -204,7 +200,7 @@ cambiaron; 3) revise el tablero: todo margen en rojo necesita atención.
 Datos de la obra (nombre, cliente, tipo, fechas, estatus) y la
 opción de eliminarla. El **tipo** (Obra, Misceláneo, Contrato) se elige al
 crear o editar el servicio y sirve para filtrar en el Dashboard. Eliminar una obra borra todo lo suyo (registros, tareas,
-asignaciones, tareo, facturas, cobros, pagos y presupuestos), así que pide
+asignaciones, tareo, facturas, cobros y presupuestos), así que pide
 escribir "Eliminar servicio" para confirmar que es en serio.
 
 ---
@@ -234,7 +230,7 @@ tal como figura en la factura, para poder ubicarla después.
   lo que ya se ganó del monto fijo.
 - **Margen:** valorizado menos costo. Positivo = ahorro (va gastando menos de
   lo presupuestado, y eso es su ganancia); negativo = sobrecosto.
-- **Cobrado:** ingresos efectivamente recibidos por cobros registrados.
+- **Cobrado:** ingresos efectivamente recibidos (ingresos registrados).
 - **Por cobrar:** monto contratado menos cobrado; lo que el cliente aún debe.
 - **Utilidad real:** cobrado menos gastado; el resultado económico efectivo.
 - **Presupuesto vigente:** inicial + adicionales aprobados, por categoría.
@@ -250,7 +246,7 @@ tal como figura en la factura, para poder ubicarla después.
   persona vigente).
 - **Baja:** fin de una asignación (renuncia); quita meses futuros sin borrar
   lo gastado.
-- **Factura (interna):** documento de control con total, cobros aplicados,
+- **Factura (interna):** documento de control con total, ingresos aplicados,
   saldo y estado; no es comprobante oficial.
 - **Respaldo:** el archivo con toda la información, para guardarla y
   recuperarla.
@@ -262,23 +258,17 @@ tal como figura en la factura, para poder ubicarla después.
 **Cada vez que compra material:** regístrelo el mismo día en la pestaña
 Materiales de la obra, con su factura a la mano.
 
-**Cada vez que cobra:** regístrelo el mismo día en la pestaña Cobros, con su
+**Cada vez que cobra:** regístrelo el mismo día en la pestaña Ingresos, con su
 recibo a la mano.
 
 **Cada fin de mes:** apruebe el tareo, asiente el mes en Personal (botón
-Asentar), registre facturas, cobros y pagos, actualice los % de avance en el
+Asentar), registre facturas e ingresos, actualice los % de avance en el
 Cronograma, revise los montos en Partidas y mire el margen por tarea. Lo que
-esté en rojo necesita atención. Luego revise el **Resultado del mes** en el
-Dashboard.
+esté en rojo necesita atención.
 
 **Filtros del Dashboard:** cliente y tipo alcanzan a todo lo que es por
 servicio (Oficina y resultado empresa son de la empresa y no se filtran). El
-CSV mensual y el de rentabilidad por servicio descargan lo que se ve.
-
-**Resultado del mes:** en el Dashboard se elige el mes y se ven facturado,
-cobrado, gastado, pagado, flujo, resultado, horas y costo laboral, junto a la
-comparativa con el mes anterior y la tendencia de 6 meses (facturado vs.
-gastado).
+CSV de rentabilidad por servicio descarga lo que se ve.
 
 **Cada semana:** pulse **"Exportar respaldo"** en el Dashboard y guarde el
 archivo fuera de la computadora.
@@ -296,7 +286,7 @@ No por ahora: es de un solo usuario. Si dos personas cargan datos en
 computadoras distintas, tendrán información diferente.
 
 **¿Borrar una obra borra todo?**
-Sí: sus registros, tareas, asignaciones, tareo, facturas, cobros, pagos y
+Sí: sus registros, tareas, asignaciones, tareo, facturas, cobros y
 presupuestos. Por eso pide confirmación escrita. Exporte un respaldo antes
 si tiene dudas.
 

@@ -7,7 +7,7 @@
 // contador antes de usar como base contable):
 //   - Ingresos reconocidos de un servicio = valorizado (monto × avance).
 //   - Costos reconocidos = registros vigentes (excluye anulados/duplicados).
-//   - Cobros y pagos mueven caja, no resultado.
+//   - Los cobros (ingresos) mueven caja, no resultado.
 // Moneda predeterminada: PEN. Precisión: céntimos (redondeo bancario simple
 // con Math.round; documentado como supuesto explícito, §18).
 //
@@ -210,7 +210,7 @@ export function enRango(fechaISO, desdeISO, hastaISO) {
 }
 
 // ------------------------------------------------------------
-//  Facturas, pagos y caja (Etapas 4–5)
+//  Facturas y cobros (sin módulo de pagos ni de cierre mensual)
 // ------------------------------------------------------------
 
 // Cobros aplicados a una factura (por factura_id). Sin vínculo = adelanto.
@@ -236,84 +236,4 @@ export function estadoFactura(factura, cobros, hoyISO = '') {
   const hoy = hoyISO || new Date().toISOString().slice(0, 10)
   if (factura.fecha_vencimiento && factura.fecha_vencimiento < hoy) return 'vencida'
   return 'emitida'
-}
-
-// Pagos aplicados a un gasto (por gasto_id = id del registro de gasto).
-export function pagosDeGasto(gastoId, pagos) {
-  return (pagos ?? []).filter((p) => p.gasto_id === gastoId)
-}
-
-// Saldo por pagar de un gasto = reconocido − pagos aplicados.
-export function saldoGasto(gastoMonto, gastoId, pagos) {
-  const pagado = pagosDeGasto(gastoId, pagos).reduce((s, p) => s + N(p.monto), 0)
-  return redondear2(N(gastoMonto) - pagado)
-}
-
-// Horas hombre del mes: tareo aprobado cuando existe; si no hay tareo,
-// registros de personal del mes (supuesto explícito y reversible).
-export function horasMes(mesISO, registros, tareos) {
-  const tareoAprobado = (tareos ?? []).filter(
-    (t) => enMes(t.fecha, mesISO) && t.estado === 'aprobado',
-  )
-  if (tareoAprobado.length > 0) {
-    const normales = tareoAprobado.reduce((s, t) => s + N(t.horas_normales), 0)
-    const extras = tareoAprobado.reduce((s, t) => s + N(t.horas_extras), 0)
-    const costo = tareoAprobado.reduce(
-      (s, t) => s + N(t.horas_normales) * N(t.tarifa_hora) + N(t.horas_extras) * N(t.tarifa_extra),
-      0,
-    )
-    return { normales, extras, total: normales + extras, costo: redondear2(costo), fuente: 'tareo' }
-  }
-  const regs = (registros ?? []).filter(
-    (r) => r.tipo_registro === 'personal' && enMes(r.fecha, mesISO),
-  )
-  const total = regs.reduce((s, r) => s + N(r.cantidad_o_horas), 0)
-  return {
-    normales: total,
-    extras: 0,
-    total,
-    costo: redondear2(regs.reduce((s, r) => s + N(r.monto_calculado), 0)),
-    fuente: 'registros',
-  }
-}
-
-// Snapshot de cierre mensual: foto congelada de los totales del mes.
-// Las correcciones posteriores no alteran este objeto (trazabilidad).
-export function generarCierre(mesISO, estado) {
-  const regs = (estado.registros_servicio ?? []).filter((r) => enMes(r.fecha, mesISO))
-  const facturas = (estado.facturas ?? []).filter((f) => enMes(f.fecha_emision, mesISO))
-  const cobros = (estado.cobros ?? []).filter((c) => enMes(c.fecha, mesISO))
-  const pagos = (estado.pagos ?? []).filter((p) => enMes(p.fecha, mesISO))
-  const facturado = redondear2(facturas.reduce((s, f) => s + N(f.total), 0))
-  const cobrado = redondear2(cobros.reduce((s, c) => s + N(c.monto), 0))
-  const gastado = redondear2(regs.reduce((s, r) => s + N(r.monto_calculado), 0))
-  const pagado = redondear2(pagos.reduce((s, p) => s + N(p.monto), 0))
-  const horas = horasMes(mesISO, estado.registros_servicio, estado.tareos)
-  const porServicio = (estado.servicios ?? []).map((s) => {
-    const rs = regs.filter((r) => r.servicio_id === s.id)
-    const fs = facturas.filter((f) => f.servicio_id === s.id)
-    const cs = cobros.filter((c) => c.servicio_id === s.id)
-    return {
-      servicio_id: s.id,
-      nombre: s.nombre_servicio,
-      facturado: redondear2(fs.reduce((t, f) => t + N(f.total), 0)),
-      cobrado: redondear2(cs.reduce((t, c) => t + N(c.monto), 0)),
-      gastado: redondear2(rs.reduce((t, r) => t + N(r.monto_calculado), 0)),
-      resultado: redondear2(
-        fs.reduce((t, f) => t + N(f.total), 0) - rs.reduce((t, r) => t + N(r.monto_calculado), 0),
-      ),
-    }
-  })
-  return {
-    mes: mesISO,
-    fecha_generacion: new Date().toISOString(),
-    facturado,
-    cobrado,
-    gastado,
-    pagado,
-    flujo: flujoNetoCaja(cobrado, pagado),
-    resultado: redondear2(facturado - gastado),
-    horas,
-    porServicio,
-  }
 }
