@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { Campo, Input } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import {
@@ -17,6 +20,7 @@ import {
   formatearCantidad,
   formatearMoneda,
   formatearFecha,
+  redondearMonto,
 } from '../../utils/formatters'
 import {
   cuentaComoManoDeObra,
@@ -25,6 +29,7 @@ import {
   ordenarPorFechaDesc,
   sumarMontos,
 } from '../../utils/calculadora'
+import { CATEGORIAS_GASTO } from '../../data/mockData'
 
 export function fechaHoyISO() {
   return new Date().toISOString().slice(0, 10)
@@ -47,7 +52,7 @@ function conceptoRegistro(registro, refs) {
   )
 }
 
-function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
+function FilaRegistro({ registro, refs, conCantidad, onEliminar, onEditar }) {
   return (
     <TableRow>
       <Td className="whitespace-nowrap text-slate-500">
@@ -71,6 +76,9 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
               domingo · no suma
             </span>
           )}
+        {registro.tipo_registro === 'gasto' && registro.documento && (
+          <span className="block text-xs text-slate-500">🧾 {registro.documento}</span>
+        )}
         {registro.tarea_id != null &&
           (() => {
             const tarea = (refs.tareas ?? []).find((t) => t.id === registro.tarea_id)
@@ -90,11 +98,113 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
         {formatearMoneda(registro.monto_calculado)}
       </Td>
       <Td alinear="right">
-        <Button variante="peligro" tamano="sm" onClick={() => onEliminar(registro)}>
-          Eliminar
-        </Button>
+        <span className="inline-flex gap-1.5">
+          {onEditar && (
+            <Button variante="secundario" tamano="sm" onClick={() => onEditar(registro)}>
+              Editar
+            </Button>
+          )}
+          <Button variante="peligro" tamano="sm" onClick={() => onEliminar(registro)}>
+            Eliminar
+          </Button>
+        </span>
       </Td>
     </TableRow>
+  )
+}
+
+// Edición de un gasto: concepto, monto, fecha, tarea, categoría y
+// comprobante. Los demás tipos no son editables por ahora.
+function ModalEdicionGasto({ registro, tareas, onGuardar, onCerrar }) {
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      concepto: registro.concepto ?? '',
+      monto: registro.monto_calculado ?? '',
+      fecha: registro.fecha ?? '',
+      tarea_id: registro.tarea_id != null ? String(registro.tarea_id) : '',
+      categoria: registro.categoria ?? '',
+      documento: registro.documento ?? '',
+    },
+  })
+
+  const enviar = ({ concepto, monto, fecha, tarea_id, categoria, documento }) => {
+    onGuardar({
+      id: registro.id,
+      concepto: concepto.trim(),
+      monto_calculado: redondearMonto(monto),
+      fecha,
+      tarea_id: tarea_id ? Number(tarea_id) : null,
+      categoria: categoria || null,
+      documento: documento.trim() || null,
+    })
+  }
+
+  return (
+    <Modal
+      abierto
+      titulo="Editar gasto"
+      descripcion="Se actualiza el gastado del servicio automáticamente."
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit(enviar)}>Guardar cambios</Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+        <Campo label="Concepto del gasto" error={errors.concepto?.message} htmlFor="edg-concepto">
+          <Input id="edg-concepto" {...register('concepto', { required: 'Describe el gasto' })} />
+        </Campo>
+        <div className="grid grid-cols-2 gap-4">
+          <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="edg-monto">
+            <Input
+              id="edg-monto"
+              type="number"
+              step="0.01"
+              {...register('monto', reglasNumeroMayorACero('Ingresa el monto'))}
+            />
+          </Campo>
+          <Campo label="Fecha" error={errors.fecha?.message} htmlFor="edg-fecha">
+            <Input id="edg-fecha" type="date" {...register('fecha', { required: 'Indica la fecha' })} />
+          </Campo>
+        </div>
+        {tareas.length > 0 && (
+          <Campo label="Tarea (opcional)" error={errors.tarea_id?.message} htmlFor="edg-tarea">
+            <CampoComboBox
+              id="edg-tarea"
+              control={control}
+              name="tarea_id"
+              placeholder="Sin tarea…"
+              opciones={tareas.map((t) => ({ valor: String(t.id), etiqueta: t.nombre }))}
+            />
+          </Campo>
+        )}
+        <Campo label="Categoría (opcional)" error={errors.categoria?.message} htmlFor="edg-categoria">
+          <CampoComboBox
+            id="edg-categoria"
+            control={control}
+            name="categoria"
+            placeholder="Sin categoría…"
+            opciones={CATEGORIAS_GASTO.map((c) => ({ valor: c, etiqueta: c }))}
+          />
+        </Campo>
+        <Campo
+          label="N° factura / comprobante (opcional)"
+          error={errors.documento?.message}
+          htmlFor="edg-doc"
+        >
+          <Input id="edg-doc" placeholder="F001-000123" {...register('documento')} />
+        </Campo>
+      </form>
+    </Modal>
   )
 }
 
@@ -102,6 +212,7 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar }) {
 // Con `tablaAgrupada` se puede reemplazar la tabla por una vista propia
 // (recibe { registros, refs, onEliminar }); `porEliminar` acepta un
 // registro o un grupo { ids, titulo } para borrado múltiple.
+// Con `permitirEditar` (solo gastos por ahora) cada fila tiene Editar.
 export function SeccionRegistros({
   servicio,
   tipo,
@@ -112,13 +223,17 @@ export function SeccionRegistros({
   mensajeVacio,
   mensajeExito,
   tablaAgrupada,
+  tarjetas,
+  permitirEditar = false,
   children,
 }) {
-  const { estado, agregarItem, eliminarItem } = useData()
+  const { estado, agregarItem, actualizarItem, eliminarItem } = useData()
   const { personal, equipos, registros_servicio: todos, tareas: todasTareas } = estado
 
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
+  const [porEditar, setPorEditar] = useState(null)
+  const editable = permitirEditar && tipo === 'gasto'
 
   const refs = {
     personal,
@@ -163,10 +278,17 @@ export function SeccionRegistros({
     setPorEliminar(null)
   }
 
+  const confirmarEdicion = (cambios) => {
+    actualizarItem('registros_servicio', cambios)
+    setPorEditar(null)
+    setAviso({ tipo: 'exito', mensaje: 'Gasto actualizado.' })
+  }
+
   const columnas = columnaCantidad ? 5 : 4
 
   return (
     <div className="space-y-6">
+      {tarjetas ? tarjetas({ registros, registrosQueSuman, totalMonto, totalCantidad, refs }) : null}
       <Card titulo={titulo} descripcion={descripcion}>
         {children({ servicio, personal, equipos, registrar, registrarLote, notificar })}
       </Card>
@@ -196,6 +318,7 @@ export function SeccionRegistros({
                   refs={refs}
                   conCantidad={columnaCantidad}
                   onEliminar={setPorEliminar}
+                  onEditar={editable ? setPorEditar : null}
                 />
               ))
             )}
@@ -265,6 +388,15 @@ export function SeccionRegistros({
             )}
           </p>
         </Modal>
+      )}
+
+      {porEditar && (
+        <ModalEdicionGasto
+          registro={porEditar}
+          tareas={refs.tareas}
+          onGuardar={confirmarEdicion}
+          onCerrar={() => setPorEditar(null)}
+        />
       )}
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />

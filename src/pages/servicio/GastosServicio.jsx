@@ -20,7 +20,7 @@ function FormularioGasto({ servicio, registrar }) {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '' },
+    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '', documento: '' },
   })
   const {
     estado: { tareas: todasTareas },
@@ -29,7 +29,7 @@ function FormularioGasto({ servicio, registrar }) {
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
-  const enviar = ({ concepto, monto, fecha, tarea_id, categoria }) => {
+  const enviar = ({ concepto, monto, fecha, tarea_id, categoria, documento }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'gasto',
@@ -40,8 +40,9 @@ function FormularioGasto({ servicio, registrar }) {
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
       categoria: categoria || null,
+      documento: documento.trim() || null,
     })
-    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '' })
+    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '', documento: '' })
   }
 
   return (
@@ -105,6 +106,18 @@ function FormularioGasto({ servicio, registrar }) {
             opciones={CATEGORIAS_GASTO.map((c) => ({ valor: c, etiqueta: c }))}
           />
         </Campo>
+        <Campo
+          label="N° factura / comprobante (opcional)"
+          error={errors.documento?.message}
+          htmlFor="gasto-doc"
+          hint="Comprobante del proveedor, solo referencial"
+        >
+          <Input
+            id="gasto-doc"
+            placeholder="F001-000123"
+            {...register('documento')}
+          />
+        </Campo>
         <div className="flex items-end">
           <Button type="submit" className="w-full">
             Agregar gasto
@@ -126,6 +139,7 @@ export function GastosServicio() {
       descripcion="Gastos extra del servicio. Suman al gastado del presupuesto."
       mensajeVacio="Este servicio todavía no tiene gastos registrados."
       mensajeExito={(datos) => `Gasto agregado por ${formatearMoneda(datos.monto_calculado)}.`}
+      permitirEditar
     >
       {({ servicio, registrar }) => (
         <FormularioGasto servicio={servicio} registrar={registrar} />
