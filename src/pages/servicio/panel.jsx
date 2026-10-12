@@ -21,8 +21,6 @@ export function usePanelServicio() {
 }
 
 function FormularioEditarServicio({ servicio, onGuardar }) {
-  const { estado } = useData()
-  const contratos = estado.contratos ?? []
   const {
     register,
     handleSubmit,
@@ -33,7 +31,6 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       nombre_servicio: servicio.nombre_servicio,
       cliente: servicio.cliente,
       tipo: servicio.tipo ?? 'Obra',
-      contrato_id: servicio.contrato_id != null ? String(servicio.contrato_id) : '',
       presupuesto_asignado: servicio.presupuesto_asignado,
       fecha_inicio: servicio.fecha_inicio,
       fecha_fin_estimada: servicio.fecha_fin_estimada ?? '',
@@ -47,7 +44,6 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       nombre_servicio: servicio.nombre_servicio,
       cliente: servicio.cliente,
       tipo: servicio.tipo ?? 'Obra',
-      contrato_id: servicio.contrato_id != null ? String(servicio.contrato_id) : '',
       presupuesto_asignado: servicio.presupuesto_asignado,
       fecha_inicio: servicio.fecha_inicio,
       fecha_fin_estimada: servicio.fecha_fin_estimada ?? '',
@@ -115,16 +111,6 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
             ))}
           </Select>
         </Campo>
-        {contratos.length > 0 && (
-          <Campo label="Contrato (opcional)" error={errors.contrato_id?.message} htmlFor="contrato_id">
-            <Select id="contrato_id" {...register('contrato_id')}>
-              <option value="">Sin contrato</option>
-              {contratos.map((c) => (
-                <option key={c.id} value={c.id}>{c.codigo} · {c.nombre}</option>
-              ))}
-            </Select>
-          </Campo>
-        )}
         <Campo label="Estatus" error={errors.estatus?.message} htmlFor="estatus">
           <Select id="estatus" {...register('estatus', { required: 'Estatus es obligatorio' })}>
             <option value="" disabled>Selecciona una opción…</option>
@@ -168,7 +154,6 @@ export function PanelProveedor({ servicio, children }) {
       nombre_servicio: valores.nombre_servicio.trim(),
       cliente: valores.cliente.trim(),
       tipo: valores.tipo || 'Obra',
-      contrato_id: valores.contrato_id ? Number(valores.contrato_id) : null,
       presupuesto_asignado: Number(valores.presupuesto_asignado),
       fecha_inicio: valores.fecha_inicio,
       fecha_fin_estimada: valores.fecha_fin_estimada || '',

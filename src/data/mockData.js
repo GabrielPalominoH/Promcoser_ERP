@@ -11,7 +11,7 @@ export const ESTATUS_SERVICIO = [
   'Cancelado',
 ]
 
-export const TIPOS_SERVICIO = ['Obra', 'Misceláneo', 'Anual', 'Adicional']
+export const TIPOS_SERVICIO = ['Obra', 'Misceláneo', 'Anual', 'Adicional', 'Contrato']
 
 // Categorías de gasto (clasificación del egreso reconocido).
 export const CATEGORIAS_GASTO = [
@@ -432,7 +432,6 @@ export const movimientos_caja = []
 export const tareos = []
 export const cierres = []
 export const presupuestos = []
-export const contratos = []
 export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN' }]
 
 export const ESTADO_INICIAL = {
@@ -450,7 +449,6 @@ export const ESTADO_INICIAL = {
   tareos,
   cierres,
   presupuestos,
-  contratos,
   config,
 }
 

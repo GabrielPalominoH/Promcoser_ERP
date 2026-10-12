@@ -51,7 +51,7 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 | **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. Incluye regla configurable para distribuir indirectos por horas, costos o ingresos (o mostrarlos por separado). |
 | **Caja** | Entradas y salidas reales de dinero del mes: cobros y pagos entran solos; aquí solo ajustes manuales. |
 | **Cierre** | Cierre mensual gerencial: revisa pendientes, genera el resultado del mes, lo congela e imprime el reporte. |
-| **Contratos** | Contratos marco que agrupan servicios, con consolidado (contratado, gastado, cobrado, resultado por servicio). |
+| **Tipos de servicio** | Al crear o editar una obra eliges su tipo: Obra, Misceláneo, Anual, Adicional o Contrato. Sirve para filtrar en el Dashboard. |
 
 ---
 
@@ -212,13 +212,12 @@ eligiendo su tarea; 2) actualice los % en el Cronograma y los montos aquí si
 cambiaron; 3) revise el tablero: todo margen en rojo necesita atención.
 
 ### Opciones
-Datos de la obra (nombre, cliente, tipo, contrato, fechas, estatus) y la
-opción de eliminarla. El **tipo** (Obra, Misceláneo, Anual, Adicional) sirve
-para filtrar en el Dashboard; el **contrato** vincula la obra a un contrato
-marco para ver el consolidado en la página Contratos. Eliminar una obra borra
-todo lo suyo (registros, tareas, asignaciones, tareo, facturas, cobros, pagos
-y presupuestos), así que pide escribir "Eliminar servicio" para confirmar que
-es en serio.
+Datos de la obra (nombre, cliente, tipo, fechas, estatus) y la
+opción de eliminarla. El **tipo** (Obra, Misceláneo, Anual, Adicional,
+Contrato) se elige al crear o editar el servicio y sirve para filtrar en el
+Dashboard. Eliminar una obra borra todo lo suyo (registros, tareas,
+asignaciones, tareo, facturas, cobros, pagos y presupuestos), así que pide
+escribir "Eliminar servicio" para confirmar que es en serio.
 
 ---
 

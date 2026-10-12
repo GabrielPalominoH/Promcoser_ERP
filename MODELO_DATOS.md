@@ -21,7 +21,7 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `tareos` | `id` | Horas por día (Etapa 3): fecha, trabajador, servicio, tarea, horas normales/extras, tarifa, estado (vacía) |
 | `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN, regla de indirectos |
 | `presupuestos` | `id` | Presupuesto por categoría: servicio, categoría, monto, inicial/adicional, motivo, fecha |
-| `contratos` | `id` | Contratos marco: código, nombre, cliente, monto, vigencia |
+
 | `cierres` | `id` | Cierres mensuales: mes, estado, responsable, snapshot congelado |
 
 ## Relaciones
@@ -40,7 +40,7 @@ servicios 1──N cobros (servicio_id)
 servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id, opcional)
 servicios 1──N pagos (servicio_id); registros(gasto) 1──N pagos (gasto_id, opcional)
 servicios 1──N presupuestos (servicio_id)
-contratos 1──N servicios (contrato_id, nullable; borrar contrato no borra servicios)
+
 ```
 
 ## Reglas de negocio (dónde viven)

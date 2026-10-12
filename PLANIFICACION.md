@@ -1,13 +1,13 @@
 # Planificación por módulos — PROMCOSER ERP
 
 Roadmap de entregables por módulo necesario. Estado base: commit `0bb33b8`
-(presupuestos, indirectos, contratos, filtros, CSV). Convención: cada módulo
+(presupuestos, indirectos, filtros, CSV). Convención: cada módulo
 se cierra con suite verde (`npm run verificar`), build OK, push a `master` y
 manual actualizado.
 
 ## M1. Servicios (base — completar)
-**Existe:** CRUD, tipos (Obra/Misceláneo/Anual/Adicional), contrato, panel de
-11 pestañas, búsqueda, columna tipo/contrato.
+**Existe:** CRUD, tipos (Obra/Misceláneo/Anual/Adicional/Contrato), panel de
+11 pestañas, búsqueda, columna tipo.
 **Falta:**
 - Fecha fin real, responsable descriptivo (texto, sin usuarios), ubicación.
 - Filtros por tipo y estado en el listado (hoy solo búsqueda).
@@ -58,18 +58,16 @@ manual actualizado.
 ## M7. Facturación y cobros (existe base)
 **Existe:** facturas con saldos/estados/anulación, cobros atados con tope, adelantos, CxC por servicio.
 **Falta:**
-- Adicionales del contrato que recalculen contratado y por cobrar.
+- Adicionales al monto contratado que recalculen contratado y por cobrar.
 - Retenciones y amortización de adelantos.
 - Antigüedad de deuda y alertas de vencidas (global + servicio).
 - Reporte de rentabilidad por cliente.
 **Aceptación:** Casos C (10000/4000→6000) y F (10000→4000+6000→0) ya en suite; agregar retenciones.
 
-## M8. Contratos (existe base)
-**Existe:** CRUD, vínculo 1 contrato–N servicios, consolidado sin duplicar.
-**Falta:**
-- Modificaciones contractuales que ajusten monto y recalculen por cobrar.
-- Hitos y vigencia con alerta de contratos próximos a vencer.
-**Aceptación:** consolidado cuadra con la suma de sus servicios; borrar contrato no borra servicios.
+## M8. Contratos (eliminado por decisión)
+El módulo Contratos se retiró: el tipo se elige al crear/editar cada servicio
+(Obra, Misceláneo, Anual, Adicional, Contrato). Sin módulo, colección ni
+consolidado separados.
 
 ## M9. Caja y cierre (existe base)
 **Existe:** caja derivada + manuales, cierre con checklist, snapshot, reapertura motivada, bloqueo de meses cerrados, reporte imprimible.
@@ -87,7 +85,7 @@ manual actualizado.
 
 ## Orden de ejecución sugerido
 
-M2 → M7 → M9 (rentabilidad y caja primero) → M5/M6 → M3/M4 → M1/M10 → M8.
+M2 → M7 → M9 (rentabilidad y caja primero) → M5/M6 → M3/M4 → M1/M10.
 
 ## Backlog (fuera de alcance inicial)
 

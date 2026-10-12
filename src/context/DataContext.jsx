@@ -87,20 +87,6 @@ export function dataReducer(estado, accion) {
         }
       }
 
-      // Al borrar un contrato los servicios NO se borran: quedan sin
-      // contrato (cada servicio cuenta una sola vez, sin duplicar).
-      if (payload.coleccion === 'contratos') {
-        return {
-          ...estado,
-          contratos: restantes,
-          servicios: estado.servicios.map((servicio) =>
-            servicio.contrato_id === payload.id
-              ? { ...servicio, contrato_id: null }
-              : servicio,
-          ),
-        }
-      }
-
       // Al borrar una tarea se van sus subtareas en todos los niveles.
       if (payload.coleccion === 'tareas') {
         const porBorrar = new Set([payload.id])

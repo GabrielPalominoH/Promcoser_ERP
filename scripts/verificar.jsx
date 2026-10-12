@@ -480,7 +480,7 @@ comprobar(
 )
 comprobar('mes cerrado detectado', mesCerrado('2026-10', [{ mes: '2026-10', estado: 'cerrado' }]) && !mesCerrado('2026-10', [{ mes: '2026-10', estado: 'reabierto' }]))
 // Tipos de servicio y colecciones nuevas vacías.
-comprobar('tipos incluyen Obra/Misceláneo/Anual', ['Obra', 'Misceláneo', 'Anual'].every((t) => TIPOS_SERVICIO.includes(t)))
+comprobar('tipos incluyen Obra/Misceláneo/Anual/Contrato', ['Obra', 'Misceláneo', 'Anual', 'Contrato'].every((t) => TIPOS_SERVICIO.includes(t)))
 comprobar('tipo por defecto Obra', tipoServicio({}) === 'Obra' && tipoServicio({ tipo: 'Anual' }) === 'Anual')
 comprobar(
   'colecciones nuevas existen y vacías',
@@ -488,7 +488,7 @@ comprobar(
 )
 
 // ============================================================
-//  7. Presupuesto, indirectos y contratos
+//  7. Presupuesto e indirectos
 // ============================================================
 
 console.log('\n[ presupuesto e indirectos ]')
@@ -539,11 +539,6 @@ comprobar(
   JSON.stringify(dist),
 )
 comprobar('sin regla queda separado', distribuirIndirectos(1000, []).sinDistribuir === 1000)
-const sinContrato = dataReducer(
-  { ...ESTADO_INICIAL, servicios: [{ id: 6, contrato_id: 2 }], contratos: [{ id: 2 }] },
-  { type: 'ELIMINAR_ITEM', payload: { coleccion: 'contratos', id: 2 } },
-)
-comprobar('borrar contrato no borra servicios', sinContrato.servicios.length === 1 && sinContrato.servicios[0].contrato_id === null)
 comprobar('cascada servicio borra presupuestos', !(dataReducer(ESTADO_INICIAL, { type: 'ELIMINAR_ITEM', payload: { coleccion: 'servicios', id: 6 } }).presupuestos ?? []).some((p) => p.servicio_id === 6))
 
 // ============================================================
@@ -566,7 +561,6 @@ const rutas = [
   { ruta: '/servicios/6/presupuesto', etiqueta: 'Panel presupuesto', monto: true },
   { ruta: '/caja', etiqueta: 'Caja', monto: true },
   { ruta: '/cierre', etiqueta: 'Cierre', monto: true },
-  { ruta: '/contratos', etiqueta: 'Contratos', monto: false },
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },

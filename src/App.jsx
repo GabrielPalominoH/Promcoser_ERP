@@ -20,7 +20,6 @@ import { Equipos } from './pages/Equipos'
 import { Oficina } from './pages/Oficina'
 import { Caja } from './pages/Caja'
 import { Cierre } from './pages/Cierre'
-import { Contratos } from './pages/Contratos'
 
 export default function App() {
   return (
@@ -47,7 +46,6 @@ export default function App() {
         <Route path="oficina" element={<Oficina />} />
         <Route path="caja" element={<Caja />} />
         <Route path="cierre" element={<Cierre />} />
-        <Route path="contratos" element={<Contratos />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

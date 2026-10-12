@@ -97,14 +97,12 @@ contratado **S/ 8,500**.
    el Flete figura pagado total. Si intentas pagar más de su saldo, el
    sistema lo bloquea.
 
-## Paso 12. Contrato marco (Contratos)
-1. Menú → **Contratos** → **Registrar contrato**: código *CT-2026-010*,
-   nombre *Servicios menores octubre*, cliente *Almacenes del Sur S.A.C.*,
-   monto 8500, inicio 10-01, fin 10-31.
-2. Entra al servicio → **Opciones → Editar** → campo **Contrato** →
-   *CT-2026-010* → Guardar.
-3. **Verás** en Contratos: el consolidado con 1 servicio, cobrado S/ 8,500,
-   gasto S/ 1,715, resultado **S/ 6,785**.
+## Paso 12. Tipo del servicio
+1. Entra al servicio → **Opciones → Editar** → campo **Tipo** → verifica que
+   diga *Misceláneo* (se elige al crear el servicio: Obra, Misceláneo, Anual,
+   Adicional o Contrato).
+2. **Verás** en **Servicios** que la obra figura con su tipo, y en el
+   **Dashboard** podrás filtrar por tipo Misceláneo para ver solo sus números.
 
 ## Paso 13. Oficina, Caja y Dashboard
 1. Menú → **Oficina**: registra un costo de octubre para una persona de

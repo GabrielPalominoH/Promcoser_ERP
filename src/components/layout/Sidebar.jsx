@@ -7,7 +7,7 @@ export const SECCIONES_NAVEGACION = [
     enlaces: [
       { to: '/', label: 'Dashboard', icono: 'grid', end: true },
       { to: '/servicios', label: 'Servicios', icono: 'clipboard' },
-      { to: '/contratos', label: 'Contratos', icono: 'factura' },
+
       { to: '/personal', label: 'Personal', icono: 'users' },
       { to: '/equipos', label: 'Equipos', icono: 'truck' },
       { to: '/oficina', label: 'Oficina', icono: 'oficina' },
