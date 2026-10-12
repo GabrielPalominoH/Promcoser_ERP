@@ -49,8 +49,7 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
 | **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. Incluye regla configurable para distribuir indirectos por horas, costos o ingresos (o mostrarlos por separado). |
-| **Caja** | Entradas y salidas reales de dinero del mes: cobros y pagos entran solos; aquí solo ajustes manuales. |
-| **Cierre** | Cierre mensual gerencial: revisa pendientes, genera el resultado del mes, lo congela e imprime el reporte. |
+| **Resultado del mes** | En el Dashboard se elige el mes y se ven facturado, cobrado, gastado, pagado, flujo, resultado, horas y costo laboral, con comparativa del mes anterior y tendencia de 6 meses. |
 | **Tipos de servicio** | Al crear o editar una obra eliges su tipo: Obra, Misceláneo o Contrato. Sirve para filtrar en el Dashboard. |
 
 ---
@@ -146,16 +145,6 @@ hay borrado físico.
 Pagos a gastos del servicio (fecha, monto, medio y gasto al que aplican). Sin
 gasto vinculado es un anticipo. Cada gasto muestra reconocido, pagado y saldo.
 Lo aplicado a un gasto no puede exceder su saldo.
-
-### Cierre mensual
-En la página **Cierre** se elige el mes, se revisan los pendientes (tareo sin
-aprobar, costos sin tarea, facturas vencidas, asignaciones sin asentar), se
-genera el resultado y se **confirma el cierre** con responsable: la foto
-queda congelada e imprimible (reporte con facturado, cobrado, gastado,
-pagado, flujo, resultado, horas y detalle por servicio). Mes cerrado bloquea
-asentamientos y movimientos fechados en él; para corregir se **reabre con
-motivo**, y queda registrado. Es un cierre gerencial interno, no contable
-oficial.
 
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
@@ -263,8 +252,6 @@ tal como figura en la factura, para poder ubicarla después.
   lo gastado.
 - **Factura (interna):** documento de control con total, cobros aplicados,
   saldo y estado; no es comprobante oficial.
-- **Cierre:** foto congelada de los totales de un mes, con responsable y
-  reapertura motivada.
 - **Respaldo:** el archivo con toda la información, para guardarla y
   recuperarla.
 
@@ -281,7 +268,8 @@ recibo a la mano.
 **Cada fin de mes:** apruebe el tareo, asiente el mes en Personal (botón
 Asentar), registre facturas, cobros y pagos, actualice los % de avance en el
 Cronograma, revise los montos en Partidas y mire el margen por tarea. Lo que
-esté en rojo necesita atención. Luego genere y confirme el **Cierre** del mes.
+esté en rojo necesita atención. Luego revise el **Resultado del mes** en el
+Dashboard.
 
 **Filtros del Dashboard:** cliente y tipo alcanzan a todo lo que es por
 servicio (Oficina y resultado empresa son de la empresa y no se filtran). El

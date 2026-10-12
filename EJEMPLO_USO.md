@@ -104,28 +104,19 @@ contratado **S/ 8,500**.
 2. **Verás** en **Servicios** que la obra figura con su tipo, y en el
    **Dashboard** podrás filtrar por tipo Misceláneo para ver solo sus números.
 
-## Paso 13. Oficina, Caja y Dashboard
+## Paso 13. Oficina y Dashboard
 1. Menú → **Oficina**: registra un costo de octubre para una persona de
    Oficina (ej. S/ 1,500). **Verás** el total del mes y el resultado empresa
    actualizado; cambia la **regla de distribución** a *Por costos* y verás el
    prorrateo por servicio con su criterio.
-2. Menú → **Caja** (mes 2026-10): **verás** entradas S/ 8,500, salidas
-   S/ 250, flujo **S/ 8,250** (los cobros y pagos entraron solos).
-3. Menú → **Dashboard**: **verás** el servicio en Consumo (20.2%),
+2. Menú → **Dashboard**: **verás** el servicio en Consumo (20.2%),
    Quién debe en S/ 0, Cronograma global al 100%, Personal global (gastado
    800), Resultado del mes octubre (facturado 8500, cobrado 8500, gastado
    1715, resultado 6785) y la tendencia. Descarga el **CSV**.
-4. Filtra por cliente *Almacenes del Sur* y por tipo *Misceláneo*: todo lo
+3. Filtra por cliente *Almacenes del Sur* y por tipo *Misceláneo*: todo lo
    por servicio se recalcula (Oficina y resultado empresa no se filtran).
 
-## Paso 14. Cierre del mes (Cierre)
-1. Menú → **Cierre**, mes *2026-10*: revisa el checklist (debe salir sin
-   pendientes), responsable con tu nombre → **Confirmar cierre**.
-2. **Verás:** la foto congelada (mismo reporte del paso 13) y el mes en el
-   historial. Prueba editar algo de octubre (ej. desasentar): el sistema lo
-   **bloquea** hasta **Reabrir con motivo**.
-
-## Paso 15. Respaldo y limpieza
+## Paso 14. Respaldo y limpieza
 1. Dashboard → **Exportar respaldo** y guárdalo.
 2. Para borrar el ejemplo: Servicios → entra a la obra → **Opciones** →
    escribe *Eliminar servicio*. **Verás** que arrastra registros, tareas,
@@ -136,10 +127,10 @@ contratado **S/ 8,500**.
 | Indicador | Valor |
 |---|---|
 | Presupuesto / Valorizado | S/ 8,500 / S/ 8,500 (100%) |
-| Gastado total | S/ 1,715 (635 + 890 + 190) |
+| Gastado total | S/ 1,715 (385 + 890 + 190 + 250 sin tarea) |
 | Desviación presupuesto | −S/ 135 (92.7%) |
 | Facturado / Cobrado / Por cobrar | 8500 / 8500 / 0 |
-| Gasto reconocido / Pagado / Por pagar | 350 / 250 / 100 |
+| Gasto reconocido / Pagado / Por pagar | 250 / 250 / 0 |
 | Utilidad real | **S/ 6,785** (margen 79.8%) |
 | Flujo octubre | S/ 8,250 |
 | Horas hombre | 40 h.h. por S/ 800 |
@@ -148,8 +139,8 @@ contratado **S/ 8,500**.
 
 - **Baja y reactivación** (Personal): con fecha de último día y prorrateo;
   útil en obras largas, no en este ejemplo de 15 días.
-- **Desasentar** un mes, **anular** factura, **reabrir** cierre con motivo,
-  **eliminar** cobros/pagos/tareo, **reactivar** asignación.
+- **Desasentar** un mes, **anular** factura, **eliminar** cobros/pagos/tareo,
+  **reactivar** asignación.
 - **Adicionales** de presupuesto con motivo (Presupuesto).
 - **Retenciones/amortización**: vía conceptos de cobro y documento.
-- **Imprimir** reportes (Resumen y Cierre) y **Restablecer datos de ejemplo**.
+- **Imprimir** el reporte del Resumen y **Restablecer datos de ejemplo**.

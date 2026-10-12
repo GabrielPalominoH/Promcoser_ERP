@@ -9,7 +9,7 @@
 // Versiones de esquema:
 //   1 = esquema original (promcoser_mvp_v1)
 //   2 = colecciones actuales sin partidas (promcoser_mvp_v2)
-//   3 = + asignaciones, cobros, facturas, pagos, movimientos_caja, tareos, config
+//   3 = + asignaciones, cobros, facturas, pagos, tareos, presupuestos, config
 import {
   COLECCIONES,
   ESTADO_INICIAL,

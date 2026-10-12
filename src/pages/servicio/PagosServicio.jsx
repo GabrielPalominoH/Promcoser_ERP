@@ -18,7 +18,7 @@ import {
   Th,
 } from '../../components/ui/Table'
 import { formatearFecha, formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { mesCerrado, saldoGasto } from '../../utils/finanzas'
+import { saldoGasto } from '../../utils/finanzas'
 import { fechaHoyISO, reglasNumeroMayorACero } from './compartido'
 
 const MEDIOS = ['efectivo', 'transferencia', 'depósito', 'cheque', 'otro']
@@ -53,10 +53,6 @@ export function PagosServicio() {
   })
 
   const enviar = ({ fecha, monto, medio, gasto_id, referencia }) => {
-    if (mesCerrado(fecha.slice(0, 7), estado.cierres)) {
-      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
-      return
-    }
     const gasto = gasto_id ? gastos.find((g) => String(g.id) === String(gasto_id)) : null
     if (gasto && Number(monto) - saldoGasto(gasto.monto_calculado, gasto.id, estado.pagos) > 0.005) {
       setAviso({
@@ -78,12 +74,6 @@ export function PagosServicio() {
   }
 
   const confirmarEliminar = () => {
-    const pago = (estado.pagos ?? []).find((p) => p.id === porEliminar)
-    if (pago && mesCerrado(pago.fecha.slice(0, 7), estado.cierres)) {
-      setPorEliminar(null)
-      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
-      return
-    }
     eliminarItem('pagos', porEliminar)
     setPorEliminar(null)
     setAviso({ tipo: 'info', mensaje: 'Pago eliminado. Los saldos se actualizan.' })

@@ -249,23 +249,6 @@ export function saldoGasto(gastoMonto, gastoId, pagos) {
   return redondear2(N(gastoMonto) - pagado)
 }
 
-// Flujo de un mes = cobros + entradas manuales − pagos − salidas manuales.
-// Los movimientos de caja manuales son solo ajustes/otros (no duplican
-// cobros ni pagos: Regla 1, una fuente por hecho económico).
-export function flujoMes(mesISO, cobros, pagos, movimientos) {
-  const suma = (lista, campo = 'monto') =>
-    (lista ?? [])
-      .filter((m) => enMes(m.fecha, mesISO))
-      .reduce((s, m) => s + N(m[campo]), 0)
-  const entradasManuales = (movimientos ?? [])
-    .filter((m) => enMes(m.fecha, mesISO) && m.tipo === 'entrada')
-    .reduce((s, m) => s + N(m.monto), 0)
-  const salidasManuales = (movimientos ?? [])
-    .filter((m) => enMes(m.fecha, mesISO) && m.tipo === 'salida')
-    .reduce((s, m) => s + N(m.monto), 0)
-  return redondear2(suma(cobros) + entradasManuales - suma(pagos) - salidasManuales)
-}
-
 // Horas hombre del mes: tareo aprobado cuando existe; si no hay tareo,
 // registros de personal del mes (supuesto explícito y reversible).
 export function horasMes(mesISO, registros, tareos) {
@@ -292,11 +275,6 @@ export function horasMes(mesISO, registros, tareos) {
     costo: redondear2(regs.reduce((s, r) => s + N(r.monto_calculado), 0)),
     fuente: 'registros',
   }
-}
-
-// ¿Mes con cierre vigente? Las correcciones exigen reapertura con motivo.
-export function mesCerrado(mesISO, cierres) {
-  return (cierres ?? []).some((c) => c.mes === mesISO && c.estado === 'cerrado')
 }
 
 // Snapshot de cierre mensual: foto congelada de los totales del mes.

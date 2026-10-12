@@ -18,12 +18,10 @@ import {
   enRango,
   esVigente,
   estadoFactura,
-  flujoMes,
   flujoNetoCaja,
   generarCierre,
   horasMes,
   margenBruto,
-  mesCerrado,
   porcentajeEjecucion,
   presupuestoPorCategoria,
   realPorCategoria,
@@ -433,7 +431,7 @@ comprobar('K inválido se rechaza sin tocar nada', validarRespaldo({ foo: 1 }).o
 //  6. Etapas 3–5: tareo, facturas, pagos, caja, cierre
 // ============================================================
 
-console.log('\n[ etapas 3-5 ]')
+console.log('\n[ tareo, facturas y pagos ]')
 
 // Tareo: importe con extras y tarifa snapshot.
 const tareoDemo = { horas_normales: 8, horas_extras: 2, tarifa_hora: 25, tarifa_extra: 37.5 }
@@ -454,17 +452,12 @@ comprobar('factura vencida sin cobros', estadoFactura({ ...facDemo, id: 2 }, [],
 comprobar('factura anulada no cuenta', estadoFactura({ ...facDemo, estado: 'anulada' }, [], '2026-11-05') === 'anulada')
 // Pagos: gasto 2000, pago 800 → saldo 1200 (Caso E §24).
 comprobar('saldo gasto 2000 − 800 = 1200', saldoGasto(2000, 9, [{ gasto_id: 9, monto: 800 }]) === 1200)
-// Caja: cobros + entradas − pagos − salidas.
-comprobar(
-  'flujo mes = 10000 + 500 − 6000 − 200',
-  flujoMes('2026-10', [{ fecha: '2026-10-05', monto: 10000 }], [{ fecha: '2026-10-06', monto: 6000 }], [{ fecha: '2026-10-07', tipo: 'entrada', monto: 500 }, { fecha: '2026-10-08', tipo: 'salida', monto: 200 }]) === 4300,
-)
 // Horas: tareo aprobado manda; si no, registros.
 const horasTar = horasMes('2026-10', [], [{ fecha: '2026-10-05', horas_normales: 8, horas_extras: 2, tarifa_hora: 25, tarifa_extra: 37.5, estado: 'aprobado' }])
 comprobar('horas de tareo aprobado (10 h, 275)', horasTar.total === 10 && horasTar.costo === 275 && horasTar.fuente === 'tareo')
 const horasReg = horasMes('2026-10', [{ tipo_registro: 'personal', fecha: '2026-10-05', cantidad_o_horas: 8, monto_calculado: 200 }], [])
 comprobar('horas de registros sin tareo', horasReg.total === 8 && horasReg.fuente === 'registros')
-// Cierre: snapshot + mes cerrado bloquea.
+// Reporte mensual del Dashboard (mismos totales que la pantalla).
 const cierreDemo = generarCierre('2026-10', {
   servicios: [{ id: 6, nombre_servicio: 'Demo' }],
   registros_servicio: [{ servicio_id: 6, fecha: '2026-10-05', monto_calculado: 100 }],
@@ -474,17 +467,16 @@ const cierreDemo = generarCierre('2026-10', {
   tareos: [],
 })
 comprobar(
-  'cierre congela totales',
+  'reporte mensual cuadra totales',
   cierreDemo.facturado === 1000 && cierreDemo.cobrado === 400 && cierreDemo.gastado === 100 && cierreDemo.pagado === 60 && cierreDemo.flujo === 340 && cierreDemo.resultado === 900,
   JSON.stringify(cierreDemo),
 )
-comprobar('mes cerrado detectado', mesCerrado('2026-10', [{ mes: '2026-10', estado: 'cerrado' }]) && !mesCerrado('2026-10', [{ mes: '2026-10', estado: 'reabierto' }]))
 // Tipos de servicio y colecciones nuevas vacías.
 comprobar('tipos son Obra/Misceláneo/Contrato', JSON.stringify(TIPOS_SERVICIO) === JSON.stringify(['Obra', 'Misceláneo', 'Contrato']))
 comprobar('tipo por defecto Obra', tipoServicio({}) === 'Obra' && tipoServicio({ tipo: 'Anual' }) === 'Anual')
 comprobar(
   'colecciones nuevas existen y vacías',
-  ['facturas', 'pagos', 'movimientos_caja', 'tareos', 'cierres'].every((c) => Array.isArray(ESTADO_INICIAL[c]) && ESTADO_INICIAL[c].length === 0),
+  ['facturas', 'pagos', 'tareos'].every((c) => Array.isArray(ESTADO_INICIAL[c]) && ESTADO_INICIAL[c].length === 0),
 )
 
 // ============================================================
@@ -559,8 +551,7 @@ const rutas = [
   { ruta: '/servicios/6/facturacion', etiqueta: 'Panel facturación', monto: true },
   { ruta: '/servicios/6/pagos', etiqueta: 'Panel pagos', monto: true },
   { ruta: '/servicios/6/presupuesto', etiqueta: 'Panel presupuesto', monto: true },
-  { ruta: '/caja', etiqueta: 'Caja', monto: true },
-  { ruta: '/cierre', etiqueta: 'Cierre', monto: true },
+
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },

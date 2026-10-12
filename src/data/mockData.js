@@ -428,9 +428,7 @@ export const cobros = [
 
 export const facturas = []
 export const pagos = []
-export const movimientos_caja = []
 export const tareos = []
-export const cierres = []
 export const presupuestos = []
 export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN' }]
 
@@ -445,12 +443,11 @@ export const ESTADO_INICIAL = {
   cobros,
   facturas,
   pagos,
-  movimientos_caja,
   tareos,
-  cierres,
   presupuestos,
   config,
 }
+
 
 export const COLECCIONES = Object.keys(ESTADO_INICIAL)
 

@@ -69,12 +69,12 @@ El módulo Contratos se retiró: el tipo se elige al crear/editar cada servicio
 (Obra, Misceláneo, Contrato). Sin módulo, colección ni
 consolidado separados.
 
-## M9. Caja y cierre (existe base)
-**Existe:** caja derivada + manuales, cierre con checklist, snapshot, reapertura motivada, bloqueo de meses cerrados, reporte imprimible.
+## M9. Resultado del mes y reportes (existe base)
+**Existe:** sección mensual en Dashboard (filtro por mes, comparativa, tendencia 6 meses), CSV mensual y de rentabilidad, reporte imprimible del Resumen.
 **Falta:**
 - Reporte mensual completo de 14 puntos (resumen ejecutivo, comparativas, desviaciones, alertas) imprimible/PDF.
 - Exportación Excel vía CSV mejorado (mismo contenido del reporte).
-**Aceptación:** Caso I (cierre + corrección exige reapertura) y Caso K (respaldo) ya en suite; agregar totales CSV = pantalla.
+**Aceptación:** Caso K (respaldo) ya en suite; agregar totales CSV = pantalla.
 
 ## M10. Dashboard y reportes (existe base)
 **Existe:** 12 tarjetas, personal, quién debe, cronograma global, resultado empresa, mes con tendencia y CSV.
@@ -85,7 +85,7 @@ consolidado separados.
 
 ## Orden de ejecución sugerido
 
-M2 → M7 → M9 (rentabilidad y caja primero) → M5/M6 → M3/M4 → M1/M10.
+M2 → M7 → M9 (rentabilidad y reporte mensual primero) → M5/M6 → M3/M4 → M1/M10.
 
 ## Backlog (fuera de alcance inicial)
 

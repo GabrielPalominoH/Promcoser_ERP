@@ -24,9 +24,17 @@ Estado al: commit actual en `master` (ver `git log`).
 - **Estado:** ❌ ELIMINADAS por decisión (el presupuesto vive en `tareas.monto`). La migración `migrarPresupuestoATareas` sigue en el código para navegadores con datos antiguos: no quitarla.
 - **Reactivar:** no previsto; el tablero de Partidas lee el árbol de tareas.
 
-## 7. Registro diario de personal y tareo (hasta asignaciones)
-- **Estado:** ❌ ELIMINADO por decisión (un registro mensual por asignación + botón Asentar; sin asistencia ni cobertura). Helpers (`proyeccionLaboral`, `agruparPersonalPorMes`, `coberturaTareo`, generadores de fechas) eliminados de `calculadora.js` y de la suite.
-- **Reactivar:** ver historial git anterior a `c3f9c29`.
+## 7. Registro diario de personal, cobertura de tareo y helpers viejos
+- **Estado:** ❌ ELIMINADOS por decisión en la reestructura (cobertura, `proyeccionLaboral`, `agruparPersonalPorMes`, generadores de fechas). El **tareo diario con aprobación** sí existe de nuevo (Etapas 3–5) como detalle que alimenta el asentamiento.
+- **Reactivar cobertura:** ver historial git anterior a `5dd806a`.
 
-## 8. Servicios de prueba eliminados
+## 8. Módulo Contratos
+- **Estado:** ❌ ELIMINADO por decisión (el tipo se elige en cada servicio: Obra, Misceláneo, Contrato). Ver historial git anterior a `0806ee0` si se necesita.
+- **Reactivar:** reconstruir colección `contratos`, página y consolidado.
+
+## 9. Módulos Caja y Cierre mensual
+- **Estado:** ❌ ELIMINADOS por decisión. El resultado del mes vive en el Dashboard (filtro, comparativa, tendencia, CSV) y el reporte imprimible en el Resumen. Helpers `flujoMes` y `mesCerrado` eliminados; `generarCierre` se conserva para el reporte mensual.
+- **Reactivar:** ver historial git si se necesita.
+
+## 10. Servicios de prueba eliminados
 - Solo queda el servicio 6 en `src/data/mockData.js`. Los servicios 1–5 y sus registros/tareas se quitaron de las semillas (siguen en el historial git anterior si se necesitan como ejemplo).

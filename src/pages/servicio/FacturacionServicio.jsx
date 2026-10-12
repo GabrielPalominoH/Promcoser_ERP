@@ -17,7 +17,7 @@ import {
   Th,
 } from '../../components/ui/Table'
 import { formatearFecha, formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { cobrosDeFactura, estadoFactura, mesCerrado, saldoFactura } from '../../utils/finanzas'
+import { cobrosDeFactura, estadoFactura, saldoFactura } from '../../utils/finanzas'
 import { fechaHoyISO } from './compartido'
 
 // Facturación interna de control (no son comprobantes SUNAT oficiales).
@@ -64,10 +64,6 @@ export function FacturacionServicio() {
   const impVista = Number(watch('impuestos')) || 0
 
   const enviar = ({ numero, fecha_emision, fecha_vencimiento, base, impuestos, total, moneda }) => {
-    if (mesCerrado(fecha_emision.slice(0, 7), estado.cierres)) {
-      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
-      return
-    }
     const numeroLimpio = numero.trim()
     if (facturas.some((f) => f.numero?.trim().toLowerCase() === numeroLimpio.toLowerCase() && f.estado !== 'anulada')) {
       setAviso({ tipo: 'error', mensaje: `Ya existe la factura ${numeroLimpio} en este servicio.` })
@@ -89,12 +85,6 @@ export function FacturacionServicio() {
   }
 
   const confirmarAnular = () => {
-    const factura = (estado.facturas ?? []).find((f) => f.id === porAnular)
-    if (factura && mesCerrado(factura.fecha_emision.slice(0, 7), estado.cierres)) {
-      setPorAnular(null)
-      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
-      return
-    }
     actualizarItem('facturas', { id: porAnular, estado: 'anulada' })
     setPorAnular(null)
     setAviso({ tipo: 'info', mensaje: 'Factura anulada. Se conserva en el historial y deja de contar.' })

@@ -17,12 +17,10 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `cobros` | `id` | Ingresos: servicio, fecha, monto, concepto, documento? |
 | `facturas` | `id` | Facturación (Etapa 5): servicio, número, emisión, vencimiento, importes, estado, saldo (vacía) |
 | `pagos` | `id` | Pagos a obligaciones (Etapa 5): fecha, importe, origen, medio (vacía) |
-| `movimientos_caja` | `id` | Caja real: fecha, tipo entrada/salida, importe, concepto, referencia (vacía) |
 | `tareos` | `id` | Horas por día (Etapa 3): fecha, trabajador, servicio, tarea, horas normales/extras, tarifa, estado (vacía) |
 | `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN, regla de indirectos |
 | `presupuestos` | `id` | Presupuesto por categoría: servicio, categoría, monto, inicial/adicional, motivo, fecha |
 
-| `cierres` | `id` | Cierres mensuales: mes, estado, responsable, snapshot congelado |
 
 ## Relaciones
 

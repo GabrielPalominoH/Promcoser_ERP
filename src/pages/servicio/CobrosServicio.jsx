@@ -25,7 +25,7 @@ import {
   registrosDeServicio,
   utilidadReal,
 } from '../../utils/calculadora'
-import { mesCerrado, saldoFactura } from '../../utils/finanzas'
+import { saldoFactura } from '../../utils/finanzas'
 import { fechaHoyISO, reglasNumeroMayorACero } from './compartido'
 
 const CONCEPTOS = ['adelanto', 'valorización', 'pago anual', 'otro']
@@ -59,10 +59,6 @@ export function CobrosServicio() {
   })
 
   const enviar = ({ fecha, monto, concepto, documento, factura_id }) => {
-    if (mesCerrado(fecha.slice(0, 7), estado.cierres)) {
-      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
-      return
-    }
     const factura = factura_id ? facturasVigentes.find((f) => String(f.id) === String(factura_id)) : null
     // Regla 6: lo aplicado a una factura no excede su saldo (sin factura = adelanto).
     if (factura && Number(monto) - saldoFactura(factura, estado.cobros) > 0.005) {
@@ -85,12 +81,6 @@ export function CobrosServicio() {
   }
 
   const confirmarEliminar = () => {
-    const cobro = (estado.cobros ?? []).find((c) => c.id === porEliminar)
-    if (cobro && mesCerrado(cobro.fecha.slice(0, 7), estado.cierres)) {
-      setPorEliminar(null)
-      setAviso({ tipo: 'error', mensaje: 'Ese mes está cerrado. Reábrelo con motivo para corregirlo.' })
-      return
-    }
     eliminarItem('cobros', porEliminar)
     setPorEliminar(null)
     setAviso({ tipo: 'info', mensaje: 'Cobro eliminado. Los totales se actualizan.' })

@@ -30,7 +30,7 @@ import {
   proyeccionAsignaciones,
   ultimoDiaMes,
 } from '../../utils/calculadora'
-import { mesCerrado, redondear2 } from '../../utils/finanzas'
+import { redondear2 } from '../../utils/finanzas'
 
 function nombreCompleto(item) {
   return `${item.nombre} ${item.apellido ?? ''}`.trim()
@@ -426,10 +426,6 @@ export function PersonalServicio() {
   // (prorrateado). Tareo pendiente bloquea a esa persona hasta aprobarlo.
   // No se puede asentar dos veces.
   const asentarMes = (mes) => {
-    if (mesCerrado(mes, estado.cierres)) {
-      notificar('error', `El mes ${formatearMes(mes)} está cerrado. Reábrelo con motivo para corregirlo.`)
-      return
-    }
     let creados = 0
     const bloqueados = []
     for (const a of asignaciones) {
@@ -498,10 +494,6 @@ export function PersonalServicio() {
   }
 
   const desasentarMes = (mes) => {
-    if (mesCerrado(mes, estado.cierres)) {
-      notificar('error', `El mes ${formatearMes(mes)} está cerrado. Reábrelo con motivo para corregirlo.`)
-      return
-    }
     const ids = registros
       .filter((r) => r.asignacion_id != null && r.fecha?.slice(0, 7) === mes)
       .map((r) => r.id)
