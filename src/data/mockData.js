@@ -11,7 +11,7 @@ export const ESTATUS_SERVICIO = [
   'Cancelado',
 ]
 
-export const TIPOS_SERVICIO = ['Obra', 'Misceláneo', 'Anual', 'Adicional', 'Contrato']
+export const TIPOS_SERVICIO = ['Obra', 'Misceláneo', 'Contrato']
 
 // Categorías de gasto (clasificación del egreso reconocido).
 export const CATEGORIAS_GASTO = [

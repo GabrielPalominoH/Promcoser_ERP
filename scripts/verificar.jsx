@@ -480,7 +480,7 @@ comprobar(
 )
 comprobar('mes cerrado detectado', mesCerrado('2026-10', [{ mes: '2026-10', estado: 'cerrado' }]) && !mesCerrado('2026-10', [{ mes: '2026-10', estado: 'reabierto' }]))
 // Tipos de servicio y colecciones nuevas vacías.
-comprobar('tipos incluyen Obra/Misceláneo/Anual/Contrato', ['Obra', 'Misceláneo', 'Anual', 'Contrato'].every((t) => TIPOS_SERVICIO.includes(t)))
+comprobar('tipos son Obra/Misceláneo/Contrato', JSON.stringify(TIPOS_SERVICIO) === JSON.stringify(['Obra', 'Misceláneo', 'Contrato']))
 comprobar('tipo por defecto Obra', tipoServicio({}) === 'Obra' && tipoServicio({ tipo: 'Anual' }) === 'Anual')
 comprobar(
   'colecciones nuevas existen y vacías',

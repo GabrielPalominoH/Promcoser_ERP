@@ -6,7 +6,7 @@ se cierra con suite verde (`npm run verificar`), build OK, push a `master` y
 manual actualizado.
 
 ## M1. Servicios (base — completar)
-**Existe:** CRUD, tipos (Obra/Misceláneo/Anual/Adicional/Contrato), panel de
+**Existe:** CRUD, tipos (Obra/Misceláneo/Contrato), panel de
 11 pestañas, búsqueda, columna tipo.
 **Falta:**
 - Fecha fin real, responsable descriptivo (texto, sin usuarios), ubicación.
@@ -66,7 +66,7 @@ manual actualizado.
 
 ## M8. Contratos (eliminado por decisión)
 El módulo Contratos se retiró: el tipo se elige al crear/editar cada servicio
-(Obra, Misceláneo, Anual, Adicional, Contrato). Sin módulo, colección ni
+(Obra, Misceláneo, Contrato). Sin módulo, colección ni
 consolidado separados.
 
 ## M9. Caja y cierre (existe base)
