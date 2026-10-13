@@ -134,7 +134,7 @@ function CurvaGasto({ porMes, presupuesto }) {
       <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
         Curva de gasto acumulado
       </p>
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-3">
+      <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white p-3">
         <svg
           width={anchoTotal}
           height={ALTO}
@@ -319,7 +319,7 @@ export function ResumenServicio() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 text-center sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-300 p-4 text-center sm:grid-cols-3">
           <div>
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Presupuesto
@@ -365,7 +365,7 @@ export function ResumenServicio() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-200 p-4 text-center sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-slate-300 p-4 text-center sm:grid-cols-2">
           <div>
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Cobrado
@@ -500,7 +500,7 @@ export function ResumenServicio() {
           presupuesto={consumo.presupuesto}
         />
         <div className="mt-4 grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 p-4">
+          <div className="rounded-xl border border-slate-300 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Margen proyectado
             </p>
@@ -527,7 +527,7 @@ export function ResumenServicio() {
               </>
             )}
           </div>
-          <div className="rounded-xl border border-slate-200 p-4">
+          <div className="rounded-xl border border-slate-300 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Ritmo de gasto
             </p>
@@ -549,7 +549,7 @@ export function ResumenServicio() {
               </>
             )}
           </div>
-          <div className="rounded-xl border border-slate-200 p-4">
+          <div className="rounded-xl border border-slate-300 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Ritmo de avance
             </p>
@@ -571,7 +571,7 @@ export function ResumenServicio() {
               </>
             )}
           </div>
-          <div className="rounded-xl border border-slate-200 p-4">
+          <div className="rounded-xl border border-slate-300 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
               Costo final estimado
             </p>

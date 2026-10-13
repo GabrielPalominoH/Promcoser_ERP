@@ -145,7 +145,7 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
               autoComplete="off"
             />
             {abierto && (
-              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg">
                 {filtrados.length === 0 ? (
                   <li className="px-3 py-2 text-sm text-slate-400">
                     Sin coincidencias.

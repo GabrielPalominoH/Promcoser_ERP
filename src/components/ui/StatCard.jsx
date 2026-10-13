@@ -16,7 +16,7 @@ export function StatCard({
 }) {
   return (
     <div
-      className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+      className={`rounded-xl border border-slate-300 bg-white p-5 shadow-sm ${className}`}
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-slate-500">{titulo}</p>

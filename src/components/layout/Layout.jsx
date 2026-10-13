@@ -69,7 +69,7 @@ export function Layout() {
   const desplazamiento = colapsado ? 'md:pl-20' : 'md:pl-64'
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-slate-200">
       {falloGuardado && (
         <p role="alert" className="bg-red-600 px-4 py-2 text-center text-sm font-medium text-white">
           No se pudo guardar en este navegador (almacenamiento lleno o bloqueado). Exporta un
@@ -81,7 +81,7 @@ export function Layout() {
           <SidebarServicio abierto={menuAbierto} onCerrar={cerrarMenu} colapsado={colapsado} />
 
           <div className={desplazamiento}>
-            <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6">
+            <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-300 bg-white/95 px-4 backdrop-blur sm:px-6">
               <button
                 type="button"
                 onClick={() => setMenuAbierto((valor) => !valor)}
@@ -124,7 +124,7 @@ export function Layout() {
           <Sidebar abierto={menuAbierto} onCerrar={cerrarMenu} colapsado={colapsado} />
 
           <div className={desplazamiento}>
-            <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6">
+            <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-300 bg-white/95 px-4 backdrop-blur sm:px-6">
               <button
                 type="button"
                 onClick={() => setMenuAbierto((valor) => !valor)}

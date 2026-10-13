@@ -83,7 +83,7 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white transition-all duration-200 md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-300 bg-white transition-all duration-200 md:translate-x-0 ${
           abierto ? 'translate-x-0' : '-translate-x-full'
         } ${colapsado ? 'md:w-20' : 'md:w-64'}`}
       >

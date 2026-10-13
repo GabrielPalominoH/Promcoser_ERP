@@ -558,7 +558,7 @@ export function CronogramaServicio() {
 
       {tareas.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => {
@@ -599,7 +599,7 @@ export function CronogramaServicio() {
               ↪
             </button>
           </div>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => setZoomManual((previo) => indicePaso(previo ?? diaPx, -1))}
@@ -649,7 +649,7 @@ export function CronogramaServicio() {
               </svg>
             </button>
           </div>
-          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
             <button
               type="button"
               onClick={() => desplazar(-1)}
@@ -694,7 +694,7 @@ export function CronogramaServicio() {
         </Card>
       ) : (
         <div>
-          <section ref={envolturaRef} className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-4 shadow-sm">
+          <section ref={envolturaRef} className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-4 shadow-sm">
           <div ref={scrollRef} className="overflow-x-auto">
             <div className="transition-[width] duration-300 ease-out" style={{ width: ANCHO_ETIQUETA + rango.totalDias * diaPx }}>
               {/* Encabezado de altura fija: no se mueve al cambiar de vista */}

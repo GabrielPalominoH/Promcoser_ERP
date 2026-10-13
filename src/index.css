@@ -34,7 +34,7 @@
   }
 
   body {
-    @apply bg-slate-100 text-slate-800 font-sans antialiased;
+    @apply bg-slate-200 text-slate-800 font-sans antialiased;
   }
 
   :focus-visible {

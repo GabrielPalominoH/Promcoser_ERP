@@ -138,7 +138,7 @@ export function ComboBox({
         <ul
           id={listaId}
           role="listbox"
-          className="absolute right-0 left-0 z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className="absolute right-0 left-0 z-30 mt-1 max-h-56 overflow-y-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg"
         >
           {filtradas.length === 0 ? (
             <li className="px-3 py-2 text-sm text-slate-500">Sin resultados</li>

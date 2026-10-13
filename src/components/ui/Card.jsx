@@ -1,7 +1,7 @@
 export function Card({ titulo, descripcion, acciones, children, className = '' }) {
   return (
     <section
-      className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
+      className={`rounded-xl border border-slate-300 bg-white shadow-sm ${className}`}
     >
       {(titulo || acciones) && (
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
