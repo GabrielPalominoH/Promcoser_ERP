@@ -32,6 +32,14 @@ import {
   soloVigentes,
 } from '../src/utils/finanzas'
 import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diferenciaPersonalAuto, esDomingo, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
+import {
+  analizarServicios,
+  flujoCajaMensualReal,
+  kpisEmpresa,
+  proyeccionCierre,
+  proyeccionMensualPersonal,
+  rentabilidadPorCliente,
+} from '../src/utils/gerencial'
 import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
@@ -292,6 +300,67 @@ comprobar('empresa oct = 53634', consumo6.disponible - oficinaOct === 53634)
 const soloObra = ESTADO_INICIAL.personal.filter((p) => (p.ambito ?? 'Obra') !== 'Oficina')
 comprobar('personal de obra > 0 y < total', soloObra.length > 0 && soloObra.length < ESTADO_INICIAL.personal.length, String(soloObra.length))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
+
+console.log('\n[ gerencial ]')
+
+const analisis6 = analizarServicios({ servicios: [servicio6], registros, tareas, hoy: '2026-10-12' })
+comprobar('análisis serv. 6 = 1 servicio', analisis6.length === 1, String(analisis6.length))
+comprobar('análisis serv. 6 gastado = 48866', analisis6[0].consumo.gastado === 48866, String(analisis6[0].consumo.gastado))
+
+const kpis6 = kpisEmpresa({
+  servicios: [servicio6],
+  registros,
+  cobros: ESTADO_INICIAL.cobros,
+  costosOficina: ESTADO_INICIAL.costos_oficina,
+  analisis: analisis6,
+})
+comprobar('kpi presupuesto = 120000', kpis6.presupuesto === 120000, String(kpis6.presupuesto))
+comprobar('kpi margen = 71134', kpis6.margenTotal === 71134, String(kpis6.margenTotal))
+comprobar('kpi margen % = 59.28', kpis6.margenPct === 59.28, String(kpis6.margenPct))
+comprobar('kpi ejecución = 40.72', kpis6.ejecucion === 40.72, String(kpis6.ejecucion))
+comprobar('kpi cobrado/por cobrar = 54000/66000', kpis6.cobrado === 54000 && kpis6.porCobrar === 66000, `${kpis6.cobrado}/${kpis6.porCobrar}`)
+comprobar('kpi resultado empresa = 47334', kpis6.resultadoEmpresa === 47334, String(kpis6.resultadoEmpresa))
+comprobar('kpi servicios en curso = 1', kpis6.enCurso === 1 && kpis6.total === 1, `${kpis6.enCurso}/${kpis6.total}`)
+
+const clientes6 = rentabilidadPorCliente({
+  servicios: [servicio6],
+  registros,
+  cobros: ESTADO_INICIAL.cobros,
+  tareas,
+  hoy: '2026-10-12',
+})
+const filaCliente = clientes6[0] ?? {}
+comprobar('rentabilidad cliente: presupuesto/gastado', filaCliente.presupuesto === 120000 && filaCliente.gastado === 48866)
+comprobar('rentabilidad cliente: por cobrar = 66000', filaCliente.porCobrar === 66000, String(filaCliente.porCobrar))
+comprobar('rentabilidad cliente: margen proy ≈ 29507.41', filaCliente.tieneProyeccion && Math.abs(filaCliente.margenProyectado - 29507.41) < 0.01, String(filaCliente.margenProyectado))
+comprobar('rentabilidad cliente: margen % = 24.59', filaCliente.margenPct === 24.59, String(filaCliente.margenPct))
+
+const caja = flujoCajaMensualReal({
+  registros,
+  cobros: ESTADO_INICIAL.cobros,
+  costosOficina: ESTADO_INICIAL.costos_oficina,
+})
+const mesCaja = (m) => caja.find((f) => f.mes === m) ?? {}
+comprobar('caja julio = 3502', mesCaja('2026-07').margenReal === 3502, String(mesCaja('2026-07').margenReal))
+comprobar('caja agosto = -23840', mesCaja('2026-08').margenReal === -23840, String(mesCaja('2026-08').margenReal))
+comprobar('caja septiembre = 19172', mesCaja('2026-09').margenReal === 19172, String(mesCaja('2026-09').margenReal))
+comprobar('caja octubre = -17500', mesCaja('2026-10').margenReal === -17500, String(mesCaja('2026-10').margenReal))
+comprobar('caja cubre julio a octubre (4 meses)', caja.length === 4 && caja[0].mes === '2026-07' && caja[3].mes === '2026-10', caja.map((f) => f.mes).join(','))
+
+const proyectado6 = proyeccionMensualPersonal({
+  asignaciones: ESTADO_INICIAL.asignaciones,
+  servicios: [servicio6],
+  registros,
+})
+const mesProy = (m) => (proyectado6.find((f) => f.mes === m) ?? {}).monto
+comprobar('proyección personal ago = 6736', mesProy('2026-08') === 6736, String(mesProy('2026-08')))
+comprobar('proyección personal sep = 8160', mesProy('2026-09') === 8160, String(mesProy('2026-09')))
+comprobar('proyección personal oct = 6000', mesProy('2026-10') === 6000, String(mesProy('2026-10')))
+
+const proyCierre = proyeccionCierre({ analisis: analisis6 })
+comprobar('cierre: costo final ≈ 90492.59', proyCierre.costoFinal != null && Math.abs(proyCierre.costoFinal - 90492.59) < 0.01, String(proyCierre.costoFinal))
+comprobar('cierre: margen proy ≈ 29507.41', Math.abs(proyCierre.margenProyectado - 29507.41) < 0.01, String(proyCierre.margenProyectado))
+comprobar('cierre sin avance no proyecta', proyeccionCierre({ analisis: [] }).costoFinal === null)
 
 console.log('\n[ presupuesto por tareas ]')
 

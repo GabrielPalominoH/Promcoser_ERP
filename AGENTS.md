@@ -8,8 +8,8 @@
 
 ## Entradas y estructura
 - `src/main.jsx` → `BrowserRouter` + `DataProvider` → `src/App.jsx`.
-- Rutas en `App.jsx`: `/` Dashboard, `/servicios`, `/servicios/:servicioId` con 9 subrutas en `src/pages/servicio/` (Resumen, Materiales, Personal, Equipos, Gastos, Ingresos, Presupuesto, Cronograma, Partidas, Opciones; `/cobros` y `/facturacion` redirigen a `/ingresos`), más `/personal`, `/equipos`, `/oficina` globales. Sin Pagos ni cierre mensual.
-- Lógica pura: `src/utils/calculadora.js` (árbol tareas, costos, `proyeccionAsignaciones`/`diferenciaPersonalAuto`/`mesesDevengadosAsignacion`), `src/utils/finanzas.js` (resultado/margen, saldos, flujo, desviación), `src/utils/formatters.js` (PEN `S/`, céntimos).
+- Rutas en `App.jsx`: `/` Dashboard gerencial (KPIs de empresa, obras en riesgo, evolución de caja real vs proyectada, rentabilidad por cliente y por servicio, cobranza, cronograma; el respaldo vive en el botón "Datos y respaldo" y los movimientos recientes quedan colapsados), `/servicios`, `/servicios/:servicioId` con 9 subrutas en `src/pages/servicio/` (Resumen, Materiales, Personal, Equipos, Gastos, Ingresos, Presupuesto, Cronograma, Partidas, Opciones; `/cobros` y `/facturacion` redirigen a `/ingresos`), más `/personal`, `/equipos`, `/oficina` globales. Sin Pagos ni cierre mensual.
+- Lógica pura: `src/utils/calculadora.js` (árbol tareas, costos, `proyeccionAsignaciones`/`diferenciaPersonalAuto`/`mesesDevengadosAsignacion`), `src/utils/finanzas.js` (resultado/margen, saldos, flujo, desviación), `src/utils/gerencial.js` (compone calculadora+finanzas para el panel: `analizarServicios`, `kpisEmpresa`, `rentabilidadPorCliente`, `flujoCajaMensualReal`, `proyeccionMensualPersonal`, `proyeccionCierre`; no reimplementa fórmulas), `src/utils/formatters.js` (PEN `S/`, céntimos).
 - UI: `src/components/layout/` + `src/components/ui/` (`Card`, `Button`, `Field`, `ComboBox`, `Table`, `Modal`, `Aviso`).
 
 ## Estado y persistencia
@@ -20,7 +20,7 @@
 - Migraciones `migrarEstadoV1` y `migrarPresupuestoATareas` deben conservarse aunque el código ya no use `partidas/valorizaciones`.
 
 ## Reglas que rompen la suite si se ignoran
-- `scripts/verificar.jsx` aserta números exactos (ej. servicio 6: gastado `48866`, desglose material `30276`/personal `1540`/gasto `3500`/equipo `13550`, mensual `20498/23840/4528`, proyección asignaciones `30896` en régimen 30 días). Si cambias seeds o fórmulas, actualiza la suite.
+- `scripts/verificar.jsx` aserta números exactos (ej. servicio 6: gastado `48866`, desglose material `30276`/personal `1540`/gasto `3500`/equipo `13550`, mensual `20498/23840/4528`, proyección asignaciones `30896` en régimen 30 días; sección `[ gerencial ]`: KPI margen `71134`, resultado empresa `47334`, caja jul–oct `3502/-23840/19172/-17500`). Si cambias seeds o fórmulas, actualiza la suite.
 - Chequeo SSR de rutas: HTML sin `undefined`/`NaN`, `>1500b`, con `PROMCOSER` y `S/` donde aplique.
 - Negocio: monto padre = suma hijas (`montoTarea`); valorizado = monto × avance efectivo; registros `personal` diarios en domingo no cuentan salvo `modalidad: 'mensual'` (`cuentaComoManoDeObra`); costo personal directo automático desde asignaciones (`diferenciaPersonalAuto` sincroniza devengado hasta hoy en `PersonalServicio.jsx`); baja = `fecha_fin`.
 - Finanzas en `finanzas.js`: ingresos = valorizado, PEN, redondeo a céntimos. `margenBruto`/`porcentajeEjecucion` retornan `null` sin base (no `NaN`/`0` ficticio).

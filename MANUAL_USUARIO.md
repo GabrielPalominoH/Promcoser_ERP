@@ -30,9 +30,10 @@ en una sola computadora.
 - **Sus datos se guardan en el navegador de la computadora** (Chrome, Edge,
   etc.), no en internet. Si usa otra computadora, no verá sus datos.
 - **Haga un respaldo cada semana.** En el panel principal (Dashboard) hay un
-  botón **"Exportar respaldo"** que descarga un archivo con toda la
-  información. Guárdelo en un USB o en su correo. Si algo le pasa a la
-  computadora, con el botón **"Importar respaldo"** se recupera todo.
+  botón **"Datos y respaldo"** con la opción **"Exportar respaldo"**, que
+  descarga un archivo con toda la información. Guárdelo en un USB o en su
+  correo. Si algo le pasa a la computadora, con la opción **"Importar
+  respaldo"** se recupera todo.
 - Si limpia los datos del navegador sin haber exportado el respaldo, **la
   información se pierde**. El respaldo es su seguro.
 
@@ -44,7 +45,7 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | La vista de toda la empresa: montos (contratado, gastado, cobrado, por cobrar, utilidad), personal (pagado, proyectado), quién debe por servicio, avance global del cronograma, resultado empresa y obras en riesgo. Con filtros por cliente y tipo y botones de respaldo. |
+| **Dashboard** | El panel gerencial de la empresa: resultado, presupuesto y su ejecución, cobrado y por cobrar, servicios en curso y en riesgo. Luego, en orden: obras en riesgo, evolución de la caja real por mes, proyección (personal por mes y cierre estimado), rentabilidad por cliente, consumo y ranking por servicio, cobranza y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo o restablece los datos de ejemplo. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
@@ -266,12 +267,12 @@ Asentar), registre facturas e ingresos, actualice los % de avance en el
 Cronograma, revise los montos en Partidas y mire el margen por tarea. Lo que
 esté en rojo necesita atención.
 
-**Filtros del Dashboard:** cliente y tipo alcanzan a todo lo que es por
+**Filtros del Dashboard:** cliente, tipo y estado alcanzan a todo lo que es por
 servicio (Oficina y resultado empresa son de la empresa y no se filtran). El
 CSV de rentabilidad por servicio descarga lo que se ve.
 
-**Cada semana:** pulse **"Exportar respaldo"** en el Dashboard y guarde el
-archivo fuera de la computadora.
+**Cada semana:** pulse **"Datos y respaldo" → "Exportar respaldo"** en el
+Dashboard y guarde el archivo fuera de la computadora.
 
 ---
 

@@ -70,18 +70,18 @@ El módulo Contratos se retiró: el tipo se elige al crear/editar cada servicio
 consolidado separados.
 
 ## M9. Reportes (existe parcial)
-**Existe:** CSV de rentabilidad por servicio, reporte imprimible del Resumen.
-**Sin resultado del mes ni cierre mensual** (eliminados por decisión: sin `generarCierre`, CSV mensual ni tendencia).
+**Existe:** CSV de rentabilidad por servicio, reporte imprimible del Resumen y, en el panel gerencial, la evolución mensual real vs proyectada (caja real por mes + personal proyectado).
+**Sin cierre mensual** (eliminado por decisión: sin `generarCierre` ni CSV mensual). La tendencia mensual se reactivó como sección del panel gerencial (ver M10); sigue sin existir un cierre contable por mes.
 **Falta:**
 - Exportación Excel vía CSV mejorado.
 **Aceptación:** Caso K (respaldo) ya en suite.
 
-## M10. Dashboard y reportes (existe base)
-**Existe:** 12 tarjetas, personal, quién debe, cronograma global, resultado empresa.
+## M10. Dashboard gerencial (hecho)
+**Existe:** panel gerencial en `/` con KPIs de empresa (resultado, presupuesto/ejecución, cobrado/por cobrar, servicios en curso/en riesgo), atención inmediata (obras en riesgo), evolución real (caja por mes) vs proyectada (personal por mes + cierre estimado), rentabilidad por cliente, consumo y ranking por servicio, cobranza, resultado empresa y cronograma global. El detalle operativo (movimientos recientes) queda colapsado en segundo plano y el respaldo/importación/restablecer vive en el botón **"Datos y respaldo"**.
+**Filtros:** cliente, tipo y estado alcanzan a todo lo por servicio; Oficina y resultado empresa son de la empresa y no se filtran.
 **Falta:**
-- Rentabilidad por cliente y producción (depende de M3/M7).
-- Filtros por responsable/estado (requiere esos datos en M1).
-**Aceptación:** Caso J (sin datos: ceros y N/D, sin NaN) ya en suite; filtros recalculan todo lo por servicio.
+- Filtro por responsable (requiere ese dato en M1).
+**Aceptación:** Caso J (sin datos: ceros y N/D, sin NaN) ya en suite; filtros recalculan todo lo por servicio; números exactos del servicio 6 verificados en la sección `[ gerencial ]`.
 
 ## Orden de ejecución sugerido
 

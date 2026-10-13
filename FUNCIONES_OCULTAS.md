@@ -33,7 +33,7 @@ Estado al: commit actual en `master` (ver `git log`).
 - **Reactivar:** reconstruir colección `contratos`, página y consolidado.
 
 ## 9. Módulos Caja y Cierre mensual
-- **Estado:** ❌ ELIMINADOS por decisión. El resultado del mes vive en el Dashboard (filtro, comparativa, tendencia, CSV) y el reporte imprimible en el Resumen. Helpers `flujoMes` y `mesCerrado` eliminados; `generarCierre` se conserva para el reporte mensual.
+- **Estado:** ❌ ELIMINADOS por decisión (no hay `generarCierre` ni cierre contable por mes; el reporte imprimible vive en el Resumen). La **tendencia mensual** sí se reactivó, pero solo como lectura gerencial dentro del panel: caja real por mes (`flujoCajaMensualReal`) y personal proyectado por mes (`proyeccionMensualPersonal`), sin cierre ni CSV mensual. Helpers `flujoMes` y `mesCerrado` siguen eliminados.
 - **Reactivar:** ver historial git si se necesita.
 
 ## 10. Servicios de prueba eliminados

@@ -5,7 +5,8 @@ orden. Sigue los pasos con los valores exactos y verifica al final que ves
 los números esperados.
 
 > Datos 100% ficticios para aprender. Antes de empezar, exporta tu respaldo
-> (Dashboard → **Exportar respaldo**): así no arriesgas tu información real.
+> (Dashboard → **Datos y respaldo** → **Exportar respaldo**): así no arriesgas
+> tu información real.
 
 ## El caso
 
@@ -102,14 +103,17 @@ contratado **S/ 8,500**.
    Oficina (ej. S/ 1,500). **Verás** el total del mes y el resultado empresa
    actualizado; cambia la **regla de distribución** a *Por costos* y verás el
    prorrateo por servicio con su criterio.
-2. Menú → **Dashboard**: **verás** el servicio en Consumo (20.2%),
-   Quién debe en S/ 0, Cronograma global al 100%, Personal global (pagado
-   800). Descarga el **CSV de rentabilidad**.
-3. Filtra por cliente *Almacenes del Sur* y por tipo *Misceláneo*: todo lo
-   por servicio se recalcula (Oficina y resultado empresa no se filtran).
+2. Menú → **Dashboard**: **verás** el panel gerencial con los KPIs de la
+   empresa (resultado, presupuesto/ejecución, cobrado/por cobrar, servicios),
+   el servicio en **Consumo por servicio** (20.2%), **Quién debe** en S/ 0,
+   **Cronograma global** al 100% y la **Proyección** con el personal por mes.
+   Descarga el **CSV de rentabilidad** con el botón Exportar CSV.
+3. Filtra por cliente *Almacenes del Sur*, por tipo *Misceláneo* y por estado:
+   todo lo por servicio se recalcula (Oficina y resultado empresa no se
+   filtran).
 
 ## Paso 13. Respaldo y limpieza
-1. Dashboard → **Exportar respaldo** y guárdalo.
+1. Dashboard → **Datos y respaldo** → **Exportar respaldo** y guárdalo.
 2. Para borrar el ejemplo: Servicios → entra a la obra → **Opciones** →
    escribe *Eliminar servicio*. **Verás** que arrastra registros, tareas,
    asignaciones, facturas, ingresos y presupuestos.

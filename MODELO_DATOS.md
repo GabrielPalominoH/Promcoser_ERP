@@ -47,7 +47,7 @@ servicios 1──N presupuestos (servicio_id)
 - **Personal**: costo directo automático desde asignaciones (`diferenciaPersonalAuto` + `proyeccionAsignaciones`); el devengado hasta hoy vive en registros mensuales (`modalidad: 'mensual'` para que siempre cuente). Baja = `fecha_fin`; lo devengado se conserva.
 - **Equipos**: el costo es el uso registrado por servicio; sin proyección.
 - **Cobros (= Ingresos en UI)**: cobrado, por cobrar (contratado − cobrado) y utilidad real (cobrado − gastado). Margen teórico (valorizado − costo) se conserva como medida de eficiencia.
-- **Sin módulo de pagos ni de cierre mensual**: no hay `pagos` ni `generarCierre`; el Dashboard no tiene Resultado del mes.
+- **Sin módulo de pagos ni de cierre mensual**: no hay `pagos` ni `generarCierre`; el panel gerencial no tiene un Resultado del mes contable, solo una evolución de caja real vs proyectada (ver `src/utils/gerencial.js`).
 - **Resultado empresa** = margen de servicios − gasto de oficina.
 - **Registros diarios viejos en domingo no cuentan** (`cuentaComoManoDeObra`); mensuales siempre.
 
