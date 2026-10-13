@@ -47,7 +47,7 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | El panel gerencial de la empresa: 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado), meta de ingreso, obras en riesgo justo después, y luego el detalle: evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo, restablece los datos de ejemplo o vacía todo para empezar de cero. |
+| **Dashboard** | El panel gerencial de la empresa. Arriba el **semáforo ejecutivo** (🟢 en orden / 🟡 atención / 🔴 en rojo) con su motivo, la meta de ingreso y los 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado). Luego el detalle: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo, restablece los datos de ejemplo o vacía todo para empezar de cero. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
@@ -229,6 +229,9 @@ tal como figura en la factura, para poder ubicarla después.
 - **Utilidad real:** cobrado menos gastado; el resultado económico efectivo.
 - **Variación mensual:** mes actual contra el anterior (▲ sube, ▼ baja); sin
   2 meses no hay variación.
+- **Semáforo ejecutivo:** verde (resultado positivo y sin riesgo), amarillo
+  (hay obras en riesgo o la caja del mes fue negativa), rojo (resultado
+  negativo).
 - **Cascada de utilidad:** diagrama que parte de lo cobrado y resta cada
   tipo de costo hasta la utilidad.
 - **Días estimados:** duración planificada por tarea (fin − inicio + 1 día;

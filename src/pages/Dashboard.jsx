@@ -35,6 +35,7 @@ import {
 import {
   analizarServicios,
   avanceMetaIngreso,
+  estadoEmpresa,
   flujoCajaMensualReal,
   kpisEmpresa,
   proyeccionMensualPersonal,
@@ -295,6 +296,11 @@ export function Dashboard() {
     if (v.porcentaje === 0) return '→ 0% vs mes anterior'
     return `${v.porcentaje > 0 ? '▲' : '▼'} ${Math.abs(v.porcentaje)}% vs mes anterior`
   }
+  const semaforoEmpresa = estadoEmpresa({
+    resultadoEmpresa: kpis.resultadoEmpresa,
+    enRiesgo: kpis.enRiesgo,
+    ultimoMargenCaja: cajaReal.length > 0 ? cajaReal[cajaReal.length - 1].margenReal : null,
+  })
 
   const exportarCSVServicios = () => {
     const paraCSV = (texto) => `"${String(texto ?? '').replace(/"/g, '""')}"`
@@ -487,6 +493,40 @@ export function Dashboard() {
           icono={<Icono nombre="clipboard" className="size-5" />}
           destino="/servicios"
         />
+      </div>
+
+      <div
+        className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+          semaforoEmpresa.nivel === 'verde'
+            ? 'border-emerald-200 bg-emerald-50'
+            : semaforoEmpresa.nivel === 'amarillo'
+              ? 'border-amber-200 bg-amber-50'
+              : 'border-red-200 bg-red-50'
+        }`}
+      >
+        <Badge
+          variante={
+            semaforoEmpresa.nivel === 'verde'
+              ? 'success'
+              : semaforoEmpresa.nivel === 'amarillo'
+                ? 'warning'
+                : 'danger'
+          }
+        >
+          {semaforoEmpresa.nivel === 'verde' ? '🟢' : semaforoEmpresa.nivel === 'amarillo' ? '🟡' : '🔴'}{' '}
+          {semaforoEmpresa.titulo}
+        </Badge>
+        <p
+          className={`text-sm font-medium ${
+            semaforoEmpresa.nivel === 'verde'
+              ? 'text-emerald-800'
+              : semaforoEmpresa.nivel === 'amarillo'
+                ? 'text-amber-800'
+                : 'text-red-700'
+          }`}
+        >
+          {semaforoEmpresa.mensaje}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">

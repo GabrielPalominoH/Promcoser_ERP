@@ -30,6 +30,7 @@ import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, costo
 import {
   analizarServicios,
   avanceMetaIngreso,
+  estadoEmpresa,
   flujoCajaMensualReal,
   kpisEmpresa,
   proyeccionMensualPersonal,
@@ -333,6 +334,12 @@ comprobar('variación sube en positivo', variacionMensual([{ mes: 'a', x: 100 },
 comprobar('variación sin base es null', variacionMensual([{ mes: 'a', x: 0 }, { mes: 'b', x: 50 }], 'x').porcentaje === null)
 comprobar('variación con 1 punto es null', variacionMensual([{ mes: 'a', x: 50 }], 'x') === null)
 comprobar('variación vacía es null', variacionMensual([], 'x') === null)
+const semVerde = estadoEmpresa({ resultadoEmpresa: 1000, enRiesgo: 0, ultimoMargenCaja: 500 })
+comprobar('semáforo verde sin alertas', semVerde.nivel === 'verde', semVerde.nivel)
+comprobar('semáforo rojo con resultado negativo', estadoEmpresa({ resultadoEmpresa: -1, enRiesgo: 0, ultimoMargenCaja: 500 }).nivel === 'rojo')
+const semAmarillo = estadoEmpresa({ resultadoEmpresa: 1000, enRiesgo: 2, ultimoMargenCaja: -100 })
+comprobar('semáforo amarillo con riesgo y caja', semAmarillo.nivel === 'amarillo' && semAmarillo.mensaje.includes('2 obra(s)'), semAmarillo.mensaje)
+comprobar('semáforo amarillo solo por caja', estadoEmpresa({ resultadoEmpresa: 1000, enRiesgo: 0, ultimoMargenCaja: -100 }).nivel === 'amarillo')
 
 const proyectado6 = proyeccionMensualPersonal({
   asignaciones: ESTADO_INICIAL.asignaciones,

@@ -180,6 +180,36 @@ export function variacionMensual(serie, campo) {
   }
 }
 
+// Semáforo ejecutivo de la empresa: lectura de un vistazo.
+// rojo = resultado negativo; amarillo = hay obras en riesgo o la caja del
+// último mes fue negativa; verde = sin señales de alerta.
+export function estadoEmpresa({ resultadoEmpresa = 0, enRiesgo = 0, ultimoMargenCaja = null } = {}) {
+  if (resultadoEmpresa < 0) {
+    return {
+      nivel: 'rojo',
+      titulo: 'Empresa en rojo',
+      mensaje: 'El resultado es negativo: entre obras y oficina sale más de lo que entra.',
+    }
+  }
+  const motivos = []
+  if (enRiesgo > 0) motivos.push(`${enRiesgo} obra(s) en riesgo`)
+  if (ultimoMargenCaja != null && ultimoMargenCaja < 0) {
+    motivos.push('la caja del último mes fue negativa')
+  }
+  if (motivos.length > 0) {
+    return {
+      nivel: 'amarillo',
+      titulo: 'Atención requerida',
+      mensaje: `Hay señales para mirar: ${motivos.join(' · ')}.`,
+    }
+  }
+  return {
+    nivel: 'verde',
+    titulo: 'Empresa en orden',
+    mensaje: 'Resultado positivo y sin obras en riesgo.',
+  }
+}
+
 // Avance de la meta de ingreso (cobrado real de la empresa). Sin meta (> 0)
 // no hay porcentaje ni faltante: se devuelve `definida: false` en vez de 0/NaN.
 export function avanceMetaIngreso({ cobrado = 0, meta = 0 } = {}) {
