@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearCantidad, formatearMoneda, redondearMonto } from '../../utils/formatters'
@@ -191,12 +192,12 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
           htmlFor="eq-costo"
           hint="Se sugiere el de su ficha; puedes ajustarlo"
         >
-          <Input
+          <CampoMonto
             id="eq-costo"
-            type="number"
-            step="0.01"
+            control={control}
+            name="costo"
             placeholder="0.00"
-            {...register('costo', reglasNumeroMayorACero('Ingresa el costo'))}
+            rules={reglasMontoMayorACero('Ingresa el costo')}
           />
         </Campo>
         <Campo label="Fecha" error={errors.fecha?.message} htmlFor="eq-fecha">

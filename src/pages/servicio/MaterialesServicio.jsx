@@ -2,6 +2,7 @@ import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
@@ -69,12 +70,12 @@ function FormularioMaterial({ servicio, registrar }) {
           />
         </Campo>
         <Campo label="Costo (S/)" error={errors.costo?.message} htmlFor="mat-costo" hint="Monto total">
-          <Input
+          <CampoMonto
             id="mat-costo"
-            type="number"
-            step="0.01"
+            control={control}
+            name="costo"
             placeholder="0.00"
-            {...register('costo', reglasNumeroMayorACero('Ingresa el costo'))}
+            rules={reglasMontoMayorACero('Ingresa el costo')}
           />
         </Campo>
         <Campo label="Fecha" error={errors.fecha?.message} htmlFor="mat-fecha">

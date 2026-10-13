@@ -5,6 +5,7 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
@@ -173,16 +174,12 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
           htmlFor="asi-tarifa"
           hint="Se sugiere la de su ficha"
         >
-          <Input
+          <CampoMonto
             id="asi-tarifa"
-            type="number"
-            step="0.01"
+            control={control}
+            name="tarifa"
             placeholder="0.00"
-            {...register('tarifa', {
-              valueAsNumber: true,
-              required: 'Ingresa la tarifa',
-              validate: (v) => (v > 0 ? true : 'Debe ser mayor que cero'),
-            })}
+            rules={reglasMontoMayorACero('Ingresa la tarifa')}
           />
         </Campo>
         <Campo label="Desde" error={errors.fecha_inicio?.message} htmlFor="asi-desde">

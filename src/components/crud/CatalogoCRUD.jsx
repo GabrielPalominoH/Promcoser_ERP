@@ -4,6 +4,7 @@ import { useData } from '../../context/useData'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 import { Campo, Input, Select } from '../ui/Field'
+import { CampoMonto } from '../ui/Monto'
 import { Toggle } from '../ui/Toggle'
 import { Modal } from '../ui/Modal'
 import { Aviso } from '../ui/Aviso'
@@ -33,30 +34,31 @@ function FormularioCatalogo({ config, item, onCancelar, onGuardar }) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
   } = useForm({
     defaultValues: valoresBase,
     mode: 'onBlur',
   })
 
-  const registrar = (campo) => {
+  const reglasBase = (campo) => {
     const reglas = {}
     if (campo.requerido) reglas.required = `${campo.etiqueta} es obligatorio`
-
-    if (campo.tipo === 'numero') {
-      reglas.valueAsNumber = true
-      // Con valueAsNumber el campo vacío llega como NaN, que ni `required` ni
-      // `min` detectan: validar explícitamente para no dejar NaN en el estado.
-      reglas.validate = (valor) =>
-        Number.isNaN(valor) ? `${campo.etiqueta} requiere un número válido` : true
-    }
-
     if (campo.min !== undefined) {
       reglas.min = { value: campo.min, message: `Mínimo permitido: ${campo.min}` }
     }
-
-    return register(campo.name, reglas)
+    return reglas
   }
+
+  const registrar = (campo) => register(campo.name, reglasBase(campo))
+
+  // Monto con CampoMonto (Controller): el campo vacío llega como '' y un valor
+  // válido como número. Evita dejar NaN en el estado.
+  const reglasMonto = (campo) => ({
+    ...reglasBase(campo),
+    validate: (valor) =>
+      valor === '' || Number.isNaN(valor) ? `${campo.etiqueta} requiere un número válido` : true,
+  })
 
   const enviar = (valores) => onGuardar(config.normalizar(valores))
 
@@ -104,6 +106,27 @@ function FormularioCatalogo({ config, item, onCancelar, onGuardar }) {
             )
           }
 
+          if (campo.tipo === 'numero') {
+            return (
+              <Campo
+                key={campo.name}
+                label={campo.etiqueta}
+                error={error?.message}
+                hint={campo.hint}
+                htmlFor={id}
+                className={ancho}
+              >
+                <CampoMonto
+                  id={id}
+                  control={control}
+                  name={campo.name}
+                  placeholder={campo.placeholder}
+                  rules={reglasMonto(campo)}
+                />
+              </Campo>
+            )
+          }
+
           return (
             <Campo
               key={campo.name}
@@ -115,9 +138,7 @@ function FormularioCatalogo({ config, item, onCancelar, onGuardar }) {
             >
               <Input
                 id={id}
-                type={
-                  campo.tipo === 'numero' ? 'number' : campo.tipo === 'fecha' ? 'date' : 'text'
-                }
+                type={campo.tipo === 'fecha' ? 'date' : 'text'}
                 step={campo.paso}
                 min={campo.min}
                 placeholder={campo.placeholder}

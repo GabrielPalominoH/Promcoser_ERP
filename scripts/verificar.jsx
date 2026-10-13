@@ -41,7 +41,7 @@ import {
   proyeccionMensualPersonal,
   rentabilidadPorCliente,
 } from '../src/utils/gerencial'
-import { redondearMonto, formatearMoneda } from '../src/utils/formatters'
+import { redondearMonto, formatearMoneda, normalizarEntradaMonto, formatearEntradaMonto, parsearEntradaMonto } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
 import App from '../src/App'
@@ -435,6 +435,15 @@ comprobar('redondeo 3.005 -> 3.01', redondearMonto(3.005) === 3.01, String(redon
 comprobar('redondeo 0.1+0.2 -> 0.3', redondearMonto(0.1 + 0.2) === 0.3, String(redondearMonto(0.1 + 0.2)))
 comprobar('redondeo ignora basura', redondearMonto('abc') === 0)
 comprobar('moneda formatea miles', formatearMoneda(48500).includes('48,500'), formatearMoneda(48500))
+comprobar('entrada: agrupa miles', formatearEntradaMonto('1000000') === '1,000,000', formatearEntradaMonto('1000000'))
+comprobar('entrada: conserva decimales', formatearEntradaMonto('1234.5') === '1,234.5', formatearEntradaMonto('1234.5'))
+comprobar('entrada: lee comas de miles', normalizarEntradaMonto('1,234,567.89') === '1234567.89', normalizarEntradaMonto('1,234,567.89'))
+comprobar('entrada: limita a 2 decimales', normalizarEntradaMonto('12.3456') === '12.34', normalizarEntradaMonto('12.3456'))
+comprobar('entrada: quita ceros a la izquierda', normalizarEntradaMonto('007') === '7', normalizarEntradaMonto('007'))
+comprobar('entrada: conserva el punto a medias', normalizarEntradaMonto('1000.') === '1000.', normalizarEntradaMonto('1000.'))
+comprobar('entrada: sin dígitos queda vacío', normalizarEntradaMonto('abc') === '', normalizarEntradaMonto('abc'))
+comprobar('entrada: parsea a número', parsearEntradaMonto('1,234.50') === 1234.5, String(parsearEntradaMonto('1,234.50')))
+comprobar('entrada: parseo vacío = ""', parsearEntradaMonto('') === '', String(parsearEntradaMonto('')))
 
 console.log('\n[ combobox ]')
 

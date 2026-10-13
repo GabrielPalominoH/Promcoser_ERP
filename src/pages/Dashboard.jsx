@@ -7,7 +7,8 @@ import { Badge, BadgeEstatus } from '../components/ui/Badge'
 import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../components/ui/Table'
 import { Modal } from '../components/ui/Modal'
 import { Icono } from '../components/layout/Sidebar'
-import { Campo, Input, Select } from '../components/ui/Field'
+import { Campo, Select } from '../components/ui/Field'
+import { InputMonto } from '../components/ui/Monto'
 import { Button } from '../components/ui/Button'
 import { Aviso } from '../components/ui/Aviso'
 import { COLECCIONES } from '../data/mockData'
@@ -376,14 +377,11 @@ export function Dashboard() {
               htmlFor="dash-meta"
               hint="Es el total cobrado de la empresa; no lo afectan los filtros."
             >
-              <Input
+              <InputMonto
                 id="dash-meta"
-                type="number"
-                min="0"
-                step="0.01"
                 placeholder="0.00"
                 value={metaTexto}
-                onChange={(evento) => setMetaTexto(evento.target.value)}
+                onChange={setMetaTexto}
               />
             </Campo>
             <div className="mt-3">

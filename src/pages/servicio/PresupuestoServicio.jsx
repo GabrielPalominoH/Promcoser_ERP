@@ -5,6 +5,7 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input, Select } from '../../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
@@ -24,7 +25,7 @@ import {
   presupuestoPorCategoria,
   realPorCategoria,
 } from '../../utils/finanzas'
-import { fechaHoyISO, reglasNumeroMayorACero } from './compartido'
+import { fechaHoyISO } from './compartido'
 
 // Presupuesto por categorías con adicionales: inicial + adicionales =
 // vigente; se compara contra el costo real (una sola fuente, sin duplicar).
@@ -146,12 +147,12 @@ export function PresupuestoServicio() {
               />
             </Campo>
             <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="pre-monto">
-              <Input
+              <CampoMonto
                 id="pre-monto"
-                type="number"
-                step="0.01"
+                control={control}
+                name="monto"
                 placeholder="0.00"
-                {...register('monto', reglasNumeroMayorACero('Ingresa el monto'))}
+                rules={reglasMontoMayorACero('Ingresa el monto')}
               />
             </Campo>
             <Campo label="Versión" error={errors.version?.message} htmlFor="pre-version">

@@ -4,6 +4,7 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
@@ -165,11 +166,11 @@ function ModalEdicionGasto({ registro, tareas, onGuardar, onCerrar }) {
         </Campo>
         <div className="grid grid-cols-2 gap-4">
           <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="edg-monto">
-            <Input
+            <CampoMonto
               id="edg-monto"
-              type="number"
-              step="0.01"
-              {...register('monto', reglasNumeroMayorACero('Ingresa el monto'))}
+              control={control}
+              name="monto"
+              rules={reglasMontoMayorACero('Ingresa el monto')}
             />
           </Campo>
           <Campo label="Fecha" error={errors.fecha?.message} htmlFor="edg-fecha">

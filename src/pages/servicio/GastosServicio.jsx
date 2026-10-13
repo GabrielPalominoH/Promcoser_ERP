@@ -2,6 +2,7 @@ import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
@@ -9,7 +10,6 @@ import { CATEGORIAS_GASTO } from '../../data/mockData'
 import {
   SeccionRegistros,
   fechaHoyISO,
-  reglasNumeroMayorACero,
 } from './compartido'
 
 function FormularioGasto({ servicio, registrar }) {
@@ -61,12 +61,12 @@ function FormularioGasto({ servicio, registrar }) {
           />
         </Campo>
         <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="gasto-monto">
-          <Input
+          <CampoMonto
             id="gasto-monto"
-            type="number"
-            step="0.01"
+            control={control}
+            name="monto"
             placeholder="0.00"
-            {...register('monto', reglasNumeroMayorACero('Ingresa el monto'))}
+            rules={reglasMontoMayorACero('Ingresa el monto')}
           />
         </Campo>
         <Campo label="Fecha" error={errors.fecha?.message} htmlFor="gasto-fecha">

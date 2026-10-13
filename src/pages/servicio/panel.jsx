@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input, Select } from '../../components/ui/Field'
+import { CampoMonto } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import { ESTATUS_SERVICIO, TIPOS_SERVICIO } from '../../data/mockData'
@@ -24,6 +25,7 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
     reset,
   } = useForm({
@@ -76,17 +78,16 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
           error={errors.presupuesto_asignado?.message}
           htmlFor="presupuesto_asignado"
         >
-          <Input
+          <CampoMonto
             id="presupuesto_asignado"
-            type="number"
-            step="0.01"
-            min="0"
-            {...register('presupuesto_asignado', {
-              valueAsNumber: true,
+            control={control}
+            name="presupuesto_asignado"
+            rules={{
               required: 'Presupuesto es obligatorio',
-              validate: (v) => (Number.isNaN(v) ? 'Presupuesto requiere un número válido' : true),
+              validate: (v) =>
+                v === '' || Number.isNaN(v) ? 'Presupuesto requiere un número válido' : true,
               min: { value: 0, message: 'Mínimo permitido: 0' },
-            })}
+            }}
           />
         </Campo>
         <Campo label="Fecha de inicio" error={errors.fecha_inicio?.message} htmlFor="fecha_inicio">

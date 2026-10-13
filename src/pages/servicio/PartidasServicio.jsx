@@ -3,7 +3,8 @@ import { useOutletContext } from 'react-router-dom'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input } from '../../components/ui/Field'
+import { Campo } from '../../components/ui/Field'
+import { InputMonto } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import {
@@ -44,14 +45,14 @@ function CeldaMonto({ tarea, tareas }) {
 }
 
 function ModalMonto({ tarea, onCerrar, onGuardar }) {
-  const [texto, setTexto] = useState(String(Number(tarea?.monto) || 0))
+  const [texto, setTexto] = useState(() => Number(tarea?.monto) || 0)
   const [error, setError] = useState(null)
 
   if (!tarea) return null
   const valor = Number(texto)
 
   const guardar = () => {
-    if (texto.trim() === '' || Number.isNaN(valor) || valor < 0) {
+    if (texto === '' || Number.isNaN(valor) || valor < 0) {
       setError('Ingresa un monto válido mayor o igual a cero')
       return
     }
@@ -76,15 +77,12 @@ function ModalMonto({ tarea, onCerrar, onGuardar }) {
       }
     >
       <Campo label="Monto (S/)" error={error} htmlFor="monto-valor">
-        <Input
+        <InputMonto
           id="monto-valor"
-          type="number"
-          step="0.01"
-          min="0"
           autoFocus
           value={texto}
-          onChange={(e) => {
-            setTexto(e.target.value)
+          onChange={(valorCampo) => {
+            setTexto(valorCampo)
             setError(null)
           }}
           onKeyDown={(e) => {

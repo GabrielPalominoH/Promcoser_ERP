@@ -4,6 +4,7 @@ import { useData } from '../context/useData'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Campo, Input, Select } from '../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../components/ui/Monto'
 import { CampoComboBox } from '../components/ui/ComboBox'
 import { Modal } from '../components/ui/Modal'
 import { Aviso } from '../components/ui/Aviso'
@@ -103,17 +104,12 @@ function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
           />
         </Campo>
         <Campo label="Costo mensual (S/)" error={errors.monto?.message} htmlFor="ofi-monto">
-          <Input
+          <CampoMonto
             id="ofi-monto"
-            type="number"
-            step="0.01"
+            control={control}
+            name="monto"
             placeholder="0.00"
-            {...register('monto', {
-              valueAsNumber: true,
-              required: 'Ingresa el monto',
-              validate: (v) =>
-                Number.isNaN(v) || v <= 0 ? 'Debe ser un número mayor que cero' : true,
-            })}
+            rules={reglasMontoMayorACero('Ingresa el monto')}
           />
         </Campo>
       </div>

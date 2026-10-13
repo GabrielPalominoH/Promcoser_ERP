@@ -277,6 +277,12 @@ ha cobrado de la meta y cuánto **falta**; al superarla, avisa **"¡Meta
 cumplida!"**. Es una meta de la empresa (todo lo cobrado) y no le afectan los
 filtros. Para quitarla, borre el monto y guarde.
 
+**Al escribir montos:** los campos de dinero (gastos, ingresos, materiales,
+tarifa por hora, presupuesto, costo de oficina, meta, montos por partida y las
+fichas de Personal/Equipos/Servicios) agrupan los miles solos: escriba `10000`
+y verá `10,000`. Se usa coma para los miles y punto para los decimales (hasta
+2): `1234.5` queda como `1,234.5`.
+
 **Cada semana:** pulse **"Datos y respaldo" → "Exportar respaldo"** en el
 Dashboard y guarde el archivo fuera de la computadora.
 

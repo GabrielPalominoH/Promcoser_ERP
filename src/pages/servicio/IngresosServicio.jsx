@@ -5,6 +5,7 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input, Select } from '../../components/ui/Field'
+import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import {
@@ -25,7 +26,7 @@ import {
   utilidadReal,
 } from '../../utils/calculadora'
 import { estadoFactura, saldoFactura } from '../../utils/finanzas'
-import { fechaHoyISO, reglasNumeroMayorACero } from './compartido'
+import { fechaHoyISO } from './compartido'
 
 const CONCEPTOS = ['adelanto', 'valorización', 'ingreso anual', 'otro']
 
@@ -50,6 +51,7 @@ function ModalEdicionIngreso({ ingreso, factura, onGuardar, onCerrar }) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -91,11 +93,11 @@ function ModalEdicionIngreso({ ingreso, factura, onGuardar, onCerrar }) {
             <Input id="edi-fecha" type="date" {...register('fecha', { required: 'Indica la fecha' })} />
           </Campo>
           <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="edi-monto">
-            <Input
+            <CampoMonto
               id="edi-monto"
-              type="number"
-              step="0.01"
-              {...register('monto', reglasNumeroMayorACero('Ingresa el monto'))}
+              control={control}
+              name="monto"
+              rules={reglasMontoMayorACero('Ingresa el monto')}
             />
           </Campo>
         </div>
@@ -148,6 +150,7 @@ export function IngresosServicio() {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm({
     defaultValues: { fecha: fechaHoyISO(), monto: '', concepto: 'valorización', documento: '', factura_numero: '' },
@@ -289,12 +292,12 @@ export function IngresosServicio() {
               />
             </Campo>
             <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="cob-monto">
-              <Input
+              <CampoMonto
                 id="cob-monto"
-                type="number"
-                step="0.01"
+                control={control}
+                name="monto"
                 placeholder="0.00"
-                {...register('monto', reglasNumeroMayorACero('Ingresa el monto'))}
+                rules={reglasMontoMayorACero('Ingresa el monto')}
               />
             </Campo>
             <Campo label="Concepto" error={errors.concepto?.message} htmlFor="cob-concepto">
