@@ -45,7 +45,7 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | El panel gerencial de la empresa: resultado, presupuesto y su ejecución, cobrado y por cobrar, servicios en curso y en riesgo. Luego, en orden: obras en riesgo, evolución de la caja real por mes, proyección (personal por mes y cierre estimado), rentabilidad por cliente, consumo y ranking por servicio, cobranza y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo o restablece los datos de ejemplo. |
+| **Dashboard** | El panel gerencial de la empresa: resultado, presupuesto y su ejecución, cobrado y por cobrar, servicios en curso y en riesgo, y la **meta de ingreso** (cuánto se ha cobrado y cuánto falta). Luego, en orden: obras en riesgo, evolución de la caja real por mes, proyección (personal por mes y cierre estimado), rentabilidad por cliente, consumo y ranking por servicio, cobranza y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo o restablece los datos de ejemplo. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
@@ -270,6 +270,12 @@ esté en rojo necesita atención.
 **Filtros del Dashboard:** cliente, tipo y estado alcanzan a todo lo que es por
 servicio (Oficina y resultado empresa son de la empresa y no se filtran). El
 CSV de rentabilidad por servicio descarga lo que se ve.
+
+**Meta de ingreso:** en el Dashboard, tarjeta **"Meta de ingreso"**, escriba el
+monto que quiere cobrar y pulse **"Guardar meta"**. La barra muestra cuánto se
+ha cobrado de la meta y cuánto **falta**; al superarla, avisa **"¡Meta
+cumplida!"**. Es una meta de la empresa (todo lo cobrado) y no le afectan los
+filtros. Para quitarla, borre el monto y guarde.
 
 **Cada semana:** pulse **"Datos y respaldo" → "Exportar respaldo"** en el
 Dashboard y guarde el archivo fuera de la computadora.

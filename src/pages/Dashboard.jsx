@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../context/useData'
 import { Card } from '../components/ui/Card'
@@ -7,11 +7,12 @@ import { Badge, BadgeEstatus } from '../components/ui/Badge'
 import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../components/ui/Table'
 import { Modal } from '../components/ui/Modal'
 import { Icono } from '../components/layout/Sidebar'
-import { Campo, Select } from '../components/ui/Field'
+import { Campo, Input, Select } from '../components/ui/Field'
 import { Button } from '../components/ui/Button'
 import { Aviso } from '../components/ui/Aviso'
 import { COLECCIONES } from '../data/mockData'
 import {
+  leerConfig,
   nombreRespaldo,
   normalizarRespaldo,
   serializarRespaldo,
@@ -33,6 +34,7 @@ import {
 } from '../utils/calculadora'
 import {
   analizarServicios,
+  avanceMetaIngreso,
   flujoCajaMensualReal,
   kpisEmpresa,
   proyeccionCierre,
@@ -80,10 +82,11 @@ function BarraMes({ valor, maximo, tono }) {
 }
 
 export function Dashboard() {
-  const { estado, restablecer, reemplazarColeccion } = useData()
+  const { estado, restablecer, reemplazarColeccion, actualizarItem } = useData()
   const [aviso, setAviso] = useState(null)
   const [datosAbierto, setDatosAbierto] = useState(false)
   const [movimientosAbierto, setMovimientosAbierto] = useState(false)
+  const [metaTexto, setMetaTexto] = useState('')
   const inputArchivo = useRef(null)
 
   const exportarRespaldo = () => {
@@ -127,6 +130,19 @@ export function Dashboard() {
     lector.readAsText(archivo)
   }
 
+  // Guarda la meta de ingreso en la config (0 = sin meta). Se redondea a
+  // céntimos y viaja en el respaldo, como el resto de la configuración.
+  const guardarMeta = (evento) => {
+    evento.preventDefault()
+    const valor = Number(metaTexto)
+    const limpio = Number.isFinite(valor) && valor > 0 ? Math.round(valor * 100) / 100 : 0
+    actualizarItem('config', { id: 1, meta_ingreso: limpio })
+    setAviso({
+      tipo: 'exito',
+      mensaje: limpio > 0 ? 'Meta de ingreso actualizada.' : 'Meta de ingreso eliminada.',
+    })
+  }
+
   const {
     personal,
     equipos,
@@ -137,6 +153,18 @@ export function Dashboard() {
     asignaciones: todasLasAsignaciones,
     costos_oficina: costosOficina,
   } = estado
+
+  // Meta de ingreso: es de la empresa (total cobrado), no la afectan los filtros.
+  const metaIngreso = Number(leerConfig(estado)?.meta_ingreso) || 0
+  const cobradoEmpresa = servicios.reduce(
+    (total, servicio) => total + cobradoServicio(todosLosCobros ?? [], servicio.id),
+    0,
+  )
+
+  // Mantiene el campo sincronizado si la meta cambia (importar/restablecer).
+  useEffect(() => {
+    setMetaTexto(metaIngreso > 0 ? String(metaIngreso) : '')
+  }, [metaIngreso])
 
   // Filtros (cliente/tipo/estado): alcanzan a todo lo que es por servicio.
   // Oficina y resultado empresa son de la empresa y no se filtran (se indica).
@@ -168,6 +196,7 @@ export function Dashboard() {
     costosOficina,
     analisis,
   })
+  const meta = avanceMetaIngreso({ cobrado: cobradoEmpresa, meta: metaIngreso })
   const porCliente = rentabilidadPorCliente({
     servicios: serviciosF,
     registros: registrosF,
@@ -364,6 +393,86 @@ export function Dashboard() {
           icono={<Icono nombre="clipboard" className="size-5" />}
         />
       </div>
+
+      <Card
+        titulo="Meta de ingreso"
+        descripcion="Cobrado acumulado de la empresa frente a la meta"
+      >
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            {meta.definida ? (
+              <>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <p className="text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
+                    {formatearMoneda(meta.logrado)}
+                  </p>
+                  <p className="text-sm text-slate-500 tabular-nums">
+                    de {formatearMoneda(meta.meta)}
+                  </p>
+                </div>
+                <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      meta.cumplida ? 'bg-emerald-500' : 'bg-primary-600'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(0, meta.porcentaje))}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-sm">
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      meta.cumplida ? 'text-emerald-700' : 'text-slate-900'
+                    }`}
+                  >
+                    {meta.porcentaje.toFixed(1)}%
+                  </span>{' '}
+                  {meta.cumplida ? (
+                    <span className="font-medium text-emerald-700">· ¡Meta cumplida!</span>
+                  ) : (
+                    <span className="text-slate-600">
+                      · Falta{' '}
+                      <span className="font-semibold text-slate-900">
+                        {formatearMoneda(meta.falta)}
+                      </span>
+                    </span>
+                  )}
+                </p>
+              </>
+            ) : (
+              <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                Aún no hay una meta de ingreso. Escribe un monto y pulsa «Guardar meta» para
+                ver cuánto falta por cobrar.
+              </p>
+            )}
+          </div>
+
+          <form
+            className="lg:border-l lg:border-slate-200 lg:pl-6"
+            onSubmit={guardarMeta}
+          >
+            <Campo
+              label="Meta de ingreso (S/)"
+              htmlFor="dash-meta"
+              hint="Es el total cobrado de la empresa; no lo afectan los filtros."
+            >
+              <Input
+                id="dash-meta"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={metaTexto}
+                onChange={(evento) => setMetaTexto(evento.target.value)}
+              />
+            </Campo>
+            <div className="mt-3">
+              <Button type="submit" tamano="sm">
+                Guardar meta
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card

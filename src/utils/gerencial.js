@@ -206,3 +206,24 @@ export function proyeccionCierre({ analisis = [] } = {}) {
     ),
   }
 }
+
+// Avance de la meta de ingreso (cobrado real de la empresa). Sin meta (> 0)
+// no hay porcentaje ni faltante: se devuelve `definida: false` en vez de 0/NaN.
+export function avanceMetaIngreso({ cobrado = 0, meta = 0 } = {}) {
+  const objetivo = Number(meta) || 0
+  const logrado = redondear2(Number(cobrado) || 0)
+
+  if (objetivo <= 0) {
+    return { definida: false, meta: 0, logrado, falta: null, porcentaje: null, cumplida: false }
+  }
+
+  return {
+    definida: true,
+    meta: redondear2(objetivo),
+    logrado,
+    falta: redondear2(Math.max(0, objetivo - logrado)),
+    // Puede superar 100 si se cobró más que la meta (es logro, no exceso).
+    porcentaje: Math.round((logrado / objetivo) * 100 * 100) / 100,
+    cumplida: logrado >= objetivo,
+  }
+}

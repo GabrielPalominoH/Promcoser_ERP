@@ -34,6 +34,7 @@ import {
 import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diferenciaPersonalAuto, esDomingo, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import {
   analizarServicios,
+  avanceMetaIngreso,
   flujoCajaMensualReal,
   kpisEmpresa,
   proyeccionCierre,
@@ -361,6 +362,17 @@ const proyCierre = proyeccionCierre({ analisis: analisis6 })
 comprobar('cierre: costo final ≈ 90492.59', proyCierre.costoFinal != null && Math.abs(proyCierre.costoFinal - 90492.59) < 0.01, String(proyCierre.costoFinal))
 comprobar('cierre: margen proy ≈ 29507.41', Math.abs(proyCierre.margenProyectado - 29507.41) < 0.01, String(proyCierre.margenProyectado))
 comprobar('cierre sin avance no proyecta', proyeccionCierre({ analisis: [] }).costoFinal === null)
+
+const sinMeta = avanceMetaIngreso({ cobrado: 54000, meta: 0 })
+comprobar('meta sin definir no tiene porcentaje', sinMeta.definida === false && sinMeta.porcentaje === null)
+comprobar('meta sin definir no tiene faltante', sinMeta.falta === null, String(sinMeta.falta))
+
+const meta100 = avanceMetaIngreso({ cobrado: 54000, meta: 100000 })
+comprobar('meta 100000: faltante = 46000', meta100.falta === 46000, String(meta100.falta))
+comprobar('meta 100000: avance = 54%', meta100.porcentaje === 54 && meta100.cumplida === false, String(meta100.porcentaje))
+
+const metaSuperada = avanceMetaIngreso({ cobrado: 120000, meta: 100000 })
+comprobar('meta superada: cumplida hasta 120%', metaSuperada.cumplida === true && metaSuperada.falta === 0 && metaSuperada.porcentaje === 120, String(metaSuperada.porcentaje))
 
 console.log('\n[ presupuesto por tareas ]')
 

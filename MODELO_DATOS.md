@@ -16,7 +16,7 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `costos_oficina` | `id` | Gasto general: persona (ámbito Oficina), mes, monto. Sin servicio |
 | `cobros` | `id` | Ingresos (módulo Ingresos en UI): servicio, fecha, monto, concepto, documento? |
 | `facturas` | `id` | Facturación (Etapa 5): servicio, número, emisión, vencimiento, importes, estado, saldo (vacía) |
-| `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN, regla de indirectos |
+| `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN, regla de indirectos y meta de ingreso (`meta_ingreso`) |
 | `presupuestos` | `id` | Presupuesto por categoría: servicio, categoría, monto, inicial/adicional, motivo, fecha |
 
 

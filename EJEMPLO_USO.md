@@ -111,6 +111,9 @@ contratado **S/ 8,500**.
 3. Filtra por cliente *Almacenes del Sur*, por tipo *Misceláneo* y por estado:
    todo lo por servicio se recalcula (Oficina y resultado empresa no se
    filtran).
+4. En la tarjeta **Meta de ingreso**, escribe un monto (ej. 10000) y pulsa
+   **Guardar meta**: **verás** el % de avance y cuánto falta por cobrar (es la
+   meta de la empresa, no le afectan los filtros).
 
 ## Paso 13. Respaldo y limpieza
 1. Dashboard → **Datos y respaldo** → **Exportar respaldo** y guárdalo.

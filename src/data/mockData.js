@@ -428,7 +428,7 @@ export const cobros = [
 
 export const facturas = []
 export const presupuestos = []
-export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN' }]
+export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN', meta_ingreso: 0 }]
 
 export const ESTADO_INICIAL = {
   personal,
