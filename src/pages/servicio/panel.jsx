@@ -73,8 +73,15 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
             {...register('cliente', { required: 'Cliente es obligatorio' })}
           />
         </Campo>
+        <Campo label="Fecha de inicio" error={errors.fecha_inicio?.message} htmlFor="fecha_inicio">
+          <Input
+            id="fecha_inicio"
+            type="date"
+            {...register('fecha_inicio', { required: 'Fecha es obligatoria' })}
+          />
+        </Campo>
         <Campo
-          label="Presupuesto asignado (S/)"
+          label="Presupuesto inicial (S/)"
           error={errors.presupuesto_asignado?.message}
           htmlFor="presupuesto_asignado"
         >
@@ -88,13 +95,6 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
                 v === '' || Number.isNaN(v) ? 'Presupuesto requiere un número válido' : true,
               min: { value: 0, message: 'Mínimo permitido: 0' },
             }}
-          />
-        </Campo>
-        <Campo label="Fecha de inicio" error={errors.fecha_inicio?.message} htmlFor="fecha_inicio">
-          <Input
-            id="fecha_inicio"
-            type="date"
-            {...register('fecha_inicio', { required: 'Fecha es obligatoria' })}
           />
         </Campo>
         <Campo label="Fecha fin estimada" error={errors.fecha_fin_estimada?.message} htmlFor="fecha_fin_estimada">

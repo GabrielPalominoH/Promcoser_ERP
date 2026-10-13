@@ -118,7 +118,7 @@ export function MaterialesServicio() {
       servicio={servicio}
       tipo="material"
       titulo="Materiales"
-      descripcion="Materiales comprados para el servicio. Suman al gastado del presupuesto."
+      descripcion="Materiales comprados para el servicio. Suman al gastado."
       columnaCantidad
       etiquetaCantidad="Cantidad"
       mensajeVacio="Este servicio todavía no tiene materiales registrados."

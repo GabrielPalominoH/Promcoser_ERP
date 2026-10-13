@@ -6,36 +6,35 @@
 
 import {
   cobradoServicio,
-  consumoPresupuesto,
   diasRestantes,
-  hoyISO,
-  porCobrar,
+  estadoPresupuesto,
   proyeccionAsignaciones,
-  rentabilidadServicio,
   sumarMontos,
+  utilidadReal,
 } from './calculadora'
-import { margenBruto, porcentajeEjecucion, redondear2 } from './finanzas'
+import { margenBruto, redondear2 } from './finanzas'
 
-// Análisis por servicio: consumo, rentabilidad, plazo y motivos de riesgo.
-// Centraliza lo que antes vivía dentro del componente para poder probarlo.
-export function analizarServicios({ servicios = [], registros = [], tareas = [], hoy = hoyISO() } = {}) {
+// Análisis por servicio: gastado, cobrado, utilidad, estado del presupuesto
+// inicial y plazo. Centraliza lo que antes vivía dentro del componente para
+// poder probarlo.
+export function analizarServicios({ servicios = [], registros = [], cobros = [] } = {}) {
   return servicios.map((servicio) => {
-    const tareasServicio = tareas.filter((t) => t.servicio_id === servicio.id)
     const regsServicio = registros.filter((r) => r.servicio_id === servicio.id)
-    const consumo = consumoPresupuesto(servicio, registros)
-    const rent = rentabilidadServicio(servicio, regsServicio, tareasServicio, hoy)
+    const gastado = redondear2(sumarMontos(regsServicio))
+    const cobrado = redondear2(cobradoServicio(cobros, servicio.id))
+    const utilidad = redondear2(utilidadReal(cobrado, gastado))
+    const estado = estadoPresupuesto(servicio, registros, cobros)
     const dias = diasRestantes(servicio.fecha_fin_estimada)
     const motivos = []
-    if (consumo.excedido) motivos.push('excedido')
-    else if (rent.cpi != null && rent.cpi < 0.9) motivos.push('CPI crítico')
+    if (estado.excedido) motivos.push('excedido')
     if (dias !== null && dias < 0) motivos.push('plazo vencido')
     else if (dias !== null && dias <= 15) motivos.push('plazo cercano')
-    return { servicio, consumo, rent, dias, motivos, margen: consumo.disponible }
+    return { servicio, gastado, cobrado, utilidad, estado, dias, motivos }
   })
 }
 
 // KPIs de empresa (nivel gerencial). Mismas fórmulas que el panel base:
-// margen = presupuesto − gastado; resultado empresa = margen − oficina.
+// utilidad = cobrado − gastado; resultado empresa = utilidad − oficina.
 export function kpisEmpresa({
   servicios = [],
   registros = [],
@@ -43,86 +42,60 @@ export function kpisEmpresa({
   costosOficina = [],
   analisis = [],
 } = {}) {
-  const presupuesto = redondear2(
-    servicios.reduce((total, s) => total + (Number(s.presupuesto_asignado) || 0), 0),
-  )
   const gastado = redondear2(sumarMontos(registros))
-  const margenTotal = redondear2(presupuesto - gastado)
   const cobrado = redondear2(
     servicios.reduce((total, s) => total + cobradoServicio(cobros, s.id), 0),
   )
-  const porCobrarTotal = redondear2(
-    servicios.reduce((total, s) => total + porCobrar(s, cobros), 0),
-  )
+  const utilidadServicios = redondear2(utilidadReal(cobrado, gastado))
   const oficina = redondear2(sumarMontos(costosOficina))
-  const resultadoEmpresa = redondear2(margenTotal - oficina)
+  const resultadoEmpresa = redondear2(utilidadServicios - oficina)
 
   return {
     total: servicios.length,
     enCurso: servicios.filter((s) => s.estatus === 'En curso').length,
     enRiesgo: analisis.filter((a) => a.motivos.length > 0).length,
-    presupuesto,
     gastado,
-    margenTotal,
-    margenPct: margenBruto(margenTotal, presupuesto),
-    ejecucion: porcentajeEjecucion(gastado, presupuesto),
     cobrado,
-    porCobrar: porCobrarTotal,
+    utilidadServicios,
     oficina,
     resultadoEmpresa,
   }
 }
 
-// Rentabilidad consolidada por cliente. `margenProyectado` solo suma los
-// servicios con proyección de cierre (requieren avance en cronograma).
+// Utilidad consolidada por cliente (cobrado − gastado). Sin cobros no hay
+// porcentaje: se devuelve null en vez de 0/NaN.
 export function rentabilidadPorCliente({
   servicios = [],
   registros = [],
   cobros = [],
-  tareas = [],
-  hoy = hoyISO(),
 } = {}) {
   const porCliente = new Map()
 
   for (const servicio of servicios) {
-    const clave = servicio.cliente || 'Sin cliente'
-    const tareasServicio = tareas.filter((t) => t.servicio_id === servicio.id)
     const regsServicio = registros.filter((r) => r.servicio_id === servicio.id)
-    const consumo = consumoPresupuesto(servicio, registros)
-    const rent = rentabilidadServicio(servicio, regsServicio, tareasServicio, hoy)
+    const clave = servicio.cliente || 'Sin cliente'
 
     const fila = porCliente.get(clave) ?? {
       cliente: clave,
       servicios: 0,
-      presupuesto: 0,
       gastado: 0,
       cobrado: 0,
-      porCobrar: 0,
-      margenProyectado: 0,
-      serviciosConProyeccion: 0,
+      utilidad: 0,
     }
 
     fila.servicios += 1
-    fila.presupuesto = redondear2(fila.presupuesto + consumo.presupuesto)
-    fila.gastado = redondear2(fila.gastado + consumo.gastado)
+    fila.gastado = redondear2(fila.gastado + sumarMontos(regsServicio))
     fila.cobrado = redondear2(fila.cobrado + cobradoServicio(cobros, servicio.id))
-    fila.porCobrar = redondear2(fila.porCobrar + porCobrar(servicio, cobros))
-    if (rent.margenProyectado != null) {
-      fila.margenProyectado = redondear2(fila.margenProyectado + rent.margenProyectado)
-      fila.serviciosConProyeccion += 1
-    }
+    fila.utilidad = redondear2(utilidadReal(fila.cobrado, fila.gastado))
 
     porCliente.set(clave, fila)
   }
 
   const filas = [...porCliente.values()]
   for (const fila of filas) {
-    fila.tieneProyeccion = fila.serviciosConProyeccion > 0
-    fila.margenPct = fila.tieneProyeccion
-      ? margenBruto(fila.margenProyectado, fila.presupuesto)
-      : null
+    fila.utilidadPct = margenBruto(fila.utilidad, fila.cobrado)
   }
-  return filas.sort((a, b) => b.margenProyectado - a.margenProyectado)
+  return filas.sort((a, b) => b.utilidad - a.utilidad)
 }
 
 // Caja real por mes: cobrado vs egresado (obra + oficina). Serie continua
@@ -189,22 +162,6 @@ export function proyeccionMensualPersonal({
   return [...porMes.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([mes, monto]) => ({ mes, monto }))
-}
-
-// Proyección al cierre agregada: costo final y margen proyectado. Solo suma
-// los servicios con proyección disponible; null si ninguno la tiene.
-export function proyeccionCierre({ analisis = [] } = {}) {
-  const conProyeccion = analisis.filter((a) => a.rent?.costoFinal != null)
-  if (conProyeccion.length === 0) {
-    return { servicios: 0, costoFinal: null, margenProyectado: null }
-  }
-  return {
-    servicios: conProyeccion.length,
-    costoFinal: redondear2(conProyeccion.reduce((s, a) => s + a.rent.costoFinal, 0)),
-    margenProyectado: redondear2(
-      conProyeccion.reduce((s, a) => s + (a.rent.margenProyectado ?? 0), 0),
-    ),
-  }
 }
 
 // Avance de la meta de ingreso (cobrado real de la empresa). Sin meta (> 0)

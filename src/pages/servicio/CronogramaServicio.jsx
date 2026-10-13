@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
@@ -10,7 +10,10 @@ import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import { Badge } from '../../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../../utils/formatters'
-import { avanceEfectivo, estadoTarea, hoyISO, nombreReferencia, sumarMontos } from '../../utils/calculadora'
+import { avanceEfectivo, estadoTarea, hoyISO, horasEstimadasTarea, nombreReferencia, sumarMontos } from '../../utils/calculadora'
+
+// En SSR useLayoutEffect avisa; cae a useEffect en el servidor.
+const usarLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 const DIA_MS = 86400000
 const DIA_PX_MIN = 28
@@ -58,7 +61,7 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
+function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, horasDerivadas, onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
   const esGrupo = enEdicion && tieneHijos
@@ -75,8 +78,9 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           fecha_inicio: tarea.fecha_inicio,
           fecha_fin: tarea.fecha_fin,
           avance: tarea.avance ?? 0,
+          horas_estimadas: tarea.horas_estimadas ?? 0,
         }
-      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0 },
+      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0, horas_estimadas: 0 },
     mode: 'onBlur',
   })
 
@@ -94,6 +98,10 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
       avance: esGrupo
         ? Number(tarea.avance) || 0
         : Math.min(100, Math.max(0, Number(valores.avance) || 0)),
+      // Igual que el monto: con hijas, las horas estimadas suman solas.
+      horas_estimadas: esGrupo
+        ? Number(tarea.horas_estimadas) || 0
+        : Math.max(0, Number(valores.horas_estimadas) || 0),
     })
   }
 
@@ -217,6 +225,29 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                     valueAsNumber: true,
                     min: { value: 0, message: 'Mínimo: 0' },
                     max: { value: 100, message: 'Máximo: 100' },
+                  })}
+                />
+              </Campo>
+            )}
+            {esGrupo ? (
+              <Campo label="Horas estimadas" htmlFor="tarea-horas-grupo">
+                <div
+                  id="tarea-horas-grupo"
+                  className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800 tabular-nums"
+                >
+                  {horasDerivadas ?? 0} h · suma de sus subtareas
+                </div>
+              </Campo>
+            ) : (
+              <Campo label="Horas estimadas" error={errors.horas_estimadas?.message} htmlFor="tarea-horas">
+                <Input
+                  id="tarea-horas"
+                  type="number"
+                  step="1"
+                  min="0"
+                  {...register('horas_estimadas', {
+                    valueAsNumber: true,
+                    min: { value: 0, message: 'Mínimo: 0' },
                   })}
                 />
               </Campo>
@@ -498,15 +529,24 @@ export function CronogramaServicio() {
 
   const scrollRef = useRef(null)
   const enfocadoHoy = useRef(false)
+  // Escala visible durante la animación de zoom; null = escala objetivo.
+  const [diaInter, setDiaInter] = useState(null)
+  const diaVista = diaInter ?? diaPx
+  // Última escala mostrada (para encadenar zooms sin saltos).
+  const vistaRef = useRef(null)
+  const rafZoom = useRef(null)
+
+  // Cancela la animación en curso al desmontar.
+  useEffect(
+    () => () => {
+      if (rafZoom.current !== null && typeof cancelAnimationFrame !== 'undefined') {
+        cancelAnimationFrame(rafZoom.current)
+      }
+    },
+    [],
+  )
   const desplazar = (direccion) => {
     scrollRef.current?.scrollBy({ left: direccion * scrollRef.current.clientWidth * 0.8, behavior: 'smooth' })
-  }
-
-  const irAHoy = () => {
-    const contenedor = scrollRef.current
-    if (!contenedor || !rango || posHoy < 0 || posHoy > 100) return
-    const anchoPista = (rango.totalDias * diaPx)
-    contenedor.scrollTo({ left: Math.max(0, (posHoy / 100) * anchoPista - contenedor.clientWidth / 2), behavior: 'smooth' })
   }
 
   const pos = (fechaISO) => ((parsearFecha(fechaISO).getTime() - rango.inicioMs) / DIA_MS / rango.totalDias) * 100
@@ -515,17 +555,94 @@ export function CronogramaServicio() {
     ? ((parsearFecha(hoy).getTime() - rango.inicioMs) / DIA_MS / rango.totalDias) * 100
     : -1
 
+  // px, dentro del contenido con scroll, de una fecha dada como % del rango.
+  const xDe = (porcentaje, dia) => ANCHO_ETIQUETA + (porcentaje / 100) * rango.totalDias * dia
+  // Deja ese % del rango a esa fracción del área útil de la pista
+  // (0.5 = centro del área a la derecha de la columna de etiquetas).
+  const enfocar = (porcentaje, dia, fraccion, comportamiento = 'smooth') => {
+    const contenedor = scrollRef.current
+    if (!contenedor || !rango) return
+    const pantalla = ANCHO_ETIQUETA + fraccion * (contenedor.clientWidth - ANCHO_ETIQUETA)
+    contenedor.scrollTo({ left: Math.max(0, xDe(porcentaje, dia) - pantalla), behavior: comportamiento })
+  }
+
+  const irAHoy = () => {
+    if (posHoy < 0 || posHoy > 100) return
+    enfocar(posHoy, diaVista, 0.5)
+  }
+
   // Foco inicial en el mes actual (solo una vez, cuando ya se midió el ancho).
   useEffect(() => {
     if (enfocadoHoy.current || !rango || tareas.length === 0 || anchoCaja === 0) {
       return
     }
-    const contenedor = scrollRef.current
-    if (!contenedor) return
-    const xHoy = (posHoy / 100) * (rango.totalDias * diaPx)
-    contenedor.scrollTo({ left: Math.max(0, xHoy - contenedor.clientWidth * 0.25), behavior: 'auto' })
+    if (!scrollRef.current) return
+    enfocar(posHoy, diaPx, 0.25, 'auto')
     enfocadoHoy.current = true
   }, [rango, diaPx, anchoCaja, tareas.length, posHoy])
+
+  const diaPxPrevio = useRef(null)
+  // Zoom suave y anclado: si hoy está visible, la escala crece a su alrededor
+  // sin moverlo de pantalla; si no, el zoom se centra en el área visible.
+  // Escala y scroll se interpolan juntos en cada cuadro, por eso no hay
+  // deslizamiento doble. Solo reacciona al zoom manual (−/+/Trimestres-Días),
+  // nunca al montar ni al redimensionar la ventana.
+  usarLayoutEffect(() => {
+    const contenedor = scrollRef.current
+    const previo = vistaRef.current ?? diaPxPrevio.current
+    diaPxPrevio.current = diaPx
+    if (!contenedor || !rango || previo === null || previo === diaPx) return
+    if (posHoy < 0 || posHoy > 100) return
+    const xHoyViejo = xDe(posHoy, previo)
+    const visibleIzq = contenedor.scrollLeft + ANCHO_ETIQUETA
+    const visibleDer = contenedor.scrollLeft + contenedor.clientWidth
+    let pctAncla
+    let pantallaAncla
+    if (xHoyViejo >= visibleIzq && xHoyViejo <= visibleDer) {
+      pctAncla = posHoy
+      pantallaAncla = xHoyViejo - contenedor.scrollLeft
+    } else {
+      const centroViejo =
+        contenedor.scrollLeft + ANCHO_ETIQUETA + (contenedor.clientWidth - ANCHO_ETIQUETA) / 2
+      pctAncla = ((centroViejo - ANCHO_ETIQUETA) / (rango.totalDias * previo)) * 100
+      pantallaAncla = ANCHO_ETIQUETA + (contenedor.clientWidth - ANCHO_ETIQUETA) / 2
+    }
+    const aplicarScroll = (dia) => {
+      contenedor.scrollLeft = Math.max(0, xDe(pctAncla, dia) - pantallaAncla)
+    }
+    const sinAnimacion =
+      typeof window === 'undefined' ||
+      typeof requestAnimationFrame === 'undefined' ||
+      (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    if (sinAnimacion) {
+      vistaRef.current = null
+      setDiaInter(null)
+      aplicarScroll(diaPx)
+      return
+    }
+    if (rafZoom.current !== null) cancelAnimationFrame(rafZoom.current)
+    const DURACION = 280
+    let inicio = null
+    const paso = (ahora) => {
+      if (inicio === null) inicio = ahora
+      const p = Math.min(1, (ahora - inicio) / DURACION)
+      const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2
+      const dia = previo + (diaPx - previo) * e
+      vistaRef.current = dia
+      setDiaInter(dia)
+      aplicarScroll(dia)
+      if (p < 1) {
+        rafZoom.current = requestAnimationFrame(paso)
+      } else {
+        rafZoom.current = null
+        vistaRef.current = null
+        setDiaInter(null)
+        aplicarScroll(diaPx)
+      }
+    }
+    rafZoom.current = requestAnimationFrame(paso)
+  }, [zoomManual])
 
   const conEstado = tareas.map((t) => ({ ...t, estado: estadoTarea(t, hoy) }))
   const completadas = conEstado.filter((t) => t.estado === 'completada').length
@@ -602,7 +719,7 @@ export function CronogramaServicio() {
           <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
             <button
               type="button"
-              onClick={() => setZoomManual((previo) => indicePaso(previo ?? diaPx, -1))}
+              onClick={() => setZoomManual((previo) => indicePaso(previo ?? diaVista, -1))}
               className="rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100"
               aria-label="Alejar: ver más meses"
               title="Alejar: ver más meses"
@@ -622,15 +739,22 @@ export function CronogramaServicio() {
             </button>
             <button
               type="button"
-              onClick={() => setZoomManual(null)}
+              onClick={() => {
+                // Alterna entre vista de trimestres y vista de días.
+                if (esTrimestre) {
+                  setZoomManual(DIA_PX_MIN)
+                } else {
+                  setZoomManual((previo) => (previo === null ? 16 : null))
+                }
+              }}
               className="min-w-20 rounded-md px-1 py-1.5 text-center text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100"
-              title="Volver al ajuste automático"
+              title={esTrimestre ? 'Cambiar a vista de días' : 'Cambiar a vista de trimestres'}
             >
               {esTrimestre ? 'Trimestres' : 'Días'}
             </button>
             <button
               type="button"
-              onClick={() => setZoomManual((previo) => indicePaso(previo ?? diaPx, 1))}
+              onClick={() => setZoomManual((previo) => indicePaso(previo ?? diaVista, 1))}
               className="rounded-md p-1.5 text-slate-600 transition-colors hover:bg-slate-100"
               aria-label="Acercar: ver más detalle"
               title="Acercar: ver más detalle"
@@ -696,7 +820,7 @@ export function CronogramaServicio() {
         <div>
           <section ref={envolturaRef} className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-4 shadow-sm">
           <div ref={scrollRef} className="overflow-x-auto">
-            <div className="transition-[width] duration-300 ease-out" style={{ width: ANCHO_ETIQUETA + rango.totalDias * diaPx }}>
+            <div style={{ width: ANCHO_ETIQUETA + rango.totalDias * diaVista }}>
               {/* Encabezado de altura fija: no se mueve al cambiar de vista */}
               <div className="mb-1 flex h-[60px] border-b border-slate-200">
                 <div
@@ -712,13 +836,13 @@ export function CronogramaServicio() {
                         {(() => {
                           let x = 0
                           return trimestres.map((grupo, gi) => {
-                            const anchoGrupo = grupo.reduce((s, m) => s + m.dias * diaPx, 0)
+                            const anchoGrupo = grupo.reduce((s, m) => s + m.dias * diaVista, 0)
                             const centro = x + anchoGrupo / 2
                             x += anchoGrupo
                             return (
                               <span
                                 key={gi}
-                                className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold whitespace-nowrap text-slate-700 capitalize transition-[left] duration-300 ease-out"
+                                className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-bold whitespace-nowrap text-slate-700 capitalize"
                                 style={{ left: centro }}
                               >
                                 {etiquetaTrimestre(grupo)}
@@ -731,8 +855,8 @@ export function CronogramaServicio() {
                         {meses.map((m) => (
                           <div
                             key={m.clave}
-                            className="flex shrink-0 items-center justify-center overflow-hidden border-l border-slate-100 px-1 text-center text-[11px] font-semibold whitespace-nowrap text-slate-500 capitalize transition-[width] duration-300 ease-out"
-                            style={{ width: m.dias * diaPx }}
+                            className="flex shrink-0 items-center justify-center overflow-hidden border-l border-slate-100 px-1 text-center text-[11px] font-semibold whitespace-nowrap text-slate-500 capitalize"
+                            style={{ width: m.dias * diaVista }}
                           >
                             {MESES[m.fecha.getMonth()]}
                           </div>
@@ -745,8 +869,8 @@ export function CronogramaServicio() {
                         {meses.map((m) => (
                           <div
                             key={m.clave}
-                            className="flex items-center border-l border-slate-200 px-2 text-xs font-semibold text-slate-600 capitalize transition-[width] duration-300 ease-out"
-                            style={{ width: m.dias * diaPx }}
+                            className="flex items-center border-l border-slate-200 px-2 text-xs font-semibold text-slate-600 capitalize"
+                            style={{ width: m.dias * diaVista }}
                           >
                             {MESES[m.fecha.getMonth()]} {m.fecha.getFullYear()}
                           </div>
@@ -756,8 +880,8 @@ export function CronogramaServicio() {
                         {dias.map((d, i) => (
                           <div
                             key={i}
-                            className="flex shrink-0 items-center justify-center text-center text-xs text-slate-500 tabular-nums transition-[width] duration-300 ease-out"
-                            style={{ width: diaPx }}
+                            className="flex shrink-0 items-center justify-center text-center text-xs text-slate-500 tabular-nums"
+                            style={{ width: diaVista }}
                           >
                             {d.getDate()}
                           </div>
@@ -957,6 +1081,9 @@ export function CronogramaServicio() {
           }
           avanceDerivado={
             modal.modo === 'editar' ? avanceEfectivo(modal.tarea, tareas) : null
+          }
+          horasDerivadas={
+            modal.modo === 'editar' ? horasEstimadasTarea(modal.tarea, tareas) : null
           }
           onCerrar={() => setModal(null)}
           onGuardar={guardar}

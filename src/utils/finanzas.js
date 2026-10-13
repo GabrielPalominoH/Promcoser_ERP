@@ -3,11 +3,12 @@
 // TODAS las pantallas y reportes deben usar estas funciones: prohíbe calcular
 // los mismos indicadores de forma diferente en cada componente.
 //
-// Política de reconocimiento vigente (gerencial interna, validar con el
+// Política vigente (gerencial interna, validar con el
 // contador antes de usar como base contable):
-//   - Ingresos reconocidos de un servicio = valorizado (monto × avance).
+//   - Resultado de un servicio = cobrado − gastado (utilidad real, caja).
+//   - Las facturas son registro documental con saldo y estado propios.
 //   - Costos reconocidos = registros vigentes (excluye anulados/duplicados).
-//   - Los cobros (ingresos) mueven caja, no resultado.
+//   - El valorizado (monto × avance) solo mide avance físico en Partidas.
 // Moneda predeterminada: PEN. Precisión: céntimos (redondeo bancario simple
 // con Math.round; documentado como supuesto explícito, §18).
 //
@@ -30,15 +31,10 @@ export function margenBruto(resultado, ingresosReconocidos) {
   return redondear2((N(resultado) / N(ingresosReconocidos)) * 100)
 }
 
-// Desviación = costo real − presupuesto vigente (+ = sobrecosto).
-export function desviacionPresupuesto(costoReal, presupuestoVigente) {
-  return redondear2(N(costoReal) - N(presupuestoVigente))
-}
-
-// Ejecución (%) = costo real / presupuesto × 100. null si presupuesto = 0.
-export function porcentajeEjecucion(costoReal, presupuestoVigente) {
-  if (N(presupuestoVigente) === 0) return null
-  return redondear2((N(costoReal) / N(presupuestoVigente)) * 100)
+// Ejecución (%) = costo real / base × 100. null si base = 0.
+export function porcentajeEjecucion(costoReal, base) {
+  if (N(base) === 0) return null
+  return redondear2((N(costoReal) / N(base)) * 100)
 }
 
 // Saldo por cobrar = facturado − cobrado (más notas que lo reduzcan).
@@ -71,119 +67,6 @@ export function resultadoPorServicio({ ingresos, directos, indirectos = 0 }) {
     resultadoOperativo: operativo,
     margenOperativo: margenBruto(operativo, ingresos),
   }
-}
-
-// ------------------------------------------------------------
-//  Presupuesto por categorías (Etapa 6)
-// ------------------------------------------------------------
-
-// Inicial / adicional / vigente por categoría + totales. Lo no registrado
-// en una categoría simplemente vale 0 (nunca ficticio).
-export function presupuestoPorCategoria(presupuestos, servicioId) {
-  const porCategoria = {}
-  for (const p of presupuestos ?? []) {
-    if (p.servicio_id !== servicioId) continue
-    const cat = p.categoria || 'Otros costos directos'
-    if (!porCategoria[cat]) porCategoria[cat] = { inicial: 0, adicional: 0 }
-    if (p.version === 'adicional') porCategoria[cat].adicional += N(p.monto)
-    else porCategoria[cat].inicial += N(p.monto)
-  }
-  let inicialTotal = 0
-  let adicionalTotal = 0
-  for (const cat of Object.values(porCategoria)) {
-    cat.vigente = redondear2(cat.inicial + cat.adicional)
-    cat.inicial = redondear2(cat.inicial)
-    cat.adicional = redondear2(cat.adicional)
-    inicialTotal += cat.inicial
-    adicionalTotal += cat.adicional
-  }
-  return {
-    porCategoria,
-    inicialTotal: redondear2(inicialTotal),
-    adicionalTotal: redondear2(adicionalTotal),
-    vigenteTotal: redondear2(inicialTotal + adicionalTotal),
-  }
-}
-
-// Costo real por categoría desde los registros vigentes del servicio.
-// Equipos según propiedad; gastos según su categoría; lo demás mapea fijo.
-export function realPorCategoria(registros, servicioId, equipos) {
-  const porCategoria = {}
-  let sinCategoria = 0
-  const equipoPorId = new Map((equipos ?? []).map((e) => [e.id, e]))
-  for (const r of soloVigentes(registros ?? [])) {
-    if (r.servicio_id !== servicioId) continue
-    const monto = N(r.monto_calculado)
-    if (r.tipo_registro === 'gasto' && !r.categoria) {
-      sinCategoria += monto
-      continue
-    }
-    let cat = null
-    if (r.tipo_registro === 'equipo') {
-      const eq = equipoPorId.get(r.referencia_id)
-      cat = (eq?.propiedad ?? 'Propio') === 'Alquilado' ? 'Equipos alquilados' : 'Equipos propios'
-    } else if (r.tipo_registro === 'personal') {
-      cat = 'Mano de obra'
-    } else if (r.tipo_registro === 'material') {
-      cat = 'Materiales'
-    } else {
-      const mapa = {
-        Transporte: 'Transporte y movilización',
-        Alimentación: 'Viáticos y alojamiento',
-        Alojamiento: 'Viáticos y alojamiento',
-        Herramientas: 'Herramientas y consumibles',
-        Subcontratos: 'Subcontratos',
-      }
-      cat = mapa[r.categoria] ?? 'Otros costos directos'
-    }
-    porCategoria[cat] = redondear2((porCategoria[cat] || 0) + monto)
-  }
-  return { porCategoria, sinCategoria: redondear2(sinCategoria) }
-}
-
-// Desviación de una categoría + ejecución (null si vigente = 0).
-export function desviacionCategoria(vigente, real) {
-  const v = N(vigente)
-  const r = N(real)
-  return {
-    desviacion: redondear2(r - v),
-    ejecucion: v === 0 ? null : redondear2((r / v) * 100),
-    excedida: v > 0 && r > v,
-  }
-}
-
-// ------------------------------------------------------------
-//  Distribución de indirectos (regla configurable, §9/§11)
-// ------------------------------------------------------------
-
-export const REGLAS_INDIRECTOS = ['ninguna', 'horas', 'costos', 'ingresos']
-
-// Reparte un total entre servicios en proporción a sus bases. Redondea a
-// céntimos y asigna el residuo al de mayor base (cuadra exacto).
-// Sin regla ('ninguna') o sin bases: todo queda sin distribuir.
-export function distribuirIndirectos(total, basesPorServicio) {
-  const T = N(total)
-  const lista = (basesPorServicio ?? []).filter((b) => N(b.base) > 0)
-  const sumaBases = lista.reduce((s, b) => s + N(b.base), 0)
-  if (T === 0 || lista.length === 0 || sumaBases <= 0) {
-    return {
-      regla: 'ninguna',
-      distribuido: [],
-      sinDistribuir: redondear2(T),
-    }
-  }
-  const ordenada = [...lista].sort((a, b) => N(b.base) - N(a.base))
-  // Prorrateo exacto: todos menos el mayor, residuo al mayor.
-  let resto = T
-  const resultado = ordenada.map((b, i) => {
-    if (i === 0) return { ...b, monto: 0 }
-    const m = redondear2((T * N(b.base)) / sumaBases)
-    resto = redondear2(resto - m)
-    return { ...b, monto: m }
-  })
-  resultado[0] = { ...resultado[0], monto: redondear2(resto) }
-  const acumulado = resultado.reduce((s, r) => s + r.monto, 0)
-  return { regla: 'aplicada', distribuido: resultado, sinDistribuir: redondear2(T - acumulado) }
 }
 
 // Vigencia de movimientos (Regla 5): anulados o duplicados no cuentan en

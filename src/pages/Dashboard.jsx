@@ -31,14 +31,12 @@ import {
   metricasCronograma,
   nombreReferencia,
   ordenarPorFechaDesc,
-  porCobrar,
 } from '../utils/calculadora'
 import {
   analizarServicios,
   avanceMetaIngreso,
   flujoCajaMensualReal,
   kpisEmpresa,
-  proyeccionCierre,
   proyeccionMensualPersonal,
   rentabilidadPorCliente,
 } from '../utils/gerencial'
@@ -56,15 +54,13 @@ function descargarCSV(nombre, filas) {
   URL.revokeObjectURL(url)
 }
 
-function BarraPresupuesto({ porcentaje, excedido }) {
-  const ancho = Math.min(100, Math.max(0, porcentaje))
+function BarraGasto({ monto, maximo }) {
+  const ancho = maximo > 0 ? Math.min(100, Math.max(0, (monto / maximo) * 100)) : 0
 
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
       <div
-        className={`h-full rounded-full transition-all ${
-          excedido ? 'bg-red-500' : porcentaje > 85 ? 'bg-amber-500' : 'bg-primary-600'
-        }`}
+        className="h-full rounded-full bg-primary-600 transition-all"
         style={{ width: `${ancho}%` }}
       />
     </div>
@@ -86,9 +82,30 @@ export function Dashboard() {
   const { estado, restablecer, reemplazarColeccion, actualizarItem } = useData()
   const [aviso, setAviso] = useState(null)
   const [datosAbierto, setDatosAbierto] = useState(false)
+  const [vaciarArmado, setVaciarArmado] = useState(false)
   const [movimientosAbierto, setMovimientosAbierto] = useState(false)
   const [metaTexto, setMetaTexto] = useState('')
   const inputArchivo = useRef(null)
+
+  const cerrarDatos = () => {
+    setDatosAbierto(false)
+    setVaciarArmado(false)
+  }
+
+  // Vacía todas las colecciones para empezar de cero en producción.
+  // Conserva la configuración (empresa, moneda, meta). Pide dos clics.
+  const vaciarTodo = () => {
+    if (!vaciarArmado) {
+      setVaciarArmado(true)
+      return
+    }
+    for (const coleccion of COLECCIONES) {
+      if (coleccion === 'config') continue
+      reemplazarColeccion(coleccion, [])
+    }
+    cerrarDatos()
+    setAviso({ tipo: 'exito', mensaje: 'Datos vaciados. Listo para cargar información real.' })
+  }
 
   const exportarRespaldo = () => {
     const blob = new Blob([serializarRespaldo(estado)], { type: 'application/json' })
@@ -100,7 +117,7 @@ export function Dashboard() {
     enlace.click()
     enlace.remove()
     URL.revokeObjectURL(url)
-    setDatosAbierto(false)
+    cerrarDatos()
     setAviso({ tipo: 'exito', mensaje: 'Respaldo descargado. Guárdalo en un lugar seguro.' })
   }
 
@@ -122,7 +139,7 @@ export function Dashboard() {
         for (const coleccion of COLECCIONES) {
           reemplazarColeccion(coleccion, normalizado[coleccion])
         }
-        setDatosAbierto(false)
+        cerrarDatos()
         setAviso({ tipo: 'exito', mensaje: 'Respaldo importado correctamente.' })
       } catch {
         setAviso({ tipo: 'error', mensaje: 'No se pudo leer el archivo JSON.' })
@@ -189,7 +206,7 @@ export function Dashboard() {
   const asigF = (todasLasAsignaciones ?? []).filter((a) => idsF.has(a.servicio_id))
 
   // --- Indicadores gerenciales (todo compuesto desde utils) ---
-  const analisis = analizarServicios({ servicios: serviciosF, registros: registrosF, tareas: tareasF })
+  const analisis = analizarServicios({ servicios: serviciosF, registros: registrosF, cobros: cobrosF })
   const kpis = kpisEmpresa({
     servicios: serviciosF,
     registros: registrosF,
@@ -202,7 +219,6 @@ export function Dashboard() {
     servicios: serviciosF,
     registros: registrosF,
     cobros: cobrosF,
-    tareas: tareasF,
   })
   const cajaReal = flujoCajaMensualReal({
     registros: registrosF,
@@ -214,28 +230,16 @@ export function Dashboard() {
     servicios: serviciosF,
     registros: registrosF,
   })
-  const cierre = proyeccionCierre({ analisis })
 
   const totalPersonal = personal.length
   const totalEquipos = equipos.length
   const enRiesgo = analisis.filter((a) => a.motivos.length > 0)
-  const serviciosPorConsumo = [...analisis].sort((a, b) => b.consumo.porcentaje - a.consumo.porcentaje)
-  const rankingMargen = [...analisis].sort((a, b) => {
-    const pa = a.servicio.presupuesto_asignado || 0
-    const pb = b.servicio.presupuesto_asignado || 0
-    const ma = a.rent.margenProyectado ?? a.consumo.disponible
-    const mb = b.rent.margenProyectado ?? b.consumo.disponible
-    return mb / Math.max(1, pb) - ma / Math.max(1, pa)
-  })
+  const serviciosPorGasto = [...analisis].sort((a, b) => b.gastado - a.gastado)
+  const maxGasto = Math.max(1, ...serviciosPorGasto.map((a) => a.gastado))
+  const rankingUtilidad = [...analisis].sort((a, b) => b.utilidad - a.utilidad)
+  const maxUtilidad = Math.max(1, ...rankingUtilidad.map((a) => a.utilidad))
 
-  // Cobros por servicio: quién debe + desglose por concepto.
-  const cobrosPorServicio = serviciosF
-    .map((servicio) => ({
-      servicio,
-      cobrado: cobradoServicio(cobrosF, servicio.id),
-      pendiente: porCobrar(servicio, cobrosF),
-    }))
-    .sort((a, b) => b.pendiente - a.pendiente)
+  // Cobros por concepto: desglose de lo cobrado.
   const cobrosPorConcepto = cobrosF.reduce((acum, c) => {
     const clave = c.concepto || 'otro'
     acum[clave] = (acum[clave] || 0) + (Number(c.monto) || 0)
@@ -278,20 +282,15 @@ export function Dashboard() {
   const exportarCSVServicios = () => {
     const paraCSV = (texto) => `"${String(texto ?? '').replace(/"/g, '""')}"`
     descargarCSV('promcoser-rentabilidad-servicios.csv', [
-      ['servicio', 'cliente', 'tipo', 'presupuesto', 'gastado', 'cobrado', 'por_cobrar', 'utilidad', 'margen_pct'],
-      ...analisis.map(({ servicio, consumo }) => {
-        const cobrado = cobradoServicio(cobrosF, servicio.id)
-        const pendiente = porCobrar(servicio, cobrosF)
-        const utilidad = cobrado - consumo.gastado
+      ['servicio', 'cliente', 'tipo', 'gastado', 'cobrado', 'utilidad', 'utilidad_pct'],
+      ...analisis.map(({ servicio, gastado, cobrado, utilidad }) => {
         const margen = cobrado > 0 ? Math.round((utilidad / cobrado) * 100 * 100) / 100 : ''
         return [
           paraCSV(servicio.nombre_servicio),
           paraCSV(servicio.cliente),
           paraCSV(servicio.tipo ?? 'Obra'),
-          servicio.presupuesto_asignado,
-          consumo.gastado,
+          gastado,
           cobrado,
-          pendiente,
           utilidad,
           margen,
         ]
@@ -363,7 +362,7 @@ export function Dashboard() {
             ) : (
               <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 Aún no hay una meta de ingreso. Escribe un monto y pulsa «Guardar meta» para
-                ver cuánto falta por cobrar.
+                ver cuánto falta para la meta.
               </p>
             )}
           </div>
@@ -437,19 +436,15 @@ export function Dashboard() {
         <StatCard
           titulo="Resultado empresa"
           valor={formatearMoneda(kpis.resultadoEmpresa)}
-          detalle={`Margen ${kpis.margenPct == null ? 'N/D' : `${kpis.margenPct}%`} · oficina ${formatearMoneda(kpis.oficina)}`}
+          detalle={`Utilidad ${formatearMoneda(kpis.utilidadServicios)} · oficina ${formatearMoneda(kpis.oficina)}`}
           tono={kpis.resultadoEmpresa < 0 ? 'danger' : 'success'}
           icono={<Icono nombre="grid" className="size-5" />}
         />
         <StatCard
-          titulo="Presupuesto"
-          valor={formatearMoneda(kpis.presupuesto)}
-          detalle={
-            kpis.ejecucion == null
-              ? 'Sin presupuesto'
-              : `Ejecución ${kpis.ejecucion}% · gastado ${formatearMoneda(kpis.gastado)}`
-          }
-          tono={kpis.gastado > kpis.presupuesto ? 'danger' : 'slate'}
+          titulo="Gastado"
+          valor={formatearMoneda(kpis.gastado)}
+          detalle="Egresos de obra acumulados"
+          tono="slate"
           icono={
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5" aria-hidden="true">
               <path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -459,7 +454,7 @@ export function Dashboard() {
         <StatCard
           titulo="Cobrado"
           valor={formatearMoneda(kpis.cobrado)}
-          detalle={`Por cobrar ${formatearMoneda(kpis.porCobrar)}`}
+          detalle="Ingresos efectivamente recibidos"
           tono="success"
           icono={<Icono nombre="billete" className="size-5" />}
         />
@@ -484,7 +479,7 @@ export function Dashboard() {
             </p>
           ) : (
             <ul className="space-y-3">
-              {enRiesgo.map(({ servicio, motivos, consumo, rent }) => (
+              {enRiesgo.map(({ servicio, motivos, gastado, cobrado }) => (
                 <li
                   key={servicio.id}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50/40 px-4 py-3"
@@ -502,13 +497,8 @@ export function Dashboard() {
                   </div>
                   <div className="text-right text-xs text-slate-600 tabular-nums">
                     <p>
-                      Gastado {formatearMoneda(consumo.gastado)} ({consumo.porcentaje.toFixed(1)}%)
+                      Gastado {formatearMoneda(gastado)} · cobrado {formatearMoneda(cobrado)}
                     </p>
-                    {rent.margenProyectado != null && (
-                      <p className="mt-0.5 font-semibold">
-                        Margen proy. {formatearMoneda(rent.margenProyectado)}
-                      </p>
-                    )}
                   </div>
                 </li>
               ))}
@@ -518,13 +508,13 @@ export function Dashboard() {
 
         <Card
           titulo="Resultado empresa"
-          descripcion="Margen de servicios menos oficina"
+          descripcion="Utilidad de servicios menos oficina"
           className="xl:col-span-2"
         >
           <dl className="space-y-3 text-sm">
             <div className="flex justify-between gap-2">
-              <dt className="text-slate-500">Margen servicios</dt>
-              <dd className="font-semibold tabular-nums">{formatearMoneda(kpis.margenTotal)}</dd>
+              <dt className="text-slate-500">Utilidad servicios</dt>
+              <dd className="font-semibold tabular-nums">{formatearMoneda(kpis.utilidadServicios)}</dd>
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-slate-500">
@@ -541,12 +531,6 @@ export function Dashboard() {
               </dd>
             </div>
           </dl>
-          <p className="mt-4 text-xs text-slate-500">
-            Proyección al cierre: {cierre.costoFinal == null
-              ? 'sin datos de avance suficientes'
-              : `${formatearMoneda(cierre.costoFinal)} de costo final · margen ${formatearMoneda(cierre.margenProyectado)}`}
-            {cierre.servicios > 0 ? ` (${cierre.servicios} servicio(s))` : ''}.
-          </p>
         </Card>
       </div>
 
@@ -592,7 +576,7 @@ export function Dashboard() {
 
         <Card
           titulo="Proyección"
-          descripcion="Personal proyectado por mes y cierre estimado"
+          descripcion="Personal proyectado por mes"
           className="xl:col-span-2"
         >
           {personalProyectado.length === 0 ? (
@@ -616,13 +600,13 @@ export function Dashboard() {
           )}
           <p className="mt-4 text-xs text-slate-500">
             Solo se proyecta el costo de personal (con datos de asignaciones). Los cobros futuros
-            no se proyectan porque no hay una regla de facturación: quedan como «Por cobrar».
+            no se proyectan porque no hay una regla de facturación.
           </p>
         </Card>
       </div>
 
       <Card
-        titulo="Rentabilidad por cliente"
+        titulo="Utilidad por cliente"
         descripcion="Consolidado de todas las obras del cliente"
       >
         <Table>
@@ -630,34 +614,28 @@ export function Dashboard() {
             <TableRow>
               <Th>Cliente</Th>
               <Th alinear="right">Servicios</Th>
-              <Th alinear="right">Presupuesto</Th>
               <Th alinear="right">Gastado</Th>
               <Th alinear="right">Cobrado</Th>
-              <Th alinear="right">Por cobrar</Th>
-              <Th alinear="right">Margen proy.</Th>
-              <Th alinear="right">Margen %</Th>
+              <Th alinear="right">Utilidad</Th>
+              <Th alinear="right">Utilidad %</Th>
             </TableRow>
           </TableHead>
           <TableBody>
             {porCliente.length === 0 ? (
-              <TableEmpty colSpan={8} mensaje="Sin servicios para el filtro actual." />
+              <TableEmpty colSpan={6} mensaje="Sin servicios para el filtro actual." />
             ) : (
               porCliente.map((fila) => (
                 <TableRow key={fila.cliente}>
                   <Td className="font-medium text-slate-800">{fila.cliente}</Td>
                   <Td alinear="right" className="tabular-nums text-slate-500">{fila.servicios}</Td>
-                  <Td alinear="right" className="tabular-nums">{formatearMoneda(fila.presupuesto)}</Td>
                   <Td alinear="right" className="tabular-nums">{formatearMoneda(fila.gastado)}</Td>
                   <Td alinear="right" className="tabular-nums">{formatearMoneda(fila.cobrado)}</Td>
-                  <Td alinear="right" className="tabular-nums">{formatearMoneda(fila.porCobrar)}</Td>
-                  <Td alinear="right" className="tabular-nums">
-                    {fila.tieneProyeccion ? formatearMoneda(fila.margenProyectado) : '—'}
-                  </Td>
+                  <Td alinear="right" className="tabular-nums">{formatearMoneda(fila.utilidad)}</Td>
                   <Td
                     alinear="right"
-                    className={`tabular-nums font-semibold ${fila.margenPct != null && fila.margenPct < 0 ? 'text-red-600' : 'text-slate-900'}`}
+                    className={`tabular-nums font-semibold ${fila.utilidadPct != null && fila.utilidadPct < 0 ? 'text-red-600' : 'text-slate-900'}`}
                   >
-                    {fila.margenPct == null ? '—' : `${fila.margenPct.toFixed(1)}%`}
+                    {fila.utilidadPct == null ? '—' : `${fila.utilidadPct.toFixed(1)}%`}
                   </Td>
                 </TableRow>
               ))
@@ -668,8 +646,8 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card
-          titulo="Consumo por servicio"
-          descripcion="Ordenado de mayor a menor avance presupuestal"
+          titulo="Gasto por servicio"
+          descripcion="Ordenado de mayor a menor gasto"
           className="xl:col-span-3"
           acciones={
             <Button variante="secundario" tamano="sm" onClick={exportarCSVServicios}>
@@ -677,11 +655,11 @@ export function Dashboard() {
             </Button>
           }
         >
-          {serviciosPorConsumo.length === 0 ? (
+          {serviciosPorGasto.length === 0 ? (
             <p className="text-sm text-slate-400">Sin servicios para el filtro actual.</p>
           ) : (
             <ul className="space-y-5">
-              {serviciosPorConsumo.map(({ servicio, consumo, rent }) => (
+              {serviciosPorGasto.map(({ servicio, gastado, cobrado, utilidad, estado }) => (
                 <li key={servicio.id}>
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <div className="flex min-w-0 items-center gap-2">
@@ -693,24 +671,13 @@ export function Dashboard() {
                       </Link>
                       <BadgeEstatus estatus={servicio.estatus} />
                     </div>
-                    <span
-                      className={`text-sm font-semibold tabular-nums ${
-                        consumo.excedido ? 'text-red-600' : 'text-slate-700'
-                      }`}
-                    >
-                      {consumo.porcentaje.toFixed(1)}%
+                    <span className="text-sm font-semibold text-slate-700 tabular-nums">
+                      {formatearMoneda(gastado)} ({estado.porcentaje.toFixed(1)}%)
                     </span>
                   </div>
-                  <BarraPresupuesto
-                    porcentaje={consumo.porcentaje}
-                    excedido={consumo.excedido}
-                  />
+                  <BarraGasto monto={gastado} maximo={maxGasto} />
                   <p className="mt-1.5 text-xs text-slate-500">
-                    {formatearMoneda(consumo.gastado)} de{' '}
-                    {formatearMoneda(consumo.presupuesto)} · {servicio.cliente}
-                    {rent.margenProyectado != null && (
-                      <> · margen proy. {formatearMoneda(rent.margenProyectado)}</>
-                    )}
+                    Gastado {formatearMoneda(gastado)} de {formatearMoneda(estado.presupuesto)} · cobrado {formatearMoneda(cobrado)} · utilidad {formatearMoneda(utilidad)} · {servicio.cliente}
                   </p>
                 </li>
               ))}
@@ -719,99 +686,43 @@ export function Dashboard() {
         </Card>
 
         <Card
-          titulo="Ranking de margen"
-          descripcion="De mayor a menor margen % proyectado"
+          titulo="Ranking de utilidad"
+          descripcion="De mayor a menor utilidad (cobrado − gastado)"
           className="xl:col-span-2"
         >
           <ul className="space-y-3">
-            {rankingMargen.map(({ servicio, rent, consumo }) => {
-              const pct = servicio.presupuesto_asignado
-                ? ((rent.margenProyectado ?? consumo.disponible) / servicio.presupuesto_asignado) * 100
-                : 0
-              return (
-                <li key={servicio.id}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                    <Link
-                      to={`/servicios/${servicio.id}`}
-                      className="truncate font-medium text-slate-800 hover:text-primary-700 hover:underline"
-                    >
-                      {servicio.nombre_servicio}
-                    </Link>
-                    <span
-                      className={`font-semibold tabular-nums ${pct < 0 ? 'text-red-600' : 'text-slate-900'}`}
-                    >
-                      {pct.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={`h-full rounded-full ${pct < 10 ? 'bg-red-500' : pct < 20 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                    />
-                  </div>
-                </li>
-              )
-            })}
+            {rankingUtilidad.map(({ servicio, utilidad }) => (
+              <li key={servicio.id}>
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                  <Link
+                    to={`/servicios/${servicio.id}`}
+                    className="truncate font-medium text-slate-800 hover:text-primary-700 hover:underline"
+                  >
+                    {servicio.nombre_servicio}
+                  </Link>
+                  <span
+                    className={`font-semibold tabular-nums ${utilidad < 0 ? 'text-red-600' : 'text-slate-900'}`}
+                  >
+                    {formatearMoneda(utilidad)}
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full ${utilidad < 0 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                    style={{ width: `${Math.min(100, Math.max(0, (utilidad / maxUtilidad) * 100))}%` }}
+                  />
+                </div>
+              </li>
+            ))}
           </ul>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card
-          titulo="Quién debe"
-          descripcion="Por cobrar por servicio"
-          className="xl:col-span-3"
-        >
-          {cobrosPorServicio.filter((c) => c.pendiente > 0).length === 0 ? (
-            <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-              Sin saldos por cobrar.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {cobrosPorServicio
-                .filter((c) => c.pendiente > 0)
-                .slice(0, 6)
-                .map(({ servicio, pendiente, cobrado }) => (
-                  <li key={servicio.id}>
-                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                      <Link
-                        to={`/servicios/${servicio.id}/ingresos`}
-                        className="truncate font-medium text-slate-800 hover:text-primary-700 hover:underline"
-                      >
-                        {servicio.nombre_servicio}
-                      </Link>
-                      <span className="font-semibold text-amber-700 tabular-nums">
-                        {formatearMoneda(pendiente)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 tabular-nums">
-                      Cobrado {formatearMoneda(cobrado)} de {formatearMoneda(servicio.presupuesto_asignado)}
-                    </p>
-                  </li>
-                ))}
-            </ul>
-          )}
-          {Object.keys(cobrosPorConcepto).length > 0 && (
-            <div className="mt-4 border-t border-slate-200 pt-3">
-              <p className="mb-1.5 text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                Por concepto
-              </p>
-              <ul className="space-y-1 text-sm">
-                {Object.entries(cobrosPorConcepto).map(([concepto, monto]) => (
-                  <li key={concepto} className="flex justify-between gap-2">
-                    <span className="text-slate-600 capitalize">{concepto}</span>
-                    <span className="tabular-nums">{formatearMoneda(monto)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Card>
-
-        <Card
           titulo="Estructura del gasto"
           descripcion="Acumulado por tipo de registro"
-          className="xl:col-span-2"
+          className="xl:col-span-3"
         >
           <ul className="space-y-4">
             {Object.entries(desglosePorTipo(registrosF)).map(([tipo, monto]) => {
@@ -855,6 +766,25 @@ export function Dashboard() {
               </dd>
             </div>
           </dl>
+        </Card>
+
+        <Card
+          titulo="Cobros por concepto"
+          descripcion="Lo cobrado según su concepto"
+          className="xl:col-span-2"
+        >
+          {Object.keys(cobrosPorConcepto).length === 0 ? (
+            <p className="text-sm text-slate-400">Aún no hay ingresos registrados.</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {Object.entries(cobrosPorConcepto).map(([concepto, monto]) => (
+                <li key={concepto} className="flex justify-between gap-2">
+                  <span className="text-slate-600 capitalize">{concepto}</span>
+                  <span className="tabular-nums">{formatearMoneda(monto)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
 
@@ -977,10 +907,10 @@ export function Dashboard() {
         abierto={datosAbierto}
         titulo="Datos y respaldo"
         descripcion="Tu información vive en este navegador. Exporta un respaldo con frecuencia."
-        onCerrar={() => setDatosAbierto(false)}
+        onCerrar={cerrarDatos}
         ancho="sm"
         pie={
-          <Button variante="secundario" onClick={() => setDatosAbierto(false)}>
+          <Button variante="secundario" onClick={cerrarDatos}>
             Cerrar
           </Button>
         }
@@ -989,6 +919,7 @@ export function Dashboard() {
           <p className="text-sm text-slate-600">
             «Exportar» descarga un archivo JSON con todo. «Importar» reemplaza los datos actuales
             por los del archivo. «Restablecer» vuelve a los datos de ejemplo.
+            «Vaciar todo» borra todo para empezar de cero (conserva la configuración).
           </p>
           <div className="flex flex-wrap gap-2">
             <Button variante="secundario" onClick={exportarRespaldo}>
@@ -999,6 +930,9 @@ export function Dashboard() {
             </Button>
             <Button variante="peligro" onClick={restablecer}>
               Restablecer datos de ejemplo
+            </Button>
+            <Button variante={vaciarArmado ? 'peligro' : 'secundario'} onClick={vaciarTodo}>
+              {vaciarArmado ? 'Pulsa de nuevo para vaciar todo' : 'Vaciar todo'}
             </Button>
           </div>
           <input

@@ -11,9 +11,6 @@ import {
 } from '../src/data/store'
 import {
   cobrosDeFactura,
-  desviacionCategoria,
-  desviacionPresupuesto,
-  distribuirIndirectos,
   enMes,
   enRango,
   esVigente,
@@ -21,8 +18,6 @@ import {
   flujoNetoCaja,
   margenBruto,
   porcentajeEjecucion,
-  presupuestoPorCategoria,
-  realPorCategoria,
   resultadoBruto,
   resultadoOperativoEstimado,
   resultadoPorServicio,
@@ -31,13 +26,12 @@ import {
   saldoPorPagar,
   soloVigentes,
 } from '../src/utils/finanzas'
-import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, consumoPresupuesto, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, diasCalendarioRango, diferenciaPersonalAuto, esDomingo, sumarMontos, registrosDeServicio, metricasCronograma, montoTarea, porCobrar, presupuestoTareas, proyeccionAsignaciones, rentabilidadServicio, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
+import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, desviacionHoras, diasCalendarioRango, diferenciaPersonalAuto, esDomingo, estadoPresupuesto, horasEstimadasTarea, horasPorMes, horasRealesTarea, sumarMontos, mediaMovil, proyeccionFinanciera, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, proyeccionAsignaciones, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import {
   analizarServicios,
   avanceMetaIngreso,
   flujoCajaMensualReal,
   kpisEmpresa,
-  proyeccionCierre,
   proyeccionMensualPersonal,
   rentabilidadPorCliente,
 } from '../src/utils/gerencial'
@@ -124,6 +118,20 @@ comprobar('cascada multinivel borra todo el árbol', ![91, 92, 93].some((id) => 
 const restaurado = dataReducer(sinServicio, { type: 'RESTABLECER' })
 comprobar('RESTABLECER vuelve a los mocks', restaurado.equipos.length === ESTADO_INICIAL.equipos.length)
 
+// Vaciar todo (producción): cada colección queda en [] salvo config.
+const vaciado = COLECCIONES.reduce(
+  (est, c) =>
+    c === 'config'
+      ? est
+      : dataReducer(est, { type: 'REEMPLAZAR_COLECCION', payload: { coleccion: c, items: [] } }),
+  ESTADO_INICIAL,
+)
+comprobar(
+  'vaciar todo deja colecciones vacías y conserva config',
+  COLECCIONES.filter((c) => c !== 'config').every((c) => vaciado[c].length === 0) &&
+    vaciado.config.length === ESTADO_INICIAL.config.length,
+)
+
 comprobar('siguienteId equipos = 26', siguienteId(ESTADO_INICIAL.equipos) === 26, String(siguienteId(ESTADO_INICIAL.equipos)))
 comprobar('siguienteId arreglo vacío = 1', siguienteId([]) === 1, String(siguienteId([])))
 
@@ -135,34 +143,34 @@ const desconocido = dataReducer(ESTADO_INICIAL, { type: 'NO_EXISTE' })
 comprobar('acción desconocida devuelve el estado igual', desconocido === ESTADO_INICIAL)
 
 // ============================================================
-//  2. Cálculos de presupuesto
+//  2. Cálculos de costos e ingresos
 // ============================================================
 
 console.log('\n[ calculadora ]')
 
-const { registros_servicio: registros, servicios } = ESTADO_INICIAL
+const { registros_servicio: registros, servicios, cobros: cobrosSemilla } = ESTADO_INICIAL
 const servicio6 = servicios.find((s) => s.id === 6)
-const consumo6 = consumoPresupuesto(servicio6, registros)
+comprobar('servicio 6 tiene presupuesto inicial = 120000', servicio6.presupuesto_asignado === 120000, String(servicio6.presupuesto_asignado))
+const gastado6 = sumarMontos(registrosDeServicio(registros, 6))
+const cobrado6 = cobradoServicio(cobrosSemilla, 6)
 
-comprobar('consumo servicio 6 = 48866', consumo6.gastado === 48866, String(consumo6.gastado))
-comprobar('presupuesto = 120000', consumo6.presupuesto === 120000)
-comprobar('disponible = 71134', consumo6.disponible === 71134, String(consumo6.disponible))
-comprobar('porcentaje correcto', Math.abs(consumo6.porcentaje - 40.72) < 0.01, consumo6.porcentaje.toFixed(3))
-comprobar('no excedido', consumo6.excedido === false)
-
-const excedido = consumoPresupuesto({ id: 6, presupuesto_asignado: 100 }, registros)
-comprobar('detecta presupuesto excedido', excedido.excedido === true && excedido.disponible === -48766, String(excedido.disponible))
-comprobar('excedido no corta el porcentaje', excedido.porcentaje > 100, String(excedido.porcentaje))
-
-const cero = consumoPresupuesto({ id: 98, presupuesto_asignado: 0 }, registros)
-comprobar('presupuesto 0 no divide entre cero', cero.porcentaje === 0 && cero.excedido === false)
+comprobar('gastado servicio 6 = 48866', gastado6 === 48866, String(gastado6))
+comprobar('cobrado servicio 6 = 54000', cobrado6 === 54000, String(cobrado6))
+comprobar('utilidad serv. 6 = 5134', utilidadReal(cobrado6, gastado6) === 5134, String(utilidadReal(cobrado6, gastado6)))
+const estado6 = estadoPresupuesto(servicio6, registros, cobrosSemilla)
+comprobar('presupuesto inicial = 120000', estado6.presupuesto === 120000, String(estado6.presupuesto))
+comprobar('disponible = 71134', estado6.disponible === 71134, String(estado6.disponible))
+comprobar('ejecución ≈ 40.72%', Math.abs(estado6.porcentaje - 40.72) < 0.01, estado6.porcentaje.toFixed(3))
+comprobar('no excedido', estado6.excedido === false)
+comprobar('cobrado en estado = 54000', estado6.cobrado === 54000, String(estado6.cobrado))
 
 const desglose6 = desglosePorTipo(registrosDeServicio(registros, 6))
 comprobar('desglose material = 30276', desglose6.material === 30276, String(desglose6.material))
 comprobar('desglose personal = 1540', desglose6.personal === 1540, String(desglose6.personal))
 comprobar('desglose gasto = 3500', desglose6.gasto === 3500, String(desglose6.gasto))
 comprobar('desglose equipo = 13550', desglose6.equipo === 13550, String(desglose6.equipo))
-comprobar('desglose suma el total', Object.values(desglose6).reduce((a, b) => a + b, 0) === consumo6.gastado)
+comprobar('desglose suma el total', Object.values(desglose6).reduce((a, b) => a + b, 0) === gastado6)
+comprobar('cascada: cobrado − tipos = utilidad', cobrado6 - Object.values(desglose6).reduce((a, b) => a + b, 0) === utilidadReal(cobrado6, gastado6))
 
 comprobar('sumarMontos total = 48866', sumarMontos(registros) === 48866, String(sumarMontos(registros)))
 
@@ -175,45 +183,22 @@ comprobar('avance global serv. 6 = 54', met6.avanceGlobal === 54, String(met6.av
 const metVacio = metricasCronograma([])
 comprobar('cronograma vacío en ceros', metVacio.total === 0 && metVacio.avanceGlobal === 0)
 
-const rent6 = rentabilidadServicio(servicio6, registros, tareas6)
-comprobar('margen serv. 6 = 71134', rent6.margen === 71134, String(rent6.margen))
-comprobar('margen % serv. 6 ≈ 59.28', Math.abs(rent6.margenPct - 59.28) < 0.01, rent6.margenPct.toFixed(2))
-comprobar('valor ganado serv. 6 = 64800', Math.abs(rent6.valorGanado - 64800) < 0.01, String(rent6.valorGanado))
-comprobar('CPI serv. 6 ≈ 1.33', Math.abs(rent6.cpi - 1.33) < 0.01, String(rent6.cpi))
-comprobar('costo final ≈ 90492.59', Math.abs(rent6.costoFinal - 90492.59) < 0.01, String(rent6.costoFinal))
-comprobar('margen proyectado ≈ 29507.41', Math.abs(rent6.margenProyectado - 29507.41) < 0.01, String(rent6.margenProyectado))
-const rentSinAvance = rentabilidadServicio(servicio6, registros, [])
-comprobar('sin tareas no hay CPI ni proyección', rentSinAvance.cpi === null && rentSinAvance.margenProyectado === null)
-const alertasSanas = alertasServicio({
-  servicio: servicio6,
-  consumo: { excedido: false, presupuesto: 120000, disponible: 50000 },
-  dias: 60,
-  rentabilidad: { cpi: 1.2 },
-})
+const alertasSanas = alertasServicio({ estado: { excedido: false, presupuesto: 120000, disponible: 50000 }, dias: 60 })
 comprobar('sin problemas no hay alertas', alertasSanas.length === 0, JSON.stringify(alertasSanas))
-const alertasMal = alertasServicio({
-  servicio: servicio6,
-  consumo: { excedido: true, presupuesto: 100, disponible: -10 },
-  dias: -5,
-  rentabilidad: { cpi: 0.7 },
-})
+const alertasMal = alertasServicio({ estado: { excedido: true, presupuesto: 100, disponible: -10 }, dias: -5 })
 const codigos = alertasMal.map((a) => a.codigo)
 comprobar(
-  'detecta excedido, cpi y plazo',
-  ['excedido', 'cpi-critico', 'plazo-vencido'].every((c) => codigos.includes(c)),
+  'detecta excedido y plazo vencido',
+  ['excedido', 'plazo-vencido'].every((c) => codigos.includes(c)),
   JSON.stringify(codigos),
 )
-const alertasMargen = alertasServicio({
-  servicio: servicio6,
-  consumo: { excedido: false, presupuesto: 1000, disponible: 50 },
-  dias: 10,
-  rentabilidad: { cpi: null },
-})
+const alertasCerca = alertasServicio({ estado: { excedido: false, presupuesto: 1000, disponible: 50 }, dias: 10 })
 comprobar(
   'margen bajo y plazo cercano avisan',
-  alertasMargen.some((a) => a.codigo === 'margen-bajo') && alertasMargen.some((a) => a.codigo === 'plazo-cercano'),
-  JSON.stringify(alertasMargen.map((a) => a.codigo)),
+  alertasCerca.some((a) => a.codigo === 'margen-bajo') && alertasCerca.some((a) => a.codigo === 'plazo-cercano'),
+  JSON.stringify(alertasCerca.map((a) => a.codigo)),
 )
+comprobar('sin plazo no hay alertas', alertasServicio({ estado: { excedido: false, presupuesto: 0, disponible: 0 }, dias: null }).length === 0)
 
 const mensual6 = gastoPorMes(registrosDeServicio(registros, 6))
 comprobar('gasto mensual serv. 6 = 3 meses', mensual6.length === 3, JSON.stringify(mensual6.map((m) => m.mes)))
@@ -267,10 +252,7 @@ console.log('\n[ cobros ]')
 const { cobros } = ESTADO_INICIAL
 comprobar('serv. 6 tiene 2 cobros', cobros.filter((c) => c.servicio_id === 6).length === 2)
 comprobar('cobrado serv. 6 = 54000', cobradoServicio(cobros, 6) === 54000, String(cobradoServicio(cobros, 6)))
-comprobar('por cobrar serv. 6 = 66000', porCobrar(servSeis, cobros) === 66000, String(porCobrar(servSeis, cobros)))
-const gastado6 = sumarMontos(registrosDeServicio(ESTADO_INICIAL.registros_servicio, 6))
 comprobar('utilidad real = cobrado − gastado', utilidadReal(cobradoServicio(cobros, 6), gastado6) === 54000 - gastado6)
-comprobar('sobrepago da negativo', porCobrar({ id: 7, presupuesto_asignado: 1000 }, [{ servicio_id: 7, monto: 1500 }]) === -500)
 comprobar('cascada servicio borra cobros', !(sinServicio.cobros ?? []).some((c) => c.servicio_id === 6))
 
 console.log('\n[ dashboard global ]')
@@ -280,13 +262,14 @@ const gastadoDash6 = sumarMontos(regsDash6)
 comprobar('gastado serv. 6 = 48866', gastadoDash6 === 48866, String(gastadoDash6))
 const oficinaTotal = sumarMontos(ESTADO_INICIAL.costos_oficina)
 comprobar('oficina total = 23800', oficinaTotal === 23800, String(oficinaTotal))
-comprobar('resultado empresa = 47334', 120000 - gastadoDash6 - oficinaTotal === 47334)
+comprobar('utilidad serv. 6 = 5134', 54000 - gastadoDash6 === 5134)
+comprobar('resultado empresa = -18666', (54000 - gastadoDash6) - oficinaTotal === -18666)
 const porMes6 = proyeccionAsignaciones(asigs, servSeis, ESTADO_INICIAL.registros_servicio).porMes
 const pendientes6 = porMes6.filter((m) => m.estimado && m.monto > 0 && ['2026-08', '2026-09', '2026-10'].includes(m.mes))
 comprobar('ago/oct proyectados suman 6736/8160/6000', JSON.stringify(pendientes6.map((m) => m.monto)) === '[6736,8160,6000]', JSON.stringify(pendientes6.map((m) => m.monto)))
 const porConcepto = cobros.reduce((a, c) => ({ ...a, [c.concepto]: (a[c.concepto] || 0) + c.monto }), {})
 comprobar('adelanto 24000 y valorización 30000', porConcepto.adelanto === 24000 && porConcepto['valorización'] === 30000)
-comprobar('COLECCIONES trae asignaciones y cobros, sin partidas', COLECCIONES.includes('asignaciones') && COLECCIONES.includes('cobros') && !COLECCIONES.includes('partidas') && !COLECCIONES.includes('valorizaciones'))
+comprobar('COLECCIONES trae asignaciones y cobros, sin partidas ni presupuestos', COLECCIONES.includes('asignaciones') && COLECCIONES.includes('cobros') && !COLECCIONES.includes('partidas') && !COLECCIONES.includes('valorizaciones') && !COLECCIONES.includes('presupuestos'))
 const spi6 = indiceAvance(servicio6, 54, '2026-10-06')
 comprobar('SPI serv. 6 ≈ 0.96', spi6 && Math.abs(spi6.spi - 0.96) < 0.01, String(spi6?.spi))
 comprobar('sin plazo no hay SPI', indiceAvance({ fecha_inicio: '', fecha_fin_estimada: '' }, 50, '2026-10-06') === null)
@@ -297,16 +280,17 @@ const oficinaOct = oficina.filter((c) => c.mes === '2026-10').reduce((t, c) => t
 const oficinaSep = oficina.filter((c) => c.mes === '2026-09').reduce((t, c) => t + c.monto_calculado, 0)
 comprobar('oficina oct = 17500', oficinaOct === 17500, String(oficinaOct))
 comprobar('oficina sep = 6300', oficinaSep === 6300, String(oficinaSep))
-comprobar('empresa oct = 53634', consumo6.disponible - oficinaOct === 53634)
 const soloObra = ESTADO_INICIAL.personal.filter((p) => (p.ambito ?? 'Obra') !== 'Oficina')
 comprobar('personal de obra > 0 y < total', soloObra.length > 0 && soloObra.length < ESTADO_INICIAL.personal.length, String(soloObra.length))
 comprobar('sumarMontos vacío = 0', sumarMontos([]) === 0)
 
 console.log('\n[ gerencial ]')
 
-const analisis6 = analizarServicios({ servicios: [servicio6], registros, tareas, hoy: '2026-10-12' })
+const analisis6 = analizarServicios({ servicios: [servicio6], registros, cobros: ESTADO_INICIAL.cobros })
 comprobar('análisis serv. 6 = 1 servicio', analisis6.length === 1, String(analisis6.length))
-comprobar('análisis serv. 6 gastado = 48866', analisis6[0].consumo.gastado === 48866, String(analisis6[0].consumo.gastado))
+comprobar('análisis serv. 6 gastado = 48866', analisis6[0].gastado === 48866, String(analisis6[0].gastado))
+comprobar('análisis serv. 6 cobrado/utilidad = 54000/5134', analisis6[0].cobrado === 54000 && analisis6[0].utilidad === 5134, `${analisis6[0].cobrado}/${analisis6[0].utilidad}`)
+comprobar('análisis serv. 6 disponible = 71134', analisis6[0].estado.disponible === 71134, String(analisis6[0].estado.disponible))
 
 const kpis6 = kpisEmpresa({
   servicios: [servicio6],
@@ -315,26 +299,21 @@ const kpis6 = kpisEmpresa({
   costosOficina: ESTADO_INICIAL.costos_oficina,
   analisis: analisis6,
 })
-comprobar('kpi presupuesto = 120000', kpis6.presupuesto === 120000, String(kpis6.presupuesto))
-comprobar('kpi margen = 71134', kpis6.margenTotal === 71134, String(kpis6.margenTotal))
-comprobar('kpi margen % = 59.28', kpis6.margenPct === 59.28, String(kpis6.margenPct))
-comprobar('kpi ejecución = 40.72', kpis6.ejecucion === 40.72, String(kpis6.ejecucion))
-comprobar('kpi cobrado/por cobrar = 54000/66000', kpis6.cobrado === 54000 && kpis6.porCobrar === 66000, `${kpis6.cobrado}/${kpis6.porCobrar}`)
-comprobar('kpi resultado empresa = 47334', kpis6.resultadoEmpresa === 47334, String(kpis6.resultadoEmpresa))
+comprobar('kpi gastado = 48866', kpis6.gastado === 48866, String(kpis6.gastado))
+comprobar('kpi utilidad = 5134', kpis6.utilidadServicios === 5134, String(kpis6.utilidadServicios))
+comprobar('kpi cobrado = 54000', kpis6.cobrado === 54000, String(kpis6.cobrado))
+comprobar('kpi resultado empresa = -18666', kpis6.resultadoEmpresa === -18666, String(kpis6.resultadoEmpresa))
 comprobar('kpi servicios en curso = 1', kpis6.enCurso === 1 && kpis6.total === 1, `${kpis6.enCurso}/${kpis6.total}`)
 
 const clientes6 = rentabilidadPorCliente({
   servicios: [servicio6],
   registros,
   cobros: ESTADO_INICIAL.cobros,
-  tareas,
-  hoy: '2026-10-12',
 })
 const filaCliente = clientes6[0] ?? {}
-comprobar('rentabilidad cliente: presupuesto/gastado', filaCliente.presupuesto === 120000 && filaCliente.gastado === 48866)
-comprobar('rentabilidad cliente: por cobrar = 66000', filaCliente.porCobrar === 66000, String(filaCliente.porCobrar))
-comprobar('rentabilidad cliente: margen proy ≈ 29507.41', filaCliente.tieneProyeccion && Math.abs(filaCliente.margenProyectado - 29507.41) < 0.01, String(filaCliente.margenProyectado))
-comprobar('rentabilidad cliente: margen % = 24.59', filaCliente.margenPct === 24.59, String(filaCliente.margenPct))
+comprobar('utilidad cliente: gastado/cobrado', filaCliente.gastado === 48866 && filaCliente.cobrado === 54000)
+comprobar('utilidad cliente: utilidad = 5134', filaCliente.utilidad === 5134, String(filaCliente.utilidad))
+comprobar('utilidad cliente: utilidad % ≈ 9.51', filaCliente.utilidadPct != null && Math.abs(filaCliente.utilidadPct - 9.51) < 0.01, String(filaCliente.utilidadPct))
 
 const caja = flujoCajaMensualReal({
   registros,
@@ -358,11 +337,6 @@ comprobar('proyección personal ago = 6736', mesProy('2026-08') === 6736, String
 comprobar('proyección personal sep = 8160', mesProy('2026-09') === 8160, String(mesProy('2026-09')))
 comprobar('proyección personal oct = 6000', mesProy('2026-10') === 6000, String(mesProy('2026-10')))
 
-const proyCierre = proyeccionCierre({ analisis: analisis6 })
-comprobar('cierre: costo final ≈ 90492.59', proyCierre.costoFinal != null && Math.abs(proyCierre.costoFinal - 90492.59) < 0.01, String(proyCierre.costoFinal))
-comprobar('cierre: margen proy ≈ 29507.41', Math.abs(proyCierre.margenProyectado - 29507.41) < 0.01, String(proyCierre.margenProyectado))
-comprobar('cierre sin avance no proyecta', proyeccionCierre({ analisis: [] }).costoFinal === null)
-
 const sinMeta = avanceMetaIngreso({ cobrado: 54000, meta: 0 })
 comprobar('meta sin definir no tiene porcentaje', sinMeta.definida === false && sinMeta.porcentaje === null)
 comprobar('meta sin definir no tiene faltante', sinMeta.falta === null, String(sinMeta.falta))
@@ -374,12 +348,12 @@ comprobar('meta 100000: avance = 54%', meta100.porcentaje === 54 && meta100.cump
 const metaSuperada = avanceMetaIngreso({ cobrado: 120000, meta: 100000 })
 comprobar('meta superada: cumplida hasta 120%', metaSuperada.cumplida === true && metaSuperada.falta === 0 && metaSuperada.porcentaje === 120, String(metaSuperada.porcentaje))
 
-console.log('\n[ presupuesto por tareas ]')
+console.log('\n[ montos por tareas ]')
 
 const { registros_servicio: regs } = ESTADO_INICIAL
 const tareasTodas = ESTADO_INICIAL.tareas
 const tareasServ6 = tareasTodas.filter((t) => t.servicio_id === 6)
-comprobar('presupuesto serv. 6 = 120000', presupuestoTareas(tareasTodas, 6) === 120000, String(presupuestoTareas(tareasTodas, 6)))
+comprobar('monto total serv. 6 = 120000', presupuestoTareas(tareasTodas, 6) === 120000, String(presupuestoTareas(tareasTodas, 6)))
 comprobar('monto padre suma hijas (cimentación = 21600)', montoTarea(tareasServ6.find((t) => t.id === 14), tareasServ6) === 21600)
 comprobar('monto hoja manual (excavación = 9600)', montoTarea(tareasServ6.find((t) => t.id === 15), tareasServ6) === 9600)
 comprobar('valorizado cimentación = 21600', valorizadoTarea(tareasServ6.find((t) => t.id === 14), tareasServ6) === 21600)
@@ -407,6 +381,51 @@ comprobar(
   ![14, 15, 16].some((id) => sinRaiz.tareas.some((t) => t.id === id)),
 )
 
+console.log('\n[ productividad ]')
+
+const porIdTarea = (id) => tareasServ6.find((t) => t.id === id)
+comprobar('horas reales vaciado = 40', horasRealesTarea(porIdTarea(16), tareasServ6, regs, 6) === 40)
+comprobar('horas reales columnas = 30', horasRealesTarea(porIdTarea(18), tareasServ6, regs, 6) === 30)
+comprobar('horas reales sin registros = 0', horasRealesTarea(porIdTarea(13), tareasServ6, regs, 6) === 0)
+comprobar('horas reales padre suma hijas = 40', horasRealesTarea(porIdTarea(14), tareasServ6, regs, 6) === 40)
+comprobar('estimado hoja vaciado = 32', horasEstimadasTarea(porIdTarea(16), tareasServ6) === 32)
+comprobar('estimado padre suma hijas = 192', horasEstimadasTarea(porIdTarea(14), tareasServ6) === 192)
+const estServ6 = tareasServ6.filter((t) => t.padre_id == null).reduce((s, t) => s + horasEstimadasTarea(t, tareasServ6), 0)
+const realServ6 = tareasServ6.filter((t) => t.padre_id == null).reduce((s, t) => s + horasRealesTarea(t, tareasServ6, regs, 6), 0)
+comprobar('servicio estimado/total = 1152/70', estServ6 === 1152 && realServ6 === 70, `${estServ6}/${realServ6}`)
+const desvVaciado = desviacionHoras(32, 40)
+comprobar('desviación +8 h y 125%', desvVaciado.diferencia === 8 && desvVaciado.porcentaje === 125, JSON.stringify(desvVaciado))
+comprobar('desviación negativa = ahorro', desviacionHoras(200, 30).diferencia === -170)
+comprobar('sin estimado no hay %', desviacionHoras(0, 5).porcentaje === null)
+const horasMes6 = horasPorMes(ESTADO_INICIAL.registros_servicio, 6)
+comprobar('horas por mes serv. 6 = ago 70 h', horasMes6.length === 1 && horasMes6[0].mes === '2026-08' && horasMes6[0].horas === 70, JSON.stringify(horasMes6))
+comprobar('horas por mes vacío = []', horasPorMes([], 6).length === 0)
+comprobar('media móvil 10/20/30/40 = 10/15/20/30', JSON.stringify(mediaMovil([10, 20, 30, 40])) === '[10,15,20,30]')
+comprobar('media móvil corta promedia lo que hay', JSON.stringify(mediaMovil([10, 20])) === '[10,15]')
+comprobar('media móvil vacía = []', mediaMovil([]).length === 0)
+
+console.log('\n[ proyección financiera ]')
+
+const proy6 = proyeccionFinanciera({ presupuesto: 120000, gastado: 48866, cobrado: 54000, avance: 54, spi: 0.96 })
+comprobar('valor ganado = 64800', proy6.valorGanado === 64800, String(proy6.valorGanado))
+comprobar('ritmo de gasto ≈ 1.33', proy6.cpi != null && Math.abs(proy6.cpi - 1.33) < 0.01, String(proy6.cpi))
+comprobar('costo final ≈ 90492.59', proy6.costoFinal != null && Math.abs(proy6.costoFinal - 90492.59) < 0.01, String(proy6.costoFinal))
+comprobar('utilidad proyectada ≈ 29507.41', proy6.utilidadProyectada != null && Math.abs(proy6.utilidadProyectada - 29507.41) < 0.01, String(proy6.utilidadProyectada))
+comprobar('margen proyectado ≈ 24.59%', proy6.margenProyectadoPct != null && Math.abs(proy6.margenProyectadoPct - 24.59) < 0.01, String(proy6.margenProyectadoPct))
+comprobar('cobro proyectado = 100000', proy6.cobroProyectado === 100000, String(proy6.cobroProyectado))
+comprobar('faltante por facturar = 20000', proy6.faltanteCobro === 20000, String(proy6.faltanteCobro))
+comprobar('semáforo verde', proy6.semaforo === 'verde', String(proy6.semaforo))
+const proySinAvance = proyeccionFinanciera({ presupuesto: 120000, gastado: 0, cobrado: 0, avance: 0, spi: null })
+comprobar('sin avance no hay proyección', proySinAvance.tieneProyeccion === false && proySinAvance.semaforo === null)
+comprobar(
+  'sobrecosto crítico da rojo',
+  proyeccionFinanciera({ presupuesto: 1000, gastado: 2000, cobrado: 0, avance: 50, spi: 1 }).semaforo === 'rojo',
+)
+comprobar(
+  'retraso de plazo da amarillo',
+  proyeccionFinanciera({ presupuesto: 120000, gastado: 48866, cobrado: 54000, avance: 54, spi: 0.5 }).semaforo === 'amarillo',
+)
+
 console.log('\n[ migración a tareas ]')
 
 const viejo = {
@@ -419,7 +438,7 @@ const viejo = {
   ],
 }
 const migrado = migrarPresupuestoATareas(viejo)
-comprobar('migración: raíz hereda presupuesto (21600)', migrado.tareas[0].monto === 21600, String(migrado.tareas[0].monto))
+comprobar('migración: raíz hereda monto (21600)', migrado.tareas[0].monto === 21600, String(migrado.tareas[0].monto))
 comprobar('migración: tarea sin partida_id', !('partida_id' in migrado.tareas[0]))
 comprobar('migración: directo va a la raíz', migrado.registros_servicio[0].tarea_id === 14)
 comprobar('migración: sin partida queda sin tarea', migrado.registros_servicio[1].tarea_id == null)
@@ -477,8 +496,7 @@ comprobar('C facturado/cobrado/saldo', saldoPorCobrar(10000, 4000) === 6000 && 4
 comprobar('D saldo pendiente 1500 y caja 0', saldoPorPagar(1500, 0) === 1500 && flujoNetoCaja(0, 0) === 0)
 // Caso E: pago parcial.
 comprobar('E saldo 1200', saldoPorPagar(2000, 800) === 1200)
-// Caso F: desviación y ejecución.
-comprobar('F desviación 1500', desviacionPresupuesto(11500, 10000) === 1500)
+// Caso F: ejecución.
 comprobar('F ejecución 115%', porcentajeEjecucion(11500, 10000) === 115)
 // Caso H: anulados/duplicados no duplican.
 const conRuido = [
@@ -557,58 +575,14 @@ comprobar(
 )
 
 // ============================================================
-//  7. Presupuesto e indirectos
+//  7. Respaldo de colecciones retiradas
 // ============================================================
 
-console.log('\n[ presupuesto e indirectos ]')
-
-const pptoDemo = [
-  { servicio_id: 6, categoria: 'Mano de obra', monto: 40000, version: 'inicial' },
-  { servicio_id: 6, categoria: 'Mano de obra', monto: 5000, version: 'adicional' },
-  { servicio_id: 6, categoria: 'Materiales', monto: 30000, version: 'inicial' },
-]
-const ppto = presupuestoPorCategoria(pptoDemo, 6)
-comprobar('vigente suma inicial + adicional', ppto.porCategoria['Mano de obra'].vigente === 45000)
-comprobar('totales 70000/5000/75000', ppto.inicialTotal === 70000 && ppto.adicionalTotal === 5000 && ppto.vigenteTotal === 75000)
-const equiposDemo = [
-  { id: 1, propiedad: 'Propio' },
-  { id: 2, propiedad: 'Alquilado' },
-]
-const regsDemo = [
-  { servicio_id: 6, tipo_registro: 'personal', monto_calculado: 1000 },
-  { servicio_id: 6, tipo_registro: 'equipo', referencia_id: 1, monto_calculado: 500 },
-  { servicio_id: 6, tipo_registro: 'equipo', referencia_id: 2, monto_calculado: 300 },
-  { servicio_id: 6, tipo_registro: 'material', monto_calculado: 200 },
-  { servicio_id: 6, tipo_registro: 'gasto', categoria: 'Transporte', monto_calculado: 100 },
-  { servicio_id: 6, tipo_registro: 'gasto', monto_calculado: 50 },
-]
-const real = realPorCategoria(regsDemo, 6, equiposDemo)
+console.log('\n[ retiradas ]')
 comprobar(
-  'real mapea categorías',
-  real.porCategoria['Mano de obra'] === 1000 &&
-    real.porCategoria['Equipos propios'] === 500 &&
-    real.porCategoria['Equipos alquilados'] === 300 &&
-    real.porCategoria['Materiales'] === 200 &&
-    real.porCategoria['Transporte y movilización'] === 100 &&
-    real.sinCategoria === 50,
-  JSON.stringify(real),
+  'COLECCIONES sin presupuestos ni pagos',
+  !COLECCIONES.includes('presupuestos') && !COLECCIONES.includes('pagos'),
 )
-const desv = desviacionCategoria(10000, 11500)
-comprobar('desviación 1500 y ejecución 115%', desv.desviacion === 1500 && desv.ejecucion === 115 && desv.excedida)
-comprobar('ejecución N/D sin presupuesto', desviacionCategoria(0, 500).ejecucion === null)
-const dist = distribuirIndirectos(1000, [
-  { servicio_id: 6, base: 3 },
-  { servicio_id: 7, base: 1 },
-])
-comprobar(
-  'prorrateo exacto 750/250',
-  dist.distribuido.find((d) => d.servicio_id === 6).monto === 750 &&
-    dist.distribuido.find((d) => d.servicio_id === 7).monto === 250 &&
-    dist.sinDistribuir === 0,
-  JSON.stringify(dist),
-)
-comprobar('sin regla queda separado', distribuirIndirectos(1000, []).sinDistribuir === 1000)
-comprobar('cascada servicio borra presupuestos', !(dataReducer(ESTADO_INICIAL, { type: 'ELIMINAR_ITEM', payload: { coleccion: 'servicios', id: 6 } }).presupuestos ?? []).some((p) => p.servicio_id === 6))
 
 // ============================================================
 //  8. Render de rutas
@@ -625,7 +599,6 @@ const rutas = [
   { ruta: '/servicios/6/equipos', etiqueta: 'Panel equipos', monto: false },
   { ruta: '/servicios/6/gastos', etiqueta: 'Panel gastos', monto: true },
   { ruta: '/servicios/6/ingresos', etiqueta: 'Panel ingresos', monto: true },
-  { ruta: '/servicios/6/presupuesto', etiqueta: 'Panel presupuesto', monto: true },
 
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },

@@ -240,7 +240,7 @@ export function EquiposServicio() {
       servicio={servicio}
       tipo="equipo"
       titulo="Equipos"
-      descripcion="Uso de equipos en el servicio: horas por costo. Suma al gastado del presupuesto."
+      descripcion="Uso de equipos en el servicio: horas por costo. Suma al gastado."
       columnaCantidad
       etiquetaCantidad="Horas"
       mensajeVacio="Este servicio todavía no tiene uso de equipos registrado."
@@ -252,7 +252,7 @@ export function EquiposServicio() {
             <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
               {formatearMoneda(totalMonto)}
             </p>
-            <p className="mt-0.5 text-xs text-slate-500">Uso registrado: suma al presupuesto</p>
+            <p className="mt-0.5 text-xs text-slate-500">Uso registrado: suma al gastado</p>
           </Card>
           <Card>
             <p className="text-sm text-slate-500">Horas totales</p>

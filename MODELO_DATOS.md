@@ -9,15 +9,14 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 |---|---|---|
 | `personal` | `id` | Ficha: nombre, apellido, cargo, DNI, tarifa/hora, ámbito (Obra/Oficina) |
 | `equipos` | `id` | Ficha: nombre, costo/hora |
-| `servicios` | `id` | Obra: nombre, cliente, monto contratado, inicio, fin estimado, avance, estatus |
-| `tareas` | `id` | Cronograma + presupuesto: servicio, padre (árbol), nombre, fechas, avance %, monto |
+| `servicios` | `id` | Obra: nombre, cliente, tipo, presupuesto inicial, inicio, fin estimado, avance, estatus |
+| `tareas` | `id` | Cronograma + montos: servicio, padre (árbol), nombre, fechas, avance %, monto, horas estimadas |
 | `registros_servicio` | `id` | Libro único de costos: servicio, tarea?, tipo, referencia/nombre, cantidad, monto, fecha, modalidad, asignación? |
 | `asignaciones` | `id` | Personal asignado: servicio, persona, tarea?, horas/día, tarifa, inicio, fin? (vacío = vigente). El costo mensual se genera automático |
 | `costos_oficina` | `id` | Gasto general: persona (ámbito Oficina), mes, monto. Sin servicio |
 | `cobros` | `id` | Ingresos (módulo Ingresos en UI): servicio, fecha, monto, concepto, documento? |
 | `facturas` | `id` | Facturación (Etapa 5): servicio, número, emisión, vencimiento, importes, estado, saldo (vacía) |
-| `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN, regla de indirectos y meta de ingreso (`meta_ingreso`) |
-| `presupuestos` | `id` | Presupuesto por categoría: servicio, categoría, monto, inicial/adicional, motivo, fecha |
+| `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN y meta de ingreso (`meta_ingreso`) |
 
 
 ## Relaciones
@@ -34,21 +33,23 @@ asignaciones 1──N registros_servicio (asignacion_id; meses devengados autom�
 personal 1──N costos_oficina (personal_id; gasto general, sin servicio)
 servicios 1──N cobros (servicio_id)
 servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id, opcional)
-servicios 1──N presupuestos (servicio_id)
 
 ```
 
 ## Reglas de negocio (dónde viven)
 
 - **Monto del padre = suma de hijas** (`montoTarea`). Hojas: monto manual editable en Partidas.
+- **Horas estimadas del padre = suma de hijas** (`horasEstimadasTarea`). Hojas: valor manual editable en el Cronograma.
+- **Horas reales = registros de personal propios + descendientes** (`horasRealesTarea`, solo tipo personal). Desviación = real − estimado (`desviacionHoras`, % `null` sin estimado).
 - **Valorizado = monto × avance efectivo** (`valorizadoTarea`). Sin metrados.
 - **Costo de fila = propio + descendientes** (`costoSubarbol`). Costos sin tarea van al aviso, nunca se pierden.
-- **Borrados** (`DataContext ELIMINAR_ITEM`): servicio arrastra registros, tareas, asignaciones, facturas, cobros y presupuestos; tarea arrastra subtareas y deja costos sin tarea; asignación arrastra sus meses automáticos.
+- **Borrados** (`DataContext ELIMINAR_ITEM`): servicio arrastra registros, tareas, asignaciones, facturas y cobros; tarea arrastra subtareas y deja costos sin tarea; asignación arrastra sus meses automáticos.
 - **Personal**: costo directo automático desde asignaciones (`diferenciaPersonalAuto` + `proyeccionAsignaciones`); el devengado hasta hoy vive en registros mensuales (`modalidad: 'mensual'` para que siempre cuente). Baja = `fecha_fin`; lo devengado se conserva.
 - **Equipos**: el costo es el uso registrado por servicio; sin proyección.
-- **Cobros (= Ingresos en UI)**: cobrado, por cobrar (contratado − cobrado) y utilidad real (cobrado − gastado). Margen teórico (valorizado − costo) se conserva como medida de eficiencia.
-- **Sin módulo de pagos ni de cierre mensual**: no hay `pagos` ni `generarCierre`; el panel gerencial no tiene un Resultado del mes contable, solo una evolución de caja real vs proyectada (ver `src/utils/gerencial.js`).
-- **Resultado empresa** = margen de servicios − gasto de oficina.
+- **Cobros (= Ingresos en UI)**: cobrado y utilidad real (cobrado − gastado). Las facturas son registro documental con saldo y estado propios. En Partidas, el margen por tarea (valorizado − costo) se conserva como medida de avance.
+- **Control contra el presupuesto inicial** (`estadoPresupuesto`): gastado, disponible, % de ejecución, excedido y cobrado por servicio. Sin proyecciones: solo lectura para Resumen, Servicios y Dashboard.
+- **Sin módulo de pagos, de presupuestos ni de cierre mensual**: no hay `pagos`, `presupuestos` ni `generarCierre`; el panel gerencial no tiene un Resultado del mes contable, solo una evolución de caja real vs proyectada (ver `src/utils/gerencial.js`).
+- **Resultado empresa** = utilidad de servicios − gasto de oficina.
 - **Registros diarios viejos en domingo no cuentan** (`cuentaComoManoDeObra`); mensuales siempre.
 
 ## Migraciones guardadas
@@ -64,14 +65,14 @@ servicios 1──N presupuestos (servicio_id)
   `siguienteId`). Los componentes no tocan `localStorage` (salvo preferencia
   visual del sidebar). Si el guardado falla, `Layout` muestra alerta y pide
   exportar respaldo.
-- Versión de esquema `_v: 7`; respaldos de versión mayor se rechazan; lo
+- Versión de esquema `_v: 8`; respaldos de versión mayor se rechazan; lo
   inválido no destruye lo guardado.
 - Finanzas centralizadas en `src/utils/finanzas.js` (resultado/margen bruto,
-  desviación, ejecución, saldos, flujo, vigencia, periodos). Política: PEN,
-  céntimos, ingresos reconocidos = valorizado salvo criterio formal.
+  saldos, flujo, vigencia, periodos). Política: PEN,
+  céntimos, resultado = cobrado − gastado.
 
 ## Convenciones de UI
 
-- Vocabulario único: Personal, Equipos, Ingresos, Cobrado, Por cobrar, Utilidad real, Pago, Pagado, Dar de baja, Sin tarea asignada.
+- Vocabulario único: Personal, Equipos, Ingresos, Cobrado, Utilidad real, Pago, Pagado, Dar de baja, Sin tarea asignada.
 - Selectores de datos con búsqueda (`CampoComboBox`); listas de 2–3 opciones fijas con `Select` nativo.
 - Contadores en sidebars; sin texto libre donde hay lista válida.

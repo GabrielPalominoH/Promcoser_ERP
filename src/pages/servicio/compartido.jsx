@@ -30,7 +30,6 @@ import {
   ordenarPorFechaDesc,
   sumarMontos,
 } from '../../utils/calculadora'
-import { CATEGORIAS_GASTO } from '../../data/mockData'
 
 export function fechaHoyISO() {
   return new Date().toISOString().slice(0, 10)
@@ -114,8 +113,8 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar, onEditar }) {
   )
 }
 
-// Edición de un gasto: concepto, monto, fecha, tarea, categoría y
-// comprobante. Los demás tipos no son editables por ahora.
+// Edición de un gasto: concepto, monto, fecha, tarea y comprobante.
+// Los demás tipos no son editables por ahora.
 function ModalEdicionGasto({ registro, tareas, onGuardar, onCerrar }) {
   const {
     register,
@@ -128,19 +127,17 @@ function ModalEdicionGasto({ registro, tareas, onGuardar, onCerrar }) {
       monto: registro.monto_calculado ?? '',
       fecha: registro.fecha ?? '',
       tarea_id: registro.tarea_id != null ? String(registro.tarea_id) : '',
-      categoria: registro.categoria ?? '',
       documento: registro.documento ?? '',
     },
   })
 
-  const enviar = ({ concepto, monto, fecha, tarea_id, categoria, documento }) => {
+  const enviar = ({ concepto, monto, fecha, tarea_id, documento }) => {
     onGuardar({
       id: registro.id,
       concepto: concepto.trim(),
       monto_calculado: redondearMonto(monto),
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
-      categoria: categoria || null,
       documento: documento.trim() || null,
     })
   }
@@ -188,15 +185,6 @@ function ModalEdicionGasto({ registro, tareas, onGuardar, onCerrar }) {
             />
           </Campo>
         )}
-        <Campo label="Categoría (opcional)" error={errors.categoria?.message} htmlFor="edg-categoria">
-          <CampoComboBox
-            id="edg-categoria"
-            control={control}
-            name="categoria"
-            placeholder="Sin categoría…"
-            opciones={CATEGORIAS_GASTO.map((c) => ({ valor: c, etiqueta: c }))}
-          />
-        </Campo>
         <Campo
           label="N° factura / comprobante (opcional)"
           error={errors.documento?.message}
@@ -226,6 +214,10 @@ export function SeccionRegistros({
   tablaAgrupada,
   tarjetas,
   permitirEditar = false,
+  // Registro en modal: si se pasa { boton, titulo, descripcion }, el
+  // formulario (children) vive en un modal que se abre con el botón en la
+  // tarjeta de registros, en vez de mostrarse siempre arriba.
+  modalRegistro = null,
   children,
 }) {
   const { estado, agregarItem, actualizarItem, eliminarItem } = useData()
@@ -234,6 +226,7 @@ export function SeccionRegistros({
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
   const [porEditar, setPorEditar] = useState(null)
+  const [mostrarRegistro, setMostrarRegistro] = useState(false)
   const editable = permitirEditar && tipo === 'gasto'
 
   const refs = {
@@ -259,6 +252,7 @@ export function SeccionRegistros({
   const registrar = (datos) => {
     agregarItem('registros_servicio', datos)
     setAviso({ tipo: 'exito', mensaje: mensajeExito(datos) })
+    setMostrarRegistro(false)
   }
 
   const registrarLote = (items, mensaje) => {
@@ -290,11 +284,22 @@ export function SeccionRegistros({
   return (
     <div className="space-y-6">
       {tarjetas ? tarjetas({ registros, registrosQueSuman, totalMonto, totalCantidad, refs }) : null}
-      <Card titulo={titulo} descripcion={descripcion}>
-        {children({ servicio, personal, equipos, registrar, registrarLote, notificar })}
-      </Card>
+      {modalRegistro == null && (
+        <Card titulo={titulo} descripcion={descripcion}>
+          {children({ servicio, personal, equipos, registrar, registrarLote, notificar })}
+        </Card>
+      )}
 
-      <Card titulo={`Registros de ${titulo.toLowerCase()}`}>
+      <Card
+        titulo={`Registros de ${titulo.toLowerCase()}`}
+        acciones={
+          modalRegistro == null ? undefined : (
+            <Button tamano="sm" onClick={() => setMostrarRegistro(true)}>
+              {modalRegistro.boton}
+            </Button>
+          )
+        }
+      >
         {tablaAgrupada ? (
           tablaAgrupada({ registros, refs, onEliminar: setPorEliminar })
         ) : (
@@ -346,6 +351,27 @@ export function SeccionRegistros({
         )}
       </Card>
 
+      {modalRegistro != null && mostrarRegistro && (
+        <Modal
+          abierto
+          titulo={modalRegistro.titulo}
+          descripcion={modalRegistro.descripcion}
+          onCerrar={() => setMostrarRegistro(false)}
+          pie={
+            <>
+              <Button variante="secundario" onClick={() => setMostrarRegistro(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" form="form-registro">
+                {modalRegistro.boton}
+              </Button>
+            </>
+          }
+        >
+          {children({ servicio, personal, equipos, registrar, registrarLote, notificar })}
+        </Modal>
+      )}
+
       {porEliminar && (
         <Modal
           abierto
@@ -375,7 +401,7 @@ export function SeccionRegistros({
                 <span className="font-semibold text-slate-900">
                   {porEliminar.titulo}
                 </span>
-                . El presupuesto del servicio se actualiza automáticamente.
+                . El gastado del servicio se actualiza automáticamente.
               </>
             ) : (
               <>
@@ -383,7 +409,7 @@ export function SeccionRegistros({
                 <span className="font-semibold text-slate-900">
                   {conceptoRegistro(porEliminar, refs)}
                 </span>{' '}
-                del {formatearFecha(porEliminar.fecha)}. El presupuesto del servicio se
+                del {formatearFecha(porEliminar.fecha)}. El gastado del servicio se
                 actualiza automáticamente.
               </>
             )}

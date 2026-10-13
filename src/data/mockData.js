@@ -30,37 +30,6 @@ export const CATEGORIAS_GASTO = [
   'Otros',
 ]
 
-// Categorías del presupuesto de costos por servicio.
-export const CATEGORIAS_PRESUPUESTO = [
-  'Mano de obra',
-  'Equipos propios',
-  'Equipos alquilados',
-  'Materiales',
-  'Herramientas y consumibles',
-  'Transporte y movilización',
-  'Subcontratos',
-  'Viáticos y alojamiento',
-  'Otros costos directos',
-  'Costos indirectos',
-  'Contingencia',
-]
-
-// De categoría de gasto (o tipo de registro) a categoría de presupuesto.
-// Lo no mapeado cae en 'Otros costos directos'; sin categoría se avisa.
-export function categoriaPresupuestoDe({ tipo_registro, categoria }) {
-  if (tipo_registro === 'personal') return 'Mano de obra'
-  if (tipo_registro === 'material') return 'Materiales'
-  if (tipo_registro === 'equipo') return null // depende de propiedad del equipo
-  const mapa = {
-    Transporte: 'Transporte y movilización',
-    Alimentación: 'Viáticos y alojamiento',
-    Alojamiento: 'Viáticos y alojamiento',
-    Herramientas: 'Herramientas y consumibles',
-    Subcontratos: 'Subcontratos',
-  }
-  return mapa[categoria] ?? 'Otros costos directos'
-}
-
 // Tipo de servicio con valor por defecto para datos antiguos.
 export function tipoServicio(servicio) {
   return servicio?.tipo ?? 'Obra'
@@ -368,17 +337,17 @@ export const registros_servicio = [
 // ------------------------------------------------------------
 
 export const tareas = [
-  // Servicio 6 — Construcción de almacén. Cada tarea lleva su monto del
-  // presupuesto; las principales suman automáticamente el de sus hijas.
-  { id: 13, servicio_id: 6, nombre: 'Obras preliminares', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-15', avance: 100, monto: 8000 },
-  { id: 14, servicio_id: 6, nombre: 'Cimentación', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100, monto: 0 },
-  { id: 15, servicio_id: 6, padre_id: 14, nombre: 'Excavación', fecha_inicio: '2026-07-16', fecha_fin: '2026-07-31', avance: 100, monto: 9600 },
-  { id: 16, servicio_id: 6, padre_id: 14, nombre: 'Vaciado de cimientos', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15', avance: 100, monto: 12000 },
-  { id: 17, servicio_id: 6, nombre: 'Estructuras', fecha_inicio: '2026-08-16', fecha_fin: '2026-10-15', avance: 60, monto: 0 },
-  { id: 18, servicio_id: 6, padre_id: 17, nombre: 'Columnas y vigas', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-20', avance: 70, monto: 21000 },
-  { id: 19, servicio_id: 6, padre_id: 17, nombre: 'Losa aligerada', fecha_inicio: '2026-09-21', fecha_fin: '2026-10-15', avance: 30, monto: 18900 },
-  { id: 20, servicio_id: 6, nombre: 'Cobertura y cerramientos', fecha_inicio: '2026-10-16', fecha_fin: '2026-11-20', avance: 0, monto: 26000 },
-  { id: 21, servicio_id: 6, nombre: 'Acabados y entrega', fecha_inicio: '2026-11-21', fecha_fin: '2026-12-20', avance: 0, monto: 24500 },
+  // Servicio 6 — Construcción de almacén. Cada tarea lleva su monto y sus
+  // horas estimadas; las principales suman automáticamente los de sus hijas.
+  { id: 13, servicio_id: 6, nombre: 'Obras preliminares', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-15', avance: 100, monto: 8000, horas_estimadas: 120 },
+  { id: 14, servicio_id: 6, nombre: 'Cimentación', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100, monto: 0, horas_estimadas: 0 },
+  { id: 15, servicio_id: 6, padre_id: 14, nombre: 'Excavación', fecha_inicio: '2026-07-16', fecha_fin: '2026-07-31', avance: 100, monto: 9600, horas_estimadas: 160 },
+  { id: 16, servicio_id: 6, padre_id: 14, nombre: 'Vaciado de cimientos', fecha_inicio: '2026-08-01', fecha_fin: '2026-08-15', avance: 100, monto: 12000, horas_estimadas: 32 },
+  { id: 17, servicio_id: 6, nombre: 'Estructuras', fecha_inicio: '2026-08-16', fecha_fin: '2026-10-15', avance: 60, monto: 0, horas_estimadas: 0 },
+  { id: 18, servicio_id: 6, padre_id: 17, nombre: 'Columnas y vigas', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-20', avance: 70, monto: 21000, horas_estimadas: 200 },
+  { id: 19, servicio_id: 6, padre_id: 17, nombre: 'Losa aligerada', fecha_inicio: '2026-09-21', fecha_fin: '2026-10-15', avance: 30, monto: 18900, horas_estimadas: 180 },
+  { id: 20, servicio_id: 6, nombre: 'Cobertura y cerramientos', fecha_inicio: '2026-10-16', fecha_fin: '2026-11-20', avance: 0, monto: 26000, horas_estimadas: 240 },
+  { id: 21, servicio_id: 6, nombre: 'Acabados y entrega', fecha_inicio: '2026-11-21', fecha_fin: '2026-12-20', avance: 0, monto: 24500, horas_estimadas: 220 },
 ]
 
 // ------------------------------------------------------------
@@ -408,8 +377,8 @@ export const asignaciones = [
 
 // ------------------------------------------------------------
 //  Cobros por servicio (= Ingresos en UI): lo efectivamente recibido
-//  (adelantos, cobros de valorización, ingresos anuales). Por cobrar =
-//  contratado − cobrado; utilidad real = cobrado − gastado.
+//  (adelantos, cobros de valorización, ingresos anuales).
+//  Utilidad real = cobrado − gastado.
 // ------------------------------------------------------------
 
 export const cobros = [
@@ -427,7 +396,6 @@ export const cobros = [
 // ------------------------------------------------------------
 
 export const facturas = []
-export const presupuestos = []
 export const config = [{ id: 1, empresa: 'PROMCOSER', moneda: 'PEN', meta_ingreso: 0 }]
 
 export const ESTADO_INICIAL = {
@@ -440,7 +408,6 @@ export const ESTADO_INICIAL = {
   asignaciones,
   cobros,
   facturas,
-  presupuestos,
   config,
 }
 

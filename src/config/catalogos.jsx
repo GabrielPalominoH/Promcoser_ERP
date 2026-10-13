@@ -1,7 +1,7 @@
 import { ESTATUS_SERVICIO, TIPOS_SERVICIO } from '../data/mockData'
 import { BadgeEstatus } from '../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../utils/formatters'
-import { consumoPresupuesto, rentabilidadServicio } from '../utils/calculadora'
+import { cobradoServicio, estadoPresupuesto, registrosDeServicio, sumarMontos, utilidadReal } from '../utils/calculadora'
 import { Link } from 'react-router-dom'
 
 // Cada catálogo se describe con datos, no con componentes a medida.
@@ -203,7 +203,7 @@ export const CATALOGO_EQUIPOS = {
       tipo: 'select',
       requerido: true,
       opciones: opciones(['Propio', 'Alquilado']),
-      hint: 'Define si su uso va a equipos propios o alquilados en el presupuesto.',
+      hint: 'Define si su uso va a equipos propios o alquilados.',
     },
   ],
 
@@ -228,7 +228,7 @@ export const CATALOGO_SERVICIOS = {
   coleccion: 'servicios',
   titulo: 'Servicios',
   descripcion:
-    'Servicios contratados con su presupuesto, fecha de inicio y estatus. Abre cada servicio para editarlo o eliminarlo.',
+    'Servicios registrados con fechas y estatus. Abre cada servicio para editarlo o eliminarlo.',
   nombreSingular: 'servicio',
   etiquetaContador: 'servicios',
   // La edición y eliminación viven solo en la página del servicio,
@@ -268,17 +268,37 @@ export const CATALOGO_SERVICIOS = {
       ),
     },
     {
+      etiqueta: 'Cobrado',
+      alinear: 'right',
+      render: (item, ctx) => (
+        <span className="tabular-nums">{formatearMoneda(cobradoServicio(ctx.estado.cobros, item.id))}</span>
+      ),
+    },
+    {
+      etiqueta: 'Gastado',
+      alinear: 'right',
+      render: (item, ctx) => {
+        const gastado = sumarMontos(registrosDeServicio(ctx.estado.registros_servicio, item.id))
+
+        return (
+          <span className="tabular-nums">
+            {formatearMoneda(gastado)}
+          </span>
+        )
+      },
+    },
+    {
       etiqueta: 'Saldo',
       alinear: 'right',
       render: (item, ctx) => {
-        const consumo = consumoPresupuesto(item, ctx.estado.registros_servicio)
+        const estado = estadoPresupuesto(item, ctx.estado.registros_servicio, ctx.estado.cobros)
 
         return (
           <span
-            className={`font-medium tabular-nums ${consumo.disponible < 0 ? 'text-red-600' : 'text-slate-900'}`}
-            title={consumo.disponible < 0 ? 'Excedente' : 'Saldo disponible'}
+            className={`font-medium tabular-nums ${estado.disponible < 0 ? 'text-red-600' : 'text-slate-900'}`}
+            title={estado.disponible < 0 ? 'Excedente' : 'Saldo disponible'}
           >
-            {formatearMoneda(consumo.disponible)}
+            {formatearMoneda(estado.disponible)}
           </span>
         )
       },
@@ -286,50 +306,43 @@ export const CATALOGO_SERVICIOS = {
     {
       etiqueta: 'Consumo',
       render: (item, ctx) => {
-        const consumo = consumoPresupuesto(item, ctx.estado.registros_servicio)
+        const estado = estadoPresupuesto(item, ctx.estado.registros_servicio, ctx.estado.cobros)
 
         return (
           <div className="w-28">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
               <div
                 className={`h-full rounded-full ${
-                  consumo.excedido ? 'bg-red-500' : 'bg-primary-600'
+                  estado.excedido ? 'bg-red-500' : 'bg-primary-600'
                 }`}
-                style={{ width: `${Math.min(100, consumo.porcentaje)}%` }}
+                style={{ width: `${Math.min(100, estado.porcentaje)}%` }}
               />
             </div>
             <p
               className={`mt-1 text-xs tabular-nums ${
-                consumo.excedido ? 'text-red-600' : 'text-slate-500'
+                estado.excedido ? 'text-red-600' : 'text-slate-500'
               }`}
             >
-              {consumo.porcentaje.toFixed(1)}%
+              {estado.porcentaje.toFixed(1)}%
             </p>
           </div>
         )
       },
     },
     {
-      etiqueta: 'Margen proy.',
+      etiqueta: 'Utilidad',
       alinear: 'right',
       render: (item, ctx) => {
-        const tareas = (ctx.estado.tareas ?? []).filter((t) => t.servicio_id === item.id)
-        const rent = rentabilidadServicio(item, ctx.estado.registros_servicio, tareas)
-
-        if (rent.margenProyectado == null) {
-          return <span className="text-slate-400">—</span>
-        }
-
-        const pct = item.presupuesto_asignado
-          ? (rent.margenProyectado / item.presupuesto_asignado) * 100
-          : 0
+        const cobrado = cobradoServicio(ctx.estado.cobros, item.id)
+        const gastado = sumarMontos(registrosDeServicio(ctx.estado.registros_servicio, item.id))
+        const utilidad = utilidadReal(cobrado, gastado)
 
         return (
           <span
-            className={`font-medium tabular-nums ${rent.margenProyectado < 0 ? 'text-red-600' : 'text-slate-900'}`}
-            title={`Margen proyectado ${formatearMoneda(rent.margenProyectado)} (${pct.toFixed(1)}%)`}
+            className={`font-medium tabular-nums ${utilidad < 0 ? 'text-red-600' : 'text-slate-900'}`}
+            title={`Utilidad real ${formatearMoneda(utilidad)} (cobrado menos gastado)`}
           >
-            {pct.toFixed(1)}%
+            {formatearMoneda(utilidad)}
           </span>
         )
       },
@@ -362,7 +375,7 @@ export const CATALOGO_SERVICIOS = {
     },
     {
       name: 'presupuesto_asignado',
-      etiqueta: 'Presupuesto asignado (S/)',
+      etiqueta: 'Presupuesto inicial (S/)',
       tipo: 'numero',
       requerido: true,
       min: 0,

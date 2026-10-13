@@ -55,7 +55,7 @@ export function dataReducer(estado, accion) {
       )
 
       // Integridad referencial: al borrar un servicio se van sus registros,
-      // tareas, asignaciones, facturas, cobros y presupuestos.
+      // tareas, asignaciones, facturas y cobros.
       if (payload.coleccion === 'servicios') {
         return {
           ...estado,
@@ -74,9 +74,6 @@ export function dataReducer(estado, accion) {
           ),
           cobros: (estado.cobros ?? []).filter(
             (cobro) => cobro.servicio_id !== payload.id,
-          ),
-          presupuestos: (estado.presupuestos ?? []).filter(
-            (presupuesto) => presupuesto.servicio_id !== payload.id,
           ),
         }
       }

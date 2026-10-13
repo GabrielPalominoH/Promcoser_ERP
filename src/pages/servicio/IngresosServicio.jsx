@@ -20,10 +20,6 @@ import {
 import { formatearFecha, formatearMoneda, redondearMonto } from '../../utils/formatters'
 import {
   cobradoServicio,
-  porCobrar,
-  sumarMontos,
-  registrosDeServicio,
-  utilidadReal,
 } from '../../utils/calculadora'
 import { estadoFactura, saldoFactura } from '../../utils/finanzas'
 import { fechaHoyISO } from './compartido'
@@ -76,7 +72,7 @@ function ModalEdicionIngreso({ ingreso, factura, onGuardar, onCerrar }) {
     <Modal
       abierto
       titulo="Editar ingreso"
-      descripcion="Se actualizan cobrado, por cobrar y utilidad automáticamente."
+      descripcion="Se actualizan cobrado y utilidad automáticamente."
       onCerrar={onCerrar}
       pie={
         <>
@@ -128,15 +124,13 @@ export function IngresosServicio() {
   const [porEliminar, setPorEliminar] = useState(null)
   const [porAnular, setPorAnular] = useState(null)
   const [porEditar, setPorEditar] = useState(null)
+  const [mostrarRegistro, setMostrarRegistro] = useState(false)
   const hoy = new Date().toISOString().slice(0, 10)
 
   const cobros = (estado.cobros ?? [])
     .filter((c) => c.servicio_id === servicio.id)
     .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.id - a.id)
   const cobrado = cobradoServicio(estado.cobros, servicio.id)
-  const pendiente = porCobrar(servicio, estado.cobros)
-  const gastado = sumarMontos(registrosDeServicio(estado.registros_servicio, servicio.id))
-  const utilidad = utilidadReal(cobrado, gastado)
 
   const facturasServicio = (estado.facturas ?? []).filter((f) => f.servicio_id === servicio.id)
   const facturas = [...facturasServicio].sort(
@@ -196,6 +190,7 @@ export function IngresosServicio() {
     })
     setAviso({ tipo: 'exito', mensaje: `Ingreso registrado por ${formatearMoneda(redondearMonto(monto))} ${detalle}.` })
     reset()
+    setMostrarRegistro(false)
   }
 
   const confirmarEliminar = () => {
@@ -252,98 +247,36 @@ export function IngresosServicio() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
-          <p className="text-sm text-slate-500">Cobrado</p>
-          <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-            {formatearMoneda(cobrado)}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">Ingresos efectivamente recibidos</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-slate-500">Por cobrar</p>
-          <p className={`mt-1 text-xl font-bold tabular-nums ${pendiente < 0 ? 'text-amber-600' : 'text-slate-900'}`}>
-            {formatearMoneda(pendiente)}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {pendiente < 0 ? 'Sobrepago del cliente' : 'Pendiente de cobro del monto contratado'}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-slate-500">Utilidad real</p>
-          <p className={`mt-1 text-xl font-bold tabular-nums ${utilidad < 0 ? 'text-red-600' : 'text-slate-900'}`}>
-            {formatearMoneda(utilidad)}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">Cobrado menos gastado</p>
-        </Card>
-      </div>
-
-      <Card
-        titulo="Registrar ingreso"
-        descripcion="Adelantos, cobros de valorización e ingresos anuales del servicio. Elige factura si el ingreso la cancela; sin factura es adelanto."
-      >
-        <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-            <Campo label="Fecha" error={errors.fecha?.message} htmlFor="cob-fecha">
-              <Input
-                id="cob-fecha"
-                type="date"
-                {...register('fecha', { required: 'Indica la fecha' })}
-              />
-            </Campo>
-            <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="cob-monto">
-              <CampoMonto
-                id="cob-monto"
-                control={control}
-                name="monto"
-                placeholder="0.00"
-                rules={reglasMontoMayorACero('Ingresa el monto')}
-              />
-            </Campo>
-            <Campo label="Concepto" error={errors.concepto?.message} htmlFor="cob-concepto">
-              <Select id="cob-concepto" {...register('concepto', { required: true })}>
-                {CONCEPTOS.map((c) => (
-                  <option key={c} value={c} className="capitalize">
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            </Campo>
-            {numerosPendientes.length > 0 && (
-              <Campo
-                label="N° factura (opcional)"
-                error={errors.factura_numero?.message}
-                htmlFor="cob-factura"
-                hint={`Vacío = adelanto. Si el número no existe, se crea la factura. Pendientes: ${numerosPendientes.join(', ')}`}
-              >
-                <Input id="cob-factura" placeholder="F001-000123" {...register('factura_numero')} />
-              </Campo>
-            )}
-            {numerosPendientes.length === 0 && (
-              <Campo
-                label="N° factura (opcional)"
-                error={errors.factura_numero?.message}
-                htmlFor="cob-factura"
-                hint="Vacío = adelanto. Si el número no existe, se crea la factura."
-              >
-                <Input id="cob-factura" placeholder="F001-000123" {...register('factura_numero')} />
-              </Campo>
-            )}
-            <Campo label="Documento (opcional)" error={errors.documento?.message} htmlFor="cob-doc">
-              <Input
-                id="cob-doc"
-                placeholder="REC-001"
-                {...register('documento')}
-              />
-            </Campo>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="border-l-4 border-emerald-500 pl-4">
+            <p className="text-sm text-slate-500">Total cobrado</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900 tabular-nums">
+              {formatearMoneda(cobrado)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">Ingresos efectivamente recibidos</p>
           </div>
-          <div className="flex justify-end">
-            <Button type="submit">Agregar ingreso</Button>
+          <div className="flex flex-1 flex-wrap items-stretch justify-start gap-6 sm:justify-end sm:gap-10">
+            <div className="min-w-32 border-l border-slate-200 pl-6">
+              <p className="text-3xl font-bold text-slate-800 tabular-nums">{cobros.length}</p>
+              <p className="mt-1 text-xs text-slate-500">ingresos registrados</p>
+            </div>
+            <div className="min-w-32 border-l border-slate-200 pl-6">
+              <p className="text-3xl font-bold text-slate-800 tabular-nums">{facturas.length}</p>
+              <p className="mt-1 text-xs text-slate-500">facturas registradas</p>
+            </div>
           </div>
-        </form>
+        </div>
       </Card>
 
-      <Card titulo="Ingresos y facturas registrados">
+      <Card
+        titulo="Ingresos y facturas registrados"
+        acciones={
+          <Button tamano="sm" onClick={() => setMostrarRegistro(true)}>
+            Agregar ingreso
+          </Button>
+        }
+      >
         <Table>
           <TableHead>
             <TableRow>
@@ -452,6 +385,75 @@ export function IngresosServicio() {
         </Table>
       </Card>
 
+      {mostrarRegistro && (
+        <Modal
+          abierto
+          titulo="Registrar ingreso"
+          descripcion="Adelantos, cobros de valorización e ingresos anuales del servicio. Elige factura si el ingreso la cancela; sin factura es adelanto."
+          onCerrar={() => setMostrarRegistro(false)}
+          pie={
+            <>
+              <Button variante="secundario" onClick={() => setMostrarRegistro(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" form="form-ingreso">
+                Agregar ingreso
+              </Button>
+            </>
+          }
+        >
+          <form id="form-ingreso" onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Campo label="Fecha" error={errors.fecha?.message} htmlFor="cob-fecha">
+                <Input
+                  id="cob-fecha"
+                  type="date"
+                  {...register('fecha', { required: 'Indica la fecha' })}
+                />
+              </Campo>
+              <Campo label="Monto (S/)" error={errors.monto?.message} htmlFor="cob-monto">
+                <CampoMonto
+                  id="cob-monto"
+                  control={control}
+                  name="monto"
+                  placeholder="0.00"
+                  rules={reglasMontoMayorACero('Ingresa el monto')}
+                />
+              </Campo>
+              <Campo label="Concepto" error={errors.concepto?.message} htmlFor="cob-concepto">
+                <Select id="cob-concepto" {...register('concepto', { required: true })}>
+                  {CONCEPTOS.map((c) => (
+                    <option key={c} value={c} className="capitalize">
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+              <Campo label="Documento (opcional)" error={errors.documento?.message} htmlFor="cob-doc">
+                <Input
+                  id="cob-doc"
+                  placeholder="REC-001"
+                  {...register('documento')}
+                />
+              </Campo>
+              <Campo
+                label="N° factura (opcional)"
+                error={errors.factura_numero?.message}
+                htmlFor="cob-factura"
+                hint={
+                  numerosPendientes.length > 0
+                    ? `Vacío = adelanto. Si el número no existe, se crea la factura. Pendientes: ${numerosPendientes.join(', ')}`
+                    : 'Vacío = adelanto. Si el número no existe, se crea la factura.'
+                }
+                className="sm:col-span-2"
+              >
+                <Input id="cob-factura" placeholder="F001-000123" {...register('factura_numero')} />
+              </Campo>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {porAnular != null && (
         <Modal
           abierto
@@ -468,7 +470,7 @@ export function IngresosServicio() {
         >
           <p className="text-sm text-slate-600">
             Los ingresos ya aplicados a esta factura se conservan como historial, pero la
-            factura deja de sumar al facturado y al saldo por cobrar.
+            factura deja de contar en los saldos.
           </p>
         </Modal>
       )}
@@ -492,7 +494,7 @@ export function IngresosServicio() {
           }
         >
           <p className="text-sm text-slate-600">
-            Se eliminará el ingreso seleccionado. Cobrado, por cobrar y utilidad se
+            Se eliminará el ingreso seleccionado. Cobrado y utilidad se
             actualizan automáticamente.
           </p>
         </Modal>

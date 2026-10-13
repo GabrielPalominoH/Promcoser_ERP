@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../context/useData'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Campo, Input, Select } from '../components/ui/Field'
+import { Campo, Input } from '../components/ui/Field'
 import { CampoMonto, reglasMontoMayorACero } from '../components/ui/Monto'
 import { CampoComboBox } from '../components/ui/ComboBox'
 import { Modal } from '../components/ui/Modal'
@@ -18,10 +18,7 @@ import {
   Th,
 } from '../components/ui/Table'
 import { formatearMoneda, redondearMonto } from '../utils/formatters'
-import { consumoPresupuesto } from '../utils/calculadora'
-import { REGLAS_INDIRECTOS, distribuirIndirectos } from '../utils/finanzas'
-import { cobradoServicio } from '../utils/calculadora'
-import { leerConfig } from '../data/store'
+import { cobradoServicio, registrosDeServicio, sumarMontos, utilidadReal } from '../utils/calculadora'
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
@@ -121,55 +118,29 @@ function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
 }
 
 export function Oficina() {
-  const { estado, agregarItem, actualizarItem, eliminarItem } = useData()
-  const { personal, servicios, registros_servicio, costos_oficina: costos } = estado
-  const config = leerConfig(estado)
-  const regla = config.distribucion_indirectos ?? 'ninguna'
+  const { estado, agregarItem, eliminarItem } = useData()
+  const { personal, servicios, registros_servicio, costos_oficina: costos, cobros: todosLosCobros } = estado
 
   const [mes, setMes] = useState(mesActual())
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
 
-  const margenes = useMemo(
+  const utilidades = useMemo(
     () =>
       servicios.map((s) => {
-        const consumo = consumoPresupuesto(s, registros_servicio)
-        return { servicio: s, margen: consumo.disponible }
+        const gastado = sumarMontos(registrosDeServicio(registros_servicio, s.id))
+        return { servicio: s, utilidad: utilidadReal(cobradoServicio(todosLosCobros ?? [], s.id), gastado) }
       }),
-    [servicios, registros_servicio],
+    [servicios, registros_servicio, todosLosCobros],
   )
-  const margenTotal = margenes.reduce((t, m) => t + m.margen, 0)
+  const utilidadTotal = utilidades.reduce((t, m) => t + m.utilidad, 0)
 
   const costosMes = useMemo(
     () => costos.filter((c) => c.mes === mes),
     [costos, mes],
   )
   const totalOficina = costosMes.reduce((t, c) => t + (Number(c.monto_calculado) || 0), 0)
-  const resultado = margenTotal - totalOficina
-
-  // Distribución de indirectos del mes por regla configurable. Bases del
-  // mismo mes que la oficina (coherencia de periodo). Sin regla, se muestran
-  // por separado (no se oculta el margen directo).
-  const distribucion = useMemo(() => {
-    if (regla === 'ninguna') return { regla: 'ninguna', distribuido: [], sinDistribuir: totalOficina }
-    const enMesSel = (fecha) => typeof fecha === 'string' && fecha.slice(0, 7) === mes
-    const bases = servicios.map((s) => {
-      const regs = registros_servicio.filter((r) => r.servicio_id === s.id && enMesSel(r.fecha))
-      const base =
-        regla === 'horas'
-          ? regs.filter((r) => r.tipo_registro === 'personal').reduce((t, r) => t + Number(r.cantidad_o_horas), 0)
-          : regla === 'ingresos'
-            ? (estado.cobros ?? []).filter((c) => c.servicio_id === s.id && enMesSel(c.fecha)).reduce((t, c) => t + Number(c.monto), 0)
-            : regs.reduce((t, r) => t + Number(r.monto_calculado), 0)
-      return { servicio_id: s.id, base }
-    })
-    return distribuirIndirectos(totalOficina, bases)
-  }, [regla, servicios, registros_servicio, estado.cobros, totalOficina, mes])
-
-  const cambiarRegla = (nueva) => {
-    actualizarItem('config', { id: 1, distribucion_indirectos: nueva })
-    setAviso({ tipo: 'exito', mensaje: `Regla de distribución: ${nueva}.` })
-  }
+  const resultado = utilidadTotal - totalOficina
 
   const nombrePersona = (id) => {
     const p = personal.find((x) => x.id === id)
@@ -210,9 +181,9 @@ export function Oficina() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
-          <p className="text-sm text-slate-500">Margen total de servicios</p>
-          <p className={`mt-1 text-xl font-bold tabular-nums ${margenTotal < 0 ? 'text-red-600' : 'text-slate-900'}`}>
-            {formatearMoneda(margenTotal)}
+          <p className="text-sm text-slate-500">Utilidad total de servicios</p>
+          <p className={`mt-1 text-xl font-bold tabular-nums ${utilidadTotal < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+            {formatearMoneda(utilidadTotal)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500 capitalize">{etiquetaMes(mes)}</p>
         </Card>
@@ -228,33 +199,33 @@ export function Oficina() {
           <p className={`mt-1 text-xl font-bold tabular-nums ${resultado < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
             {formatearMoneda(resultado)}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">Márgenes menos oficina</p>
+          <p className="mt-0.5 text-xs text-slate-500">Utilidad menos oficina</p>
         </Card>
       </div>
 
       <Card
-        titulo="Margen por servicio"
-        descripcion="Presupuesto menos gastado de cada servicio."
+        titulo="Utilidad por servicio"
+        descripcion="Cobrado menos gastado de cada servicio."
       >
         <Table>
           <TableHead>
             <TableRow>
               <Th>Servicio</Th>
-              <Th alinear="right">Margen</Th>
+              <Th alinear="right">Utilidad</Th>
             </TableRow>
           </TableHead>
           <TableBody>
-            {margenes.length === 0 ? (
+            {utilidades.length === 0 ? (
               <TableEmpty colSpan={2} mensaje="No hay servicios." />
             ) : (
-              margenes.map(({ servicio, margen }) => (
+              utilidades.map(({ servicio, utilidad }) => (
                 <TableRow key={servicio.id}>
                   <Td>
                     <span className="font-medium text-slate-900">{servicio.nombre_servicio}</span>
                     <span className="block text-xs text-slate-500">{servicio.cliente}</span>
                   </Td>
-                  <Td alinear="right" className={`font-semibold tabular-nums ${margen < 0 ? 'text-red-600' : 'text-slate-900'}`}>
-                    {formatearMoneda(margen)}
+                  <Td alinear="right" className={`font-semibold tabular-nums ${utilidad < 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                    {formatearMoneda(utilidad)}
                   </Td>
                 </TableRow>
               ))
@@ -264,63 +235,8 @@ export function Oficina() {
       </Card>
 
       <Card
-        titulo="Distribución de indirectos"
-        descripcion="Regla configurable para atribuir la oficina a cada servicio. Sin regla se muestran por separado."
-        acciones={
-          <Campo label="Regla" htmlFor="ofi-regla" className="w-44">
-            <Select id="ofi-regla" value={regla} onChange={(e) => cambiarRegla(e.target.value)}>
-              {REGLAS_INDIRECTOS.map((r) => (
-                <option key={r} value={r}>
-                  {r === 'ninguna' ? 'Sin distribuir' : `Por ${r}`}
-                </option>
-              ))}
-            </Select>
-          </Campo>
-        }
-      >
-        {distribucion.regla === 'ninguna' ? (
-          <p className="text-sm text-slate-500">
-            Sin regla: {formatearMoneda(distribucion.sinDistribuir)} de oficina no se atribuyen a
-            ningún servicio (el margen directo no se oculta).
-          </p>
-        ) : (
-          <Table>
-            <TableHead>
-              <TableRow>
-                <Th>Servicio</Th>
-                <Th alinear="right">Base ({regla})</Th>
-                <Th alinear="right">Atribuido</Th>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {distribucion.distribuido.length === 0 ? (
-                <TableEmpty colSpan={3} mensaje="Sin bases para distribuir este mes." />
-              ) : (
-                distribucion.distribuido.map((d) => {
-                  const servicio = servicios.find((s) => s.id === d.servicio_id)
-                  return (
-                    <TableRow key={d.servicio_id}>
-                      <Td className="font-medium text-slate-800">
-                        {servicio?.nombre_servicio ?? 'Servicio eliminado'}
-                      </Td>
-                      <Td alinear="right" className="tabular-nums">{formatearMoneda(d.base)}</Td>
-                      <Td alinear="right" className="font-semibold tabular-nums">{formatearMoneda(d.monto)}</Td>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        )}
-        <p className="mt-2 text-xs text-slate-400">
-          Criterio aplicado: {regla === 'ninguna' ? 'ninguno (separado)' : `prorrateo por ${regla} del mes ${mes}`}.
-          Suma exacta por redondeo al mayor.
-        </p>
-      </Card>
-
-      <Card
         titulo="Costo de oficina del mes"
-        descripcion="Personal de Oficina: sueldo o costo mensual. No afecta el margen de ningún servicio."
+        descripcion="Personal de Oficina: sueldo o costo mensual. No afecta la utilidad de ningún servicio."
       >
         <div className="mb-5">
           <FormularioCostoOficina personal={personal} mesFijo={mes} onGuardar={registrar} />

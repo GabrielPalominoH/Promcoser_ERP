@@ -5,7 +5,7 @@ export function registrosDeServicio(registros, servicioId) {
 }
 
 // ------------------------------------------------------------
-//  Presupuesto por tareas (el presupuesto vive en el cronograma)
+//  Montos por tareas (viven en el cronograma)
 // ------------------------------------------------------------
 
 // ¿Tiene hijas directas? Entonces su monto es suma automática.
@@ -39,17 +39,56 @@ export function costoSubarbol(tarea, tareas, registros, servicioId) {
     )
 }
 
-// Valorizado de una tarea: monto × avance efectivo (lo ya ejecutado, a
-// precios del presupuesto).
+// Valorizado de una tarea: monto × avance efectivo (lo ya ejecutado).
 export function valorizadoTarea(tarea, tareas) {
   return montoTarea(tarea, tareas) * (avanceEfectivo(tarea, tareas) / 100)
 }
 
-// Presupuesto del servicio: suma de los montos de sus tareas principales.
+// Monto total del servicio: suma de los montos de sus tareas principales.
 export function presupuestoTareas(tareas, servicioId) {
   return (tareas ?? [])
     .filter((t) => t.servicio_id === servicioId && t.padre_id == null)
     .reduce((total, t) => total + montoTarea(t, tareas), 0)
+}
+
+// Horas estimadas de una tarea: si tiene hijas, suma automática (solo
+// lectura); si no, su valor manual.
+export function horasEstimadasTarea(tarea, tareas) {
+  const hijas = (tareas ?? []).filter((t) => t.padre_id === tarea.id)
+  if (hijas.length === 0) return Number(tarea.horas_estimadas) || 0
+  return hijas.reduce((total, h) => total + horasEstimadasTarea(h, tareas), 0)
+}
+
+// Horas reales de personal en una tarea: registros propios más los de todas
+// las descendientes. Solo tipo personal (mano de obra); los equipos se miden
+// aparte. Los registros se toman como vienen (el llamador decide si filtra
+// domingos con cuentaComoManoDeObra).
+export function horasRealesTarea(tarea, tareas, registros, servicioId) {
+  const propio = (registros ?? [])
+    .filter(
+      (r) =>
+        r.servicio_id === servicioId &&
+        r.tarea_id === tarea.id &&
+        r.tipo_registro === 'personal',
+    )
+    .reduce((total, r) => total + (Number(r.cantidad_o_horas) || 0), 0)
+  return (tareas ?? [])
+    .filter((t) => t.padre_id === tarea.id)
+    .reduce(
+      (total, h) => total + horasRealesTarea(h, tareas, registros, servicioId),
+      propio,
+    )
+}
+
+// Desviación de horas: real − estimado (+ = sobreuso). Porcentaje null sin
+// estimado (no hay base contra qué comparar).
+export function desviacionHoras(estimado, real) {
+  const e = Number(estimado) || 0
+  const r = Number(real) || 0
+  return {
+    diferencia: Math.round((r - e) * 100) / 100,
+    porcentaje: e === 0 ? null : Math.round(((r / e) * 100) * 100) / 100,
+  }
 }
 
 // Costo sin tarea asignada dentro del servicio.
@@ -252,12 +291,6 @@ export function cobradoServicio(cobros, servicioId) {
     .reduce((total, c) => total + (Number(c.monto) || 0), 0)
 }
 
-// Por cobrar: monto contratado menos cobrado. Negativo = sobrepago.
-export function porCobrar(servicio, cobros) {
-  const contratado = Number(servicio.presupuesto_asignado) || 0
-  return contratado - cobradoServicio(cobros, servicio.id)
-}
-
 // Utilidad real: cobrado menos gastado (resultado económico efectivo).
 export function utilidadReal(cobrado, gastado) {
   const redondear = (n) => Math.round(n * 100) / 100
@@ -281,7 +314,10 @@ export function desglosePorTipo(registros) {
   return desglose
 }
 
-export function consumoPresupuesto(servicio, registros) {
+// Estado del presupuesto inicial frente a lo real: gastado, disponible,
+// % de ejecución, excedido y cobrado. Solo lectura de control (sin
+// proyecciones).
+export function estadoPresupuesto(servicio, registros, cobros) {
   const gastado = sumarMontos(registrosDeServicio(registros, servicio.id))
   const presupuesto = Number(servicio.presupuesto_asignado) || 0
   const porcentaje = presupuesto ? (gastado / presupuesto) * 100 : 0
@@ -292,6 +328,7 @@ export function consumoPresupuesto(servicio, registros) {
     disponible: presupuesto - gastado,
     porcentaje,
     excedido: gastado > presupuesto,
+    cobrado: cobradoServicio(cobros, servicio.id),
   }
 }
 
@@ -406,6 +443,45 @@ export function gastoPorMes(registros) {
   return resultado
 }
 
+// Horas de personal por mes (YYYY-MM) con meses intermedios en cero,
+// ordenado. Misma forma de serie continua que gastoPorMes.
+export function horasPorMes(registros, servicioId) {
+  const porMes = new Map()
+  for (const r of registros ?? []) {
+    if (r.servicio_id !== servicioId || r.tipo_registro !== 'personal') continue
+    if (!r.fecha || r.fecha.length < 7) continue
+    const mes = r.fecha.slice(0, 7)
+    porMes.set(mes, (porMes.get(mes) || 0) + (Number(r.cantidad_o_horas) || 0))
+  }
+  const meses = [...porMes.keys()].sort()
+  if (meses.length === 0) return []
+
+  const [ai, mi] = meses[0].split('-').map(Number)
+  const [af, mf] = meses[meses.length - 1].split('-').map(Number)
+  const resultado = []
+  let anio = ai
+  let mes = mi
+  while (anio < af || (anio === af && mes <= mf)) {
+    const clave = `${anio}-${String(mes).padStart(2, '0')}`
+    resultado.push({ mes: clave, horas: Math.round((porMes.get(clave) || 0) * 100) / 100 })
+    mes += 1
+    if (mes > 12) {
+      mes = 1
+      anio += 1
+    }
+  }
+  return resultado
+}
+
+// Media móvil simple de una serie de números (ventana de 3 por defecto).
+// Con menos datos que la ventana, promedia lo que hay (nunca ficticio).
+export function mediaMovil(valores, ventana = 3) {
+  return (valores ?? []).map((_, i) => {
+    const tramo = valores.slice(Math.max(0, i - ventana + 1), i + 1)
+    return Math.round((tramo.reduce((s, v) => s + v, 0) / tramo.length) * 100) / 100
+  })
+}
+
 // SPI: avance real vs avance esperado por tiempo transcurrido del plazo.
 // null si no hay fecha fin o la obra aún no empieza.
 export function indiceAvance(servicio, avanceGlobal, hoy = hoyISO()) {
@@ -440,6 +516,64 @@ export function cuentaComoManoDeObra(registro) {
   )
 }
 
+// Proyección financiera al 100% de la obra (estimado, no ejecutado):
+// extrapolación lineal del ritmo actual. Valor ganado = lo que "vale" lo
+// avanzado a precios del presupuesto; CPI = eficiencia del gasto;
+// costo final = gastado / avance; utilidad proyectada = presupuesto − costo
+// final. Sin avance (> 0) no hay proyección: todo null.
+// El semáforo combina margen, ritmo de gasto y ritmo de avance (SPI):
+// verde = margen protegido, amarillo = riesgo de plazo o margen estrecho,
+// rojo = pérdida proyectada o sobrecosto crítico.
+export function proyeccionFinanciera({ presupuesto, gastado, cobrado, avance, spi = null }) {
+  const r2 = (n) => Math.round(n * 100) / 100
+  const P = Number(presupuesto) || 0
+  const G = Number(gastado) || 0
+  const C = Number(cobrado) || 0
+  const A = Number(avance) || 0
+
+  if (A <= 0 || P <= 0) {
+    return {
+      tieneProyeccion: false,
+      valorGanado: null,
+      cpi: null,
+      costoFinal: null,
+      utilidadProyectada: null,
+      margenProyectadoPct: null,
+      cobroProyectado: null,
+      faltanteCobro: null,
+      semaforo: null,
+    }
+  }
+
+  const tanto = A / 100
+  const valorGanado = r2(P * tanto)
+  const cpi = G > 0 ? r2(valorGanado / G) : null
+  const costoFinal = r2(G / tanto)
+  const utilidadProyectada = r2(P - costoFinal)
+  const margenProyectadoPct = r2((utilidadProyectada / P) * 100)
+  const cobroProyectado = r2(C / tanto)
+  const faltanteCobro = r2(P - cobroProyectado)
+
+  let semaforo = 'verde'
+  if (utilidadProyectada <= 0 || (cpi != null && cpi < 0.9)) {
+    semaforo = 'rojo'
+  } else if ((spi != null && spi < 0.9) || utilidadProyectada < P * 0.1) {
+    semaforo = 'amarillo'
+  }
+
+  return {
+    tieneProyeccion: true,
+    valorGanado,
+    cpi,
+    costoFinal,
+    utilidadProyectada,
+    margenProyectadoPct,
+    cobroProyectado,
+    faltanteCobro,
+    semaforo,
+  }
+}
+
 // Días restantes hasta una fecha ISO (YYYY-MM-DD). Negativo = vencido.
 export function diasRestantes(fechaISO) {
   if (!fechaISO) return null
@@ -452,28 +586,20 @@ export function diasRestantes(fechaISO) {
 
 // Alertas del servicio: lista de {codigo, nivel: 'peligro'|'aviso', mensaje}.
 // Centraliza todas las condiciones para que Resumen las muestre igual siempre.
-export function alertasServicio({ servicio, consumo, dias, rentabilidad }) {
+export function alertasServicio({ estado, dias }) {
   const alertas = []
 
-  if (consumo.excedido) {
+  if (estado.excedido) {
     alertas.push({
       codigo: 'excedido',
       nivel: 'peligro',
-      mensaje: 'El servicio superó su presupuesto.',
+      mensaje: 'El servicio superó su presupuesto inicial.',
     })
-  } else if (consumo.presupuesto > 0 && consumo.disponible / consumo.presupuesto < 0.1) {
+  } else if (estado.presupuesto > 0 && estado.disponible / estado.presupuesto < 0.1) {
     alertas.push({
       codigo: 'margen-bajo',
       nivel: 'aviso',
-      mensaje: `Margen bajo: queda solo el ${((consumo.disponible / consumo.presupuesto) * 100).toFixed(1)}% del presupuesto.`,
-    })
-  }
-
-  if (rentabilidad.cpi != null && rentabilidad.cpi < 0.9) {
-    alertas.push({
-      codigo: 'cpi-critico',
-      nivel: 'peligro',
-      mensaje: `Ritmo de gasto crítico (${rentabilidad.cpi.toFixed(2)}): gastas más rápido de lo que avanzas.`,
+      mensaje: `Margen bajo: queda solo el ${((estado.disponible / estado.presupuesto) * 100).toFixed(1)}% del presupuesto.`,
     })
   }
 
@@ -492,33 +618,4 @@ export function alertasServicio({ servicio, consumo, dias, rentabilidad }) {
   }
 
   return alertas
-}
-
-// Rentabilidad del servicio con lo registrado (materiales + gastos):
-// 1) margen actual, 2) índice costo vs avance (valor ganado) y
-// 3) proyección al cierre. Sin tareas con avance no hay CPI ni proyección.
-export function rentabilidadServicio(servicio, registros, tareas, hoy = hoyISO()) {
-  const consumo = consumoPresupuesto(servicio, registros)
-  const margen = consumo.disponible
-  const margenPct = consumo.presupuesto ? (margen / consumo.presupuesto) * 100 : 0
-
-  const { avanceGlobal } = metricasCronograma(tareas, hoy)
-  const tieneAvance = tareas.length > 0 && avanceGlobal > 0
-  const avanceTanto = avanceGlobal / 100
-
-  const valorGanado = consumo.presupuesto * avanceTanto
-  const cpi = tieneAvance && consumo.gastado > 0 ? valorGanado / consumo.gastado : null
-  const costoFinal = tieneAvance ? consumo.gastado / avanceTanto : null
-  const margenProyectado = costoFinal == null ? null : consumo.presupuesto - costoFinal
-
-  return {
-    margen,
-    margenPct,
-    avance: avanceGlobal,
-    tieneAvance,
-    valorGanado,
-    cpi,
-    costoFinal,
-    margenProyectado,
-  }
 }

@@ -21,6 +21,9 @@ import {
   avanceEfectivo,
   costoSinTarea,
   costoSubarbol,
+  desviacionHoras,
+  horasEstimadasTarea,
+  horasRealesTarea,
   montoTarea,
   presupuestoTareas,
   registrosDeServicio,
@@ -96,11 +99,15 @@ function ModalMonto({ tarea, onCerrar, onGuardar }) {
 
 export function PartidasServicio() {
   const { servicio } = useOutletContext()
-  // Tablero del presupuesto por tareas: montos editables en la lista.
+  // Tablero de montos por tarea: montos editables en la lista.
   // Las tareas se crean en el Cronograma; aquí solo se les pone monto.
   const { estado, actualizarItem } = useData()
   const [aviso, setAviso] = useState(null)
   const [montoEditando, setMontoEditando] = useState(null)
+  const [colapsadas, setColapsadas] = useState({})
+
+  const alternarGrupo = (id) =>
+    setColapsadas((previo) => ({ ...previo, [id]: !previo[id] }))
 
   const tareas = useMemo(
     () =>
@@ -115,6 +122,7 @@ export function PartidasServicio() {
   )
 
   // Filas planas del árbol con sangría, como en el cronograma.
+  // Respeta los grupos colapsados: sus hijas no aparecen en la lista.
   const filas = useMemo(() => {
     const lista = []
     const porPadre = new Map()
@@ -124,16 +132,24 @@ export function PartidasServicio() {
       porPadre.get(clave).push(t)
     }
     const recorrer = (tarea, nivel, numero) => {
-      lista.push({ tarea, nivel, numero })
-      for (const [j, hija] of (porPadre.get(tarea.id) ?? []).entries()) {
-        recorrer(hija, nivel + 1, `${numero}.${j + 1}`)
+      const hijas = porPadre.get(tarea.id) ?? []
+      lista.push({ tarea, nivel, numero, hijas })
+      if (hijas.length > 0 && !colapsadas[tarea.id]) {
+        for (const [j, hija] of hijas.entries()) {
+          recorrer(hija, nivel + 1, `${numero}.${j + 1}`)
+        }
       }
     }
     for (const [i, raiz] of (porPadre.get(null) ?? []).entries()) {
       recorrer(raiz, 0, `${i + 1}`)
     }
     return lista
-  }, [tareas])
+  }, [tareas, colapsadas])
+
+  const grupos = useMemo(
+    () => tareas.filter((t) => tieneHijas(t.id, tareas)).map((t) => t.id),
+    [tareas],
+  )
 
   const guardarMonto = (id, monto) => {
     const tarea = tareas.find((t) => t.id === id)
@@ -142,7 +158,7 @@ export function PartidasServicio() {
     setAviso({ tipo: 'exito', mensaje: `Monto de «${tarea.nombre}» actualizado.` })
   }
 
-  const presupuesto = presupuestoTareas(tareas, servicio.id)
+  const montoTotal = presupuestoTareas(tareas, servicio.id)
   const valorizado = tareas
     .filter((t) => t.padre_id == null)
     .reduce((s, t) => s + valorizadoTarea(t, tareas), 0)
@@ -151,15 +167,41 @@ export function PartidasServicio() {
     .reduce((s, t) => s + costoSubarbol(t, tareas, estado.registros_servicio, servicio.id), 0)
   const sinTarea = costoSinTarea(estado.registros_servicio, servicio.id)
   const margen = valorizado - costo - sinTarea
-  const medido = presupuesto > 0 ? (valorizado / presupuesto) * 100 : null
+  const estTotal = tareas
+    .filter((t) => t.padre_id == null)
+    .reduce((s, t) => s + horasEstimadasTarea(t, tareas), 0)
+  const realTotal = tareas
+    .filter((t) => t.padre_id == null)
+    .reduce((s, t) => s + horasRealesTarea(t, tareas, estado.registros_servicio, servicio.id), 0)
+  const desvTotal = desviacionHoras(estTotal, realTotal)
 
   return (
     <div className="space-y-6">
+      {grupos.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                if (grupos.some((id) => colapsadas[id])) {
+                  setColapsadas({})
+                } else {
+                  setColapsadas(Object.fromEntries(grupos.map((id) => [id, true])))
+                }
+              }}
+              className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+              title="Expandir o colapsar todos los grupos"
+            >
+              {grupos.some((id) => colapsadas[id]) ? 'Expandir todo' : 'Colapsar todo'}
+            </button>
+          </div>
+        </div>
+      )}
       <Card
-        titulo="Presupuesto por tareas"
+        titulo="Montos y valorizado por tarea"
         descripcion={
-          presupuesto > 0
-            ? `Presupuesto ${formatearMoneda(presupuesto)} · valorizado ${formatearMoneda(valorizado)}${medido != null ? ` (${medido.toFixed(1)}%)` : ''}`
+          montoTotal > 0
+            ? `Montos ${formatearMoneda(montoTotal)} · valorizado ${formatearMoneda(valorizado)}`
             : 'Ponle monto a cada tarea: las principales suman solas.'
         }
       >
@@ -172,29 +214,66 @@ export function PartidasServicio() {
               <Th alinear="right">Avance</Th>
               <Th alinear="right">Costo</Th>
               <Th alinear="right">Margen</Th>
+              <Th alinear="right">Horas est.</Th>
+              <Th alinear="right">Horas reales</Th>
+              <Th alinear="right">Desv. h</Th>
             </TableRow>
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={6} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
+              <TableEmpty colSpan={9} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
             ) : (
-              filas.map(({ tarea, nivel, numero }) => {
+              filas.map(({ tarea, nivel, numero, hijas }) => {
                 const monto = montoTarea(tarea, tareas)
                 const val = valorizadoTarea(tarea, tareas)
                 const avance = avanceEfectivo(tarea, tareas)
                 const costoFila = costoSubarbol(tarea, tareas, estado.registros_servicio, servicio.id)
                 const margenFila = val - costoFila
+                const estFila = horasEstimadasTarea(tarea, tareas)
+                const realFila = horasRealesTarea(tarea, tareas, estado.registros_servicio, servicio.id)
+                const desvFila = desviacionHoras(estFila, realFila)
+                const esPadre = hijas.length > 0
+                const colapsada = esPadre && colapsadas[tarea.id]
                 return (
                   <TableRow key={tarea.id}>
                     <Td>
                       <span style={{ paddingLeft: `${nivel * 1.25}rem` }} className="flex items-center gap-2">
+                        {esPadre ? (
+                          <button
+                            type="button"
+                            onClick={() => alternarGrupo(tarea.id)}
+                            className="w-5 shrink-0 rounded p-0.5 text-center text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                            aria-label={colapsada ? 'Expandir subtareas' : 'Colapsar subtareas'}
+                            title={colapsada ? 'Expandir subtareas' : 'Colapsar subtareas'}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className={`mx-auto size-4 transition-transform ${colapsada ? '-rotate-90' : ''}`}
+                              aria-hidden="true"
+                            >
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </button>
+                        ) : (
+                          <span className="w-5 shrink-0" aria-hidden="true" />
+                        )}
                         <span className="mr-1.5 text-xs font-bold text-slate-400 tabular-nums">
                           {numero}
                         </span>
                         <span className={`min-w-0 flex-1 text-slate-900 ${nivel === 0 ? 'font-semibold' : ''}`}>
                           {tarea.nombre}
                         </span>
-                        {!tieneHijas(tarea.id, tareas) && (
+                        {esPadre && (
+                          <span className="text-[11px] text-slate-400 tabular-nums">
+                            {hijas.length} subt.
+                          </span>
+                        )}
+                        {!esPadre && (
                           <Button
                             variante="secundario"
                             tamano="sm"
@@ -223,6 +302,22 @@ export function PartidasServicio() {
                     >
                       {formatearMoneda(margenFila)}
                     </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {estFila} h
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {realFila} h
+                    </Td>
+                    <Td
+                      alinear="right"
+                      className={`tabular-nums ${desvFila.diferencia > 0 ? 'font-semibold text-red-600' : 'text-slate-500'}`}
+                      title={desvFila.porcentaje == null ? 'Sin estimado' : `${desvFila.porcentaje}% de lo estimado`}
+                    >
+                      {desvFila.diferencia > 0 ? `+${desvFila.diferencia}` : desvFila.diferencia} h
+                      <span className="block text-[11px] font-normal">
+                        {desvFila.porcentaje == null ? '—' : `${desvFila.porcentaje}%`}
+                      </span>
+                    </Td>
                   </TableRow>
                 )
               })
@@ -239,19 +334,31 @@ export function PartidasServicio() {
                   )}
                 </Td>
                 <Td alinear="right" className="tabular-nums">
-                  {formatearMoneda(presupuesto)}
+                  {formatearMoneda(montoTotal)}
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(valorizado)}
                 </Td>
                 <Td alinear="right" className="tabular-nums">
-                  {medido != null ? `${medido.toFixed(1)}%` : '—'}
+                  —
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(costo + sinTarea)}
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(margen)}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {estTotal} h
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {realTotal} h
+                </Td>
+                <Td alinear="right" className={`tabular-nums ${desvTotal.diferencia > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                  {desvTotal.diferencia > 0 ? `+${desvTotal.diferencia}` : desvTotal.diferencia} h
+                  <span className="block text-[11px] font-normal">
+                    {desvTotal.porcentaje == null ? '—' : `${desvTotal.porcentaje}%`}
+                  </span>
                 </Td>
               </TableRow>
             )}

@@ -1,18 +1,18 @@
 import { useOutletContext } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '../../components/ui/Button'
+import { Card } from '../../components/ui/Card'
 import { Campo, Input } from '../../components/ui/Field'
 import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
-import { CATEGORIAS_GASTO } from '../../data/mockData'
 import {
   SeccionRegistros,
   fechaHoyISO,
 } from './compartido'
 
-function FormularioGasto({ servicio, registrar }) {
+function FormularioGasto({ servicio, registrar, enModal = false }) {
   const {
     register,
     handleSubmit,
@@ -20,7 +20,7 @@ function FormularioGasto({ servicio, registrar }) {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '', documento: '' },
+    defaultValues: { concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', documento: '' },
   })
   const {
     estado: { tareas: todasTareas },
@@ -29,7 +29,7 @@ function FormularioGasto({ servicio, registrar }) {
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
-  const enviar = ({ concepto, monto, fecha, tarea_id, categoria, documento }) => {
+  const enviar = ({ concepto, monto, fecha, tarea_id, documento }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'gasto',
@@ -39,14 +39,13 @@ function FormularioGasto({ servicio, registrar }) {
       monto_calculado: redondearMonto(monto),
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
-      categoria: categoria || null,
       documento: documento.trim() || null,
     })
-    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', categoria: '', documento: '' })
+    reset({ concepto: '', monto: '', fecha: fechaHoyISO(), tarea_id: '', documento: '' })
   }
 
   return (
-    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+    <form id="form-registro" onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Campo
           label="Concepto del gasto"
@@ -93,20 +92,6 @@ function FormularioGasto({ servicio, registrar }) {
           </Campo>
         )}
         <Campo
-          label="Categoría (opcional)"
-          error={errors.categoria?.message}
-          htmlFor="gasto-categoria"
-          hint="Para el presupuesto por categorías"
-        >
-          <CampoComboBox
-            id="gasto-categoria"
-            control={control}
-            name="categoria"
-            placeholder="Sin categoría…"
-            opciones={CATEGORIAS_GASTO.map((c) => ({ valor: c, etiqueta: c }))}
-          />
-        </Campo>
-        <Campo
           label="N° factura / comprobante (opcional)"
           error={errors.documento?.message}
           htmlFor="gasto-doc"
@@ -119,9 +104,15 @@ function FormularioGasto({ servicio, registrar }) {
           />
         </Campo>
         <div className="flex items-end">
-          <Button type="submit" className="w-full">
-            Agregar gasto
-          </Button>
+          {enModal ? (
+            <p className="text-xs text-slate-500">
+              Se suma al gastado del servicio al guardar.
+            </p>
+          ) : (
+            <Button type="submit" className="w-full">
+              Agregar gasto
+            </Button>
+          )}
         </div>
       </div>
     </form>
@@ -136,13 +127,37 @@ export function GastosServicio() {
       servicio={servicio}
       tipo="gasto"
       titulo="Gastos"
-      descripcion="Gastos extra del servicio. Suman al gastado del presupuesto."
+      descripcion="Gastos extra del servicio. Suman al gastado."
       mensajeVacio="Este servicio todavía no tiene gastos registrados."
       mensajeExito={(datos) => `Gasto agregado por ${formatearMoneda(datos.monto_calculado)}.`}
       permitirEditar
+      tarjetas={({ registros, totalMonto }) => (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="border-l-4 border-red-500 pl-4">
+              <p className="text-sm text-slate-500">Total gastado</p>
+              <p className="mt-1 text-3xl font-bold text-slate-900 tabular-nums">
+                {formatearMoneda(totalMonto)}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">Gastos extra del servicio</p>
+            </div>
+            <div className="flex flex-1 flex-wrap items-stretch justify-start gap-6 sm:justify-end sm:gap-10">
+              <div className="min-w-32 border-l border-slate-200 pl-6">
+                <p className="text-3xl font-bold text-slate-800 tabular-nums">{registros.length}</p>
+                <p className="mt-1 text-xs text-slate-500">gastos registrados</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+      modalRegistro={{
+        boton: 'Agregar gasto',
+        titulo: 'Registrar gasto',
+        descripcion: 'Gastos extra del servicio. Suman al gastado.',
+      }}
     >
       {({ servicio, registrar }) => (
-        <FormularioGasto servicio={servicio} registrar={registrar} />
+        <FormularioGasto servicio={servicio} registrar={registrar} enModal />
       )}
     </SeccionRegistros>
   )

@@ -9,7 +9,6 @@ import { PersonalServicio } from './pages/servicio/PersonalServicio'
 import { EquiposServicio } from './pages/servicio/EquiposServicio'
 import { GastosServicio } from './pages/servicio/GastosServicio'
 import { IngresosServicio } from './pages/servicio/IngresosServicio'
-import { PresupuestoServicio } from './pages/servicio/PresupuestoServicio'
 import { CronogramaServicio } from './pages/servicio/CronogramaServicio'
 import { PartidasServicio } from './pages/servicio/PartidasServicio'
 import { OpcionesServicio } from './pages/servicio/OpcionesServicio'
@@ -32,7 +31,6 @@ export default function App() {
           <Route path="ingresos" element={<IngresosServicio />} />
           <Route path="cobros" element={<Navigate to="../ingresos" replace />} />
           <Route path="facturacion" element={<Navigate to="../ingresos" replace />} />
-          <Route path="presupuesto" element={<PresupuestoServicio />} />
           <Route path="cronograma" element={<CronogramaServicio />} />
           <Route path="partidas" element={<PartidasServicio />} />
           <Route path="opciones" element={<OpcionesServicio />} />

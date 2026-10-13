@@ -1,30 +1,29 @@
 # Planificación por módulos — PROMCOSER ERP
 
 Roadmap de entregables por módulo necesario. Estado base: commit `0bb33b8`
-(presupuestos, indirectos, filtros, CSV). Convención: cada módulo
+(indirectos, filtros, CSV). Convención: cada módulo
 se cierra con suite verde (`npm run verificar`), build OK, push a `master` y
 manual actualizado.
 
 ## M1. Servicios (base — completar)
 **Existe:** CRUD, tipos (Obra/Misceláneo/Contrato), panel de
-9 pestañas, búsqueda, columna tipo.
+8 pestañas, búsqueda, columna tipo.
 **Falta:**
 - Fecha fin real, responsable descriptivo (texto, sin usuarios), ubicación.
 - Filtros por tipo y estado en el listado (hoy solo búsqueda).
 - Historial de cambios del servicio (fecha + campo + valor anterior/nuevo).
 **Aceptación:** crear/editar/filtrar por tipo, ver historial, sin duplicar ingresos ni costos.
 
-## M2. Presupuesto y costos (existe parcial)
-**Existe:** categorías con inicial/adicional/vigente, real por categoría, desviación y ejecución, sin-categoría.
-**Falta:**
-- Cantidad/precio unitario por línea donde aplique (opcional por categoría).
-- Costo comprometido separado del real (sin sumar dos veces).
-- Costo final estimado = real + pendiente de terminar; desviación proyectada.
-- Alertas: sobrecosto previsto, margen bajo objetivo configurable.
-**Aceptación:** Casos D (300k→340k, 13.33%) y F (10k→11.5k, 115%) del programa maestro en la suite.
+## M2. Presupuesto y costos (módulo por categorías eliminado; control básico existe)
+El módulo Presupuesto por categorías se retiró: sin colección
+`presupuestos` y sin proyecciones EVM (CPI, costo final, margen proyectado).
+Quedan el `presupuesto_asignado` de cada servicio (monto inicial editable) y
+la lectura de control `estadoPresupuesto` (gastado, disponible, % de
+ejecución, excedido, cobrado). El resultado se mide como utilidad real
+(cobrado − gastado) y el avance en Partidas (montos y valorizado por tarea).
 
 ## M3. Personal (costo directo automático)
-**Existe:** asignaciones, costo mensual automático devengado/proyectado, baja con prorrateo, proyección inicio-fin.
+**Existe:** asignaciones, costo mensual automático devengado/proyectado, baja con prorrateo, proyección inicio-fin, horas estimadas por tarea con comparador estimado vs. real en Partidas y Resumen (`horasEstimadasTarea`, `horasRealesTarea`, `desviacionHoras`).
 **Sin tareo ni asentamiento manual** (eliminados por decisión: Opción A).
 **Falta:**
 - Reportes: horas por trabajador/servicio/periodo, costo laboral por tarea.
@@ -40,7 +39,7 @@ manual actualizado.
 **Aceptación:** Caso H (equipo en dos servicios sin duplicar) en la suite.
 
 ## M5. Materiales y compras (mínimo viable — el más ausente)
-**Existe:** costo de materiales por servicio (texto libre) mapeado a presupuesto.
+**Existe:** costo de materiales por servicio (texto libre).
 **Falta:**
 - Registro con proveedor (descriptivo) y comprobante.
 - Estados: solicitud → orden → recibido → consumido → facturado → pagado, sin
@@ -49,16 +48,15 @@ manual actualizado.
 **Aceptación:** Caso G (compra→factura→pago suma una vez) y Caso H en la suite.
 
 ## M6. Gastos (existe base, sin pagos)
-**Existe:** gastos con categoría/tarea y comprobante opcional.
+**Existe:** gastos con tarea y comprobante opcional.
 **Sin módulo de pagos** (eliminado por decisión, con saldos y CxP).
 **Falta:**
 - Fechas de documento, vencimiento y pago; proveedor/beneficiario.
 **Aceptación:** Caso D (saldo 1500) ya en suite.
 
 ## M7. Ingresos con facturas (existe base, fusionado)
-**Existe:** módulo único Ingresos: tarjetas (cobrado, por cobrar, utilidad), tabla de facturas con saldos/estados/anulación, formulario único (fecha, monto, concepto + N° factura opcional con autocreación), ingresos atados a factura con tope, adelantos, CxC por servicio. La colección interna sigue siendo `cobros`; `/cobros` y `/facturacion` redirigen a `/ingresos`.
+**Existe:** módulo único Ingresos: total cobrado, tabla de facturas con saldos/estados/anulación, formulario en modal (fecha, monto, concepto + N° factura opcional con autocreación), ingresos atados a factura con tope, adelantos. La colección interna sigue siendo `cobros`; `/cobros` y `/facturacion` redirigen a `/ingresos`.
 **Falta:**
-- Adicionales al monto contratado que recalculen contratado y por cobrar.
 - Retenciones y amortización de adelantos.
 - Antigüedad de deuda y alertas de vencidas (global + servicio).
 - Reporte de rentabilidad por cliente.
@@ -77,7 +75,7 @@ consolidado separados.
 **Aceptación:** Caso K (respaldo) ya en suite.
 
 ## M10. Dashboard gerencial (hecho)
-**Existe:** panel gerencial en `/` con KPIs de empresa (resultado, presupuesto/ejecución, cobrado/por cobrar, servicios en curso/en riesgo), meta de ingreso (cobrado vs objetivo, con lo que falta), atención inmediata (obras en riesgo), evolución real (caja por mes) vs proyectada (personal por mes + cierre estimado), rentabilidad por cliente, consumo y ranking por servicio, cobranza, resultado empresa y cronograma global. El detalle operativo (movimientos recientes) queda colapsado en segundo plano y el respaldo/importación/restablecer vive en el botón **"Datos y respaldo"**.
+**Existe:** panel gerencial en `/` con KPIs de empresa (resultado, gastado, cobrado, servicios en curso/en riesgo), meta de ingreso (cobrado vs objetivo, con lo que falta), atención inmediata (obras en riesgo), evolución real (caja por mes) vs proyectada (personal por mes), utilidad por cliente, gasto y ranking por servicio, resultado empresa y cronograma global. El detalle operativo (movimientos recientes) queda colapsado en segundo plano y el respaldo/importación/restablecer vive en el botón **"Datos y respaldo"**.
 **Filtros:** cliente, tipo y estado alcanzan a todo lo por servicio; Oficina y resultado empresa son de la empresa y no se filtran.
 **Falta:**
 - Filtro por responsable (requiere ese dato en M1).
@@ -85,7 +83,24 @@ consolidado separados.
 
 ## Orden de ejecución sugerido
 
-M2 → M7 → M5/M6 → M3/M4 → M1/M10.
+M7 → M5/M6 → M3/M4 → M1/M10.
+
+## Release v1.0 — lista de aceptación (UAT piloto)
+
+Condición: 1 obra + 1 misceláneo reales cargados en paralelo al control
+actual (cuaderno/Excel), durante 2 cierres. Marcar solo cuando la utilidad
+del sistema iguale a la del control al céntimo.
+
+- [ ] Crear servicio con presupuesto inicial; aparece en Servicios y Resumen.
+- [ ] Registrar gasto/material/equipo con tarea; suman al gastado y al costo de la tarea.
+- [ ] Asignar personal (horas/día, tarifa, tarea); la proyección inicio-fin cuadra.
+- [ ] Registrar cobro con y sin factura (tope de saldo, autocreación, adelanto).
+- [ ] Montos, avance y horas estimadas en Cronograma/Partidas; desviación de horas visible.
+- [ ] Resumen cuadra: presupuesto, gastado, saldo, cobrado, utilidad, productividad, SPI.
+- [ ] Dashboard cuadra: resultado, caja por mes, utilidad por cliente, gasto y ranking.
+- [ ] Exportar → Vaciar todo → Importar: totales idénticos tras el round-trip.
+- [ ] Suite verde (`npm run verificar`) + build OK + tag de release en git.
+- [ ] Respaldo JSON inicial guardado fuera del equipo; a partir de ahí solo datos reales.
 
 ## Backlog (fuera de alcance inicial)
 
@@ -98,7 +113,7 @@ adelanta backend.
 
 - 104 DNI en seeds sin verificar (reales o generados): pendiente de
   confirmación; no reproducir ni borrar sin autorización.
-- Ingresos reconocidos = valorizado (monto × avance); redondeo a céntimos;
+- Resultado = cobrado − gastado (utilidad real); redondeo a céntimos;
   PEN por defecto. Validar con contador antes de uso contable.
 - Datos de ejemplo, no reales. Piloto con 1 obra + 1 misceláneo en paralelo
   al control actual antes de operar de verdad.

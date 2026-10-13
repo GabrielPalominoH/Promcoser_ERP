@@ -10,7 +10,7 @@ Estado al: commit actual en `master` (ver `git log`).
 - **Estado:** ✅ VISIBLE (ruta, enlace con contador y sección Planificación activos).
 
 ## 3. Bloque “Avance del cronograma” del Resumen
-- **Estado:** ✅ VISIBLE (entre “Movimientos” y la cascada).
+- **Estado:** ✅ VISIBLE (junto a “Movimientos”).
 
 ## 4. Módulo Gestión de Servicios (antiguo)
 - **Estado:** ⚠️ ELIMINADO del disco antes del primer commit (no está en git). Su funcionalidad vive repartida en el panel del servicio.
@@ -38,3 +38,15 @@ Estado al: commit actual en `master` (ver `git log`).
 
 ## 10. Servicios de prueba eliminados
 - Solo queda el servicio 6 en `src/data/mockData.js`. Los servicios 1–5 y sus registros/tareas se quitaron de las semillas (siguen en el historial git anterior si se necesitan como ejemplo).
+
+## 11. Módulo Presupuesto por categorías y proyecciones EVM
+- **Estado:** ❌ ELIMINADOS por decisión (el dinero que ingresa se registra en Ingresos). Sin ruta `/presupuesto`, sin colección `presupuestos`, sin campo Categoría en gastos y sin proyecciones EVM (`consumoPresupuesto`, `rentabilidadServicio`, `proyeccionCierre`, `presupuestoPorCategoria`, `realPorCategoria`, `desviacionCategoria`). Se conservan el `presupuesto_asignado` de cada servicio (monto inicial editable) y la lectura de control `estadoPresupuesto` (disponible, % de ejecución, excedido, cobrado). El resultado se mide como utilidad real (cobrado − gastado) y el avance en Partidas (montos y valorizado por tarea, que se conservan). Esquema `_v: 8`; lo guardado con `presupuestos` se ignora al cargar.
+- **Reactivar:** ver historial git si se necesita.
+
+## 12. Agregado "Por cobrar"
+- **Estado:** ❌ ELIMINADO por decisión (el sistema registra ingresos, no cobranza). Sin función `porCobrar`, sin tarjetas/columnas de por cobrar y sin tarjeta "Quién debe" (su desglose por concepto vive como "Cobros por concepto" en el Dashboard). Las facturas se conservan como registro documental en Ingresos, con saldos y estados en su propia tabla.
+- **Reactivar:** ver historial git si se necesita.
+
+## 13. Distribución de indirectos a servicios
+- **Estado:** ❌ ELIMINADA por decisión (la oficina es gasto general, no se atribuye por servicio). Sin tarjeta de distribución, sin regla configurable y sin `REGLAS_INDIRECTOS`/`distribuirIndirectos` (solo quedan en el historial git). Oficina conserva costos mensuales, utilidad total, resultado empresa y utilidad por servicio.
+- **Reactivar:** ver historial git si se necesita.

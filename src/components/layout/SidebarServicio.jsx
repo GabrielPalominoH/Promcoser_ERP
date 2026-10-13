@@ -26,7 +26,6 @@ const SECCIONES = [
     opciones: [
       { id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' },
       { id: 'partidas', etiqueta: 'Partidas', icono: 'layers' },
-      { id: 'presupuesto', etiqueta: 'Presupuesto', icono: 'barras' },
     ],
   },
   {

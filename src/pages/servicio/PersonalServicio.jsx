@@ -297,7 +297,7 @@ export function PersonalServicio() {
           <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
             {formatearMoneda(proyeccion.gastado)}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">Pago automático: resta del presupuesto</p>
+          <p className="mt-0.5 text-xs text-slate-500">Pago automático: suma al gastado</p>
         </Card>
         <Card>
           <p className="text-sm text-slate-500">Proyectado restante</p>
