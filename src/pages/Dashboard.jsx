@@ -39,6 +39,7 @@ import {
   kpisEmpresa,
   proyeccionMensualPersonal,
   rentabilidadPorCliente,
+  variacionMensual,
 } from '../utils/gerencial'
 
 function descargarCSV(nombre, filas) {
@@ -279,6 +280,22 @@ export function Dashboard() {
   )
   const maxPersonal = Math.max(1, ...personalProyectado.map((m) => m.monto))
 
+  // Tendencias mes actual vs. anterior para los KPIs (respeta filtros).
+  const cajaTendencia = cajaReal.map((f) => ({
+    mes: f.mes,
+    cobrado: f.cobrado,
+    gastado: f.egresoObra + f.oficina,
+    resultado: f.margenReal,
+  }))
+  const tCobrado = variacionMensual(cajaTendencia, 'cobrado')
+  const tGastado = variacionMensual(cajaTendencia, 'gastado')
+  const tResultado = variacionMensual(cajaTendencia, 'resultado')
+  const flecha = (v) => {
+    if (v == null || v.porcentaje == null) return null
+    if (v.porcentaje === 0) return '→ 0% vs mes anterior'
+    return `${v.porcentaje > 0 ? '▲' : '▼'} ${Math.abs(v.porcentaje)}% vs mes anterior`
+  }
+
   const exportarCSVServicios = () => {
     const paraCSV = (texto) => `"${String(texto ?? '').replace(/"/g, '""')}"`
     descargarCSV('promcoser-rentabilidad-servicios.csv', [
@@ -436,27 +453,31 @@ export function Dashboard() {
         <StatCard
           titulo="Resultado empresa"
           valor={formatearMoneda(kpis.resultadoEmpresa)}
-          detalle={`Utilidad ${formatearMoneda(kpis.utilidadServicios)} · oficina ${formatearMoneda(kpis.oficina)}`}
+          detalle={`Utilidad ${formatearMoneda(kpis.utilidadServicios)} · oficina ${formatearMoneda(kpis.oficina)}${flecha(tResultado) ? ` · ${flecha(tResultado)}` : ''}`}
           tono={kpis.resultadoEmpresa < 0 ? 'danger' : 'success'}
           icono={<Icono nombre="grid" className="size-5" />}
+          destino="/oficina"
+          nota="Resultado = utilidad de servicios (cobrado − gastado) menos gasto de oficina."
         />
         <StatCard
           titulo="Gastado"
           valor={formatearMoneda(kpis.gastado)}
-          detalle="Egresos de obra acumulados"
+          detalle={`Egresos de obra acumulados${flecha(tGastado) ? ` · ${flecha(tGastado)}` : ''}`}
           tono="slate"
           icono={
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5" aria-hidden="true">
               <path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
           }
+          nota="Gastado = suma de materiales, personal, equipos y gastos registrados en obra."
         />
         <StatCard
           titulo="Cobrado"
           valor={formatearMoneda(kpis.cobrado)}
-          detalle="Ingresos efectivamente recibidos"
+          detalle={`Ingresos efectivamente recibidos${flecha(tCobrado) ? ` · ${flecha(tCobrado)}` : ''}`}
           tono="success"
           icono={<Icono nombre="billete" className="size-5" />}
+          nota="Cobrado = suma de ingresos registrados por servicio."
         />
         <StatCard
           titulo="Servicios"
@@ -464,6 +485,7 @@ export function Dashboard() {
           detalle={`${kpis.enRiesgo} en riesgo · ${kpis.total - kpis.enCurso} fuera de curso`}
           tono={kpis.enRiesgo > 0 ? 'warning' : 'slate'}
           icono={<Icono nombre="clipboard" className="size-5" />}
+          destino="/servicios"
         />
       </div>
 

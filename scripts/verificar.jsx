@@ -26,7 +26,7 @@ import {
   saldoPorPagar,
   soloVigentes,
 } from '../src/utils/finanzas'
-import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, desviacionHoras, diasCalendarioRango, diferenciaPersonalAuto, esDomingo, estadoPresupuesto, horasEstimadasTarea, horasPorMes, horasRealesTarea, sumarMontos, mediaMovil, proyeccionFinanciera, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, proyeccionAsignaciones, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
+import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, desviacionDias, diasCalendarioRango, diasEstimadosTarea, diasRealesTarea, diferenciaPersonalAuto, esDomingo, estadoPresupuesto, horasPorMes, sumarMontos, mediaMovil, proyeccionFinanciera, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, proyeccionAsignaciones, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import {
   analizarServicios,
   avanceMetaIngreso,
@@ -34,6 +34,7 @@ import {
   kpisEmpresa,
   proyeccionMensualPersonal,
   rentabilidadPorCliente,
+  variacionMensual,
 } from '../src/utils/gerencial'
 import { redondearMonto, formatearMoneda, normalizarEntradaMonto, formatearEntradaMonto, parsearEntradaMonto } from '../src/utils/formatters'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
@@ -326,6 +327,12 @@ comprobar('caja agosto = -23840', mesCaja('2026-08').margenReal === -23840, Stri
 comprobar('caja septiembre = 19172', mesCaja('2026-09').margenReal === 19172, String(mesCaja('2026-09').margenReal))
 comprobar('caja octubre = -17500', mesCaja('2026-10').margenReal === -17500, String(mesCaja('2026-10').margenReal))
 comprobar('caja cubre julio a octubre (4 meses)', caja.length === 4 && caja[0].mes === '2026-07' && caja[3].mes === '2026-10', caja.map((f) => f.mes).join(','))
+const varCaja = variacionMensual(caja, 'cobrado')
+comprobar('variación cobrado sep→oct = -100%', varCaja != null && varCaja.diferencia === -30000 && varCaja.porcentaje === -100, JSON.stringify(varCaja))
+comprobar('variación sube en positivo', variacionMensual([{ mes: 'a', x: 100 }, { mes: 'b', x: 150 }], 'x').porcentaje === 50)
+comprobar('variación sin base es null', variacionMensual([{ mes: 'a', x: 0 }, { mes: 'b', x: 50 }], 'x').porcentaje === null)
+comprobar('variación con 1 punto es null', variacionMensual([{ mes: 'a', x: 50 }], 'x') === null)
+comprobar('variación vacía es null', variacionMensual([], 'x') === null)
 
 const proyectado6 = proyeccionMensualPersonal({
   asignaciones: ESTADO_INICIAL.asignaciones,
@@ -384,19 +391,21 @@ comprobar(
 console.log('\n[ productividad ]')
 
 const porIdTarea = (id) => tareasServ6.find((t) => t.id === id)
-comprobar('horas reales vaciado = 40', horasRealesTarea(porIdTarea(16), tareasServ6, regs, 6) === 40)
-comprobar('horas reales columnas = 30', horasRealesTarea(porIdTarea(18), tareasServ6, regs, 6) === 30)
-comprobar('horas reales sin registros = 0', horasRealesTarea(porIdTarea(13), tareasServ6, regs, 6) === 0)
-comprobar('horas reales padre suma hijas = 40', horasRealesTarea(porIdTarea(14), tareasServ6, regs, 6) === 40)
-comprobar('estimado hoja vaciado = 32', horasEstimadasTarea(porIdTarea(16), tareasServ6) === 32)
-comprobar('estimado padre suma hijas = 192', horasEstimadasTarea(porIdTarea(14), tareasServ6) === 192)
-const estServ6 = tareasServ6.filter((t) => t.padre_id == null).reduce((s, t) => s + horasEstimadasTarea(t, tareasServ6), 0)
-const realServ6 = tareasServ6.filter((t) => t.padre_id == null).reduce((s, t) => s + horasRealesTarea(t, tareasServ6, regs, 6), 0)
-comprobar('servicio estimado/total = 1152/70', estServ6 === 1152 && realServ6 === 70, `${estServ6}/${realServ6}`)
-const desvVaciado = desviacionHoras(32, 40)
-comprobar('desviación +8 h y 125%', desvVaciado.diferencia === 8 && desvVaciado.porcentaje === 125, JSON.stringify(desvVaciado))
-comprobar('desviación negativa = ahorro', desviacionHoras(200, 30).diferencia === -170)
-comprobar('sin estimado no hay %', desviacionHoras(0, 5).porcentaje === null)
+comprobar('duración excavación = 16 d', diasEstimadosTarea(porIdTarea(15), tareasServ6) === 16)
+comprobar('duración columnas = 36 d', diasEstimadosTarea(porIdTarea(18), tareasServ6) === 36)
+comprobar('estimado padre suma hijas = 31 d', diasEstimadosTarea(porIdTarea(14), tareasServ6) === 31)
+comprobar('estimado estructuras = 61 d', diasEstimadosTarea(porIdTarea(17), tareasServ6) === 61)
+comprobar('días reales vaciado = 1', diasRealesTarea(porIdTarea(16), tareasServ6, regs, 6) === 1)
+comprobar('días reales columnas = 1', diasRealesTarea(porIdTarea(18), tareasServ6, regs, 6) === 1)
+comprobar('días reales sin registros = 0', diasRealesTarea(porIdTarea(13), tareasServ6, regs, 6) === 0)
+comprobar('días reales padre junta hijas = 1', diasRealesTarea(porIdTarea(14), tareasServ6, regs, 6) === 1)
+const estServ6 = tareasServ6.filter((t) => t.padre_id == null).reduce((s, t) => s + diasEstimadosTarea(t, tareasServ6), 0)
+const realServ6 = tareasServ6.filter((t) => t.padre_id == null).reduce((s, t) => s + diasRealesTarea(t, tareasServ6, regs, 6), 0)
+comprobar('servicio estimado/real = 173/2 d', estServ6 === 173 && realServ6 === 2, `${estServ6}/${realServ6}`)
+const desvServ6 = desviacionDias(estServ6, realServ6)
+comprobar('desviación −171 d', desvServ6.diferencia === -171, String(desvServ6.diferencia))
+comprobar('desviación positiva = más días', desviacionDias(10, 12).diferencia === 2)
+comprobar('sin estimado no hay %', desviacionDias(0, 5).porcentaje === null)
 const horasMes6 = horasPorMes(ESTADO_INICIAL.registros_servicio, 6)
 comprobar('horas por mes serv. 6 = ago 70 h', horasMes6.length === 1 && horasMes6[0].mes === '2026-08' && horasMes6[0].horas === 70, JSON.stringify(horasMes6))
 comprobar('horas por mes vacío = []', horasPorMes([], 6).length === 0)

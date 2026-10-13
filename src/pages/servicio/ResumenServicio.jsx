@@ -14,13 +14,13 @@ import {
   costoSubarbol,
   cuentaComoManoDeObra,
   desglosePorTipo,
+  diasEstimadosTarea,
+  diasRealesTarea,
   diasRestantes,
-  desviacionHoras,
+  desviacionDias,
   estadoPresupuesto,
   gastoPorMes,
-  horasEstimadasTarea,
   horasPorMes,
-  horasRealesTarea,
   indiceAvance,
   mediaMovil,
   metricasCronograma,
@@ -466,13 +466,13 @@ export function ResumenServicio() {
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio))
   const cronograma = metricasCronograma(tareas)
-  const horasEst = tareas
+  const diasEst = tareas
     .filter((t) => t.padre_id == null)
-    .reduce((s, t) => s + horasEstimadasTarea(t, tareas), 0)
-  const horasReales = tareas
+    .reduce((s, t) => s + diasEstimadosTarea(t, tareas), 0)
+  const diasReales = tareas
     .filter((t) => t.padre_id == null)
-    .reduce((s, t) => s + horasRealesTarea(t, tareas, registrosVigentes, servicio.id), 0)
-  const desvHoras = desviacionHoras(horasEst, horasReales)
+    .reduce((s, t) => s + diasRealesTarea(t, tareas, registrosVigentes, servicio.id), 0)
+  const desvDias = desviacionDias(diasEst, diasReales)
   const ritmoAvance = indiceAvance(servicio, cronograma.avanceGlobal)
   const proyeccion = proyeccionFinanciera({
     presupuesto: estado.presupuesto,
@@ -657,6 +657,14 @@ export function ResumenServicio() {
             </p>
           </div>
         </div>
+        <details className="mt-4 text-xs text-slate-500">
+          <summary className="cursor-pointer font-medium hover:text-slate-700">
+            ¿Cómo se calcula?
+          </summary>
+          <p className="mt-1">
+            Utilidad = cobrado − gastado; Saldo = presupuesto inicial − gastado.
+          </p>
+        </details>
       </Card>
 
       <Card
@@ -783,14 +791,14 @@ export function ResumenServicio() {
       </Card>
 
       <Card
-        titulo="Productividad (horas de personal)"
-        descripcion="Horas estimadas en el Cronograma contra horas reales registradas."
+        titulo="Productividad (días de personal)"
+        descripcion="Duración planificada en el Cronograma contra días reales con trabajo registrado."
       >
-        {horasEst === 0 ? (
+        {diasEst === 0 ? (
           <p className="text-sm text-slate-400">
-            Sin horas estimadas todavía.{' '}
+            Sin tareas con fechas todavía.{' '}
             <Link to="cronograma" className="font-medium text-primary-700 underline">
-              Poner estimados
+              Planificar
             </Link>
           </p>
         ) : (
@@ -800,7 +808,7 @@ export function ResumenServicio() {
                 Estimado
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-                {horasEst} h
+                {diasEst} d
               </p>
             </div>
             <div className="rounded-xl border border-slate-300 p-4">
@@ -808,10 +816,10 @@ export function ResumenServicio() {
                 Real
               </p>
               <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-                {horasReales} h
+                {diasReales} d
               </p>
               <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
-                {desvHoras.porcentaje == null ? '—' : `${desvHoras.porcentaje}% de lo estimado`}
+                {desvDias.porcentaje == null ? '—' : `${desvDias.porcentaje}% de lo estimado`}
               </p>
             </div>
             <div className="rounded-xl border border-slate-300 p-4">
@@ -820,17 +828,26 @@ export function ResumenServicio() {
               </p>
               <p
                 className={`mt-1 text-xl font-bold tabular-nums ${
-                  desvHoras.diferencia > 0 ? 'text-red-600' : 'text-emerald-700'
+                  desvDias.diferencia > 0 ? 'text-red-600' : 'text-emerald-700'
                 }`}
               >
-                {desvHoras.diferencia > 0 ? `+${desvHoras.diferencia}` : desvHoras.diferencia} h
+                {desvDias.diferencia > 0 ? `+${desvDias.diferencia}` : desvDias.diferencia} d
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
-                {desvHoras.diferencia > 0 ? 'Sobreuso de horas' : 'Dentro de lo estimado'}
+                {desvDias.diferencia > 0 ? 'Más días de los planeados' : 'Dentro de lo planeado'}
               </p>
             </div>
           </div>
         )}
+        <details className="mt-4 text-xs text-slate-500">
+          <summary className="cursor-pointer font-medium hover:text-slate-700">
+            ¿Cómo se calcula?
+          </summary>
+          <p className="mt-1">
+            Estimado = duración planificada (fin − inicio + 1 día); real = días con registros
+            de personal. Desviación = reales − estimados.
+          </p>
+        </details>
       </Card>
 
       <Card

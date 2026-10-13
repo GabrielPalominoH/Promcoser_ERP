@@ -47,7 +47,7 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | El panel gerencial de la empresa: resultado (utilidad menos oficina), gastado, cobrado, servicios en curso y en riesgo, y la **meta de ingreso** (cuánto se ha cobrado y cuánto falta). Luego, en orden: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo o restablece los datos de ejemplo. |
+| **Dashboard** | El panel gerencial de la empresa: 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado), meta de ingreso, obras en riesgo justo después, y luego el detalle: evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo, restablece los datos de ejemplo o vacía todo para empezar de cero. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
@@ -140,9 +140,9 @@ conserva el historial y la saca de los saldos; no hay borrado físico.
 
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
-fechas. Se marca el avance y las **horas estimadas** de cada tarea (las
-principales las suman solas) y el sistema muestra una barra de
-tiempo (diagrama de Gantt) con el progreso total. Aquí nacen todas las
+fechas. Se marca el avance de cada tarea y el sistema muestra una barra de
+tiempo (diagrama de Gantt) con el progreso total. La duración de cada tarea
+(fin − inicio + 1) es su estimación de días. Aquí nacen todas las
 tareas: principales y subtareas. Al editar una tarea verá **sus costos
 asignados y su total**: los costos se asignan desde Materiales, Personal,
 Equipos o Gastos eligiendo la tarea. Al borrar una tarea, sus costos no se
@@ -171,11 +171,11 @@ e hijas, y estas columnas:
   hijas.
 - **Margen:** valorizado menos costo. Si sale en rojo, ese trabajo genera
   sobrecosto: ya gastó más de lo que vale lo hecho.
-- **Horas est.:** horas estimadas del trabajo (se ponen en el Cronograma;
-  las principales suman solas).
-- **Horas reales:** horas de personal registradas en ese trabajo y sus hijas.
-- **Desv. h:** reales menos estimadas, con su %. En rojo si se pasó de horas;
-  "—" si aún no hay estimado.
+- **Días est.:** días estimados del trabajo según sus fechas (las principales
+  suman solas).
+- **Días reales:** días con registros de personal en ese trabajo y sus hijas.
+- **Desv. d:** días reales menos estimados, con su %. En rojo si tomó más
+  días; "—" si aún no hay estimado.
 
 Arriba verá los totales: montos (suma de las principales), valorizado y
 margen de toda la obra. Debajo del total aparece lo registrado
@@ -227,12 +227,14 @@ tal como figura en la factura, para poder ubicarla después.
   margen; negativo = sobrecosto.
 - **Cobrado:** ingresos efectivamente recibidos (ingresos registrados).
 - **Utilidad real:** cobrado menos gastado; el resultado económico efectivo.
+- **Variación mensual:** mes actual contra el anterior (▲ sube, ▼ baja); sin
+  2 meses no hay variación.
 - **Cascada de utilidad:** diagrama que parte de lo cobrado y resta cada
   tipo de costo hasta la utilidad.
-- **Horas estimadas:** horas de trabajo previstas por tarea (se suman solas
-  en las principales).
-- **Horas reales:** horas de personal registradas en la tarea y sus hijas.
-- **Desviación de horas:** reales menos estimadas (+ = sobreuso de horas).
+- **Días estimados:** duración planificada por tarea (fin − inicio + 1 día;
+  se suman solas en las principales).
+- **Días reales:** días con registros de personal en la tarea y sus hijas.
+- **Desviación de días:** reales menos estimados (+ = más días de los planeados).
 - **Media móvil:** promedio de los últimos 3 meses; suaviza picos para ver
   la tendencia del gasto.
 - **Valor ganado:** lo que "vale" lo avanzado, a precios del presupuesto

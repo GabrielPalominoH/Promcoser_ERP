@@ -10,7 +10,7 @@ import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import { Badge } from '../../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../../utils/formatters'
-import { avanceEfectivo, estadoTarea, hoyISO, horasEstimadasTarea, nombreReferencia, sumarMontos } from '../../utils/calculadora'
+import { avanceEfectivo, estadoTarea, hoyISO, nombreReferencia, sumarMontos } from '../../utils/calculadora'
 
 // En SSR useLayoutEffect avisa; cae a useEffect en el servidor.
 const usarLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -61,7 +61,7 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, horasDerivadas, onCerrar, onGuardar, onEliminar }) {
+function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
   const esGrupo = enEdicion && tieneHijos
@@ -70,6 +70,7 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
     register,
     handleSubmit,
     getValues,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: tarea
@@ -78,9 +79,8 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           fecha_inicio: tarea.fecha_inicio,
           fecha_fin: tarea.fecha_fin,
           avance: tarea.avance ?? 0,
-          horas_estimadas: tarea.horas_estimadas ?? 0,
         }
-      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0, horas_estimadas: 0 },
+      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0 },
     mode: 'onBlur',
   })
 
@@ -98,10 +98,6 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
       avance: esGrupo
         ? Number(tarea.avance) || 0
         : Math.min(100, Math.max(0, Number(valores.avance) || 0)),
-      // Igual que el monto: con hijas, las horas estimadas suman solas.
-      horas_estimadas: esGrupo
-        ? Number(tarea.horas_estimadas) || 0
-        : Math.max(0, Number(valores.horas_estimadas) || 0),
     })
   }
 
@@ -225,29 +221,14 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                     valueAsNumber: true,
                     min: { value: 0, message: 'Mínimo: 0' },
                     max: { value: 100, message: 'Máximo: 100' },
-                  })}
-                />
-              </Campo>
-            )}
-            {esGrupo ? (
-              <Campo label="Horas estimadas" htmlFor="tarea-horas-grupo">
-                <div
-                  id="tarea-horas-grupo"
-                  className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800 tabular-nums"
-                >
-                  {horasDerivadas ?? 0} h · suma de sus subtareas
-                </div>
-              </Campo>
-            ) : (
-              <Campo label="Horas estimadas" error={errors.horas_estimadas?.message} htmlFor="tarea-horas">
-                <Input
-                  id="tarea-horas"
-                  type="number"
-                  step="1"
-                  min="0"
-                  {...register('horas_estimadas', {
-                    valueAsNumber: true,
-                    min: { value: 0, message: 'Mínimo: 0' },
+                    // El campo no deja escribir fuera de 0–100: al pasar el
+                    // límite se recorta solo (además de validar y recortar al guardar).
+                    onChange: (e) => {
+                      const v = Number(e.target.value)
+                      if (Number.isNaN(v)) return
+                      if (v > 100) setValue('avance', 100, { shouldValidate: true })
+                      else if (v < 0) setValue('avance', 0, { shouldValidate: true })
+                    },
                   })}
                 />
               </Campo>
@@ -1081,9 +1062,6 @@ export function CronogramaServicio() {
           }
           avanceDerivado={
             modal.modo === 'editar' ? avanceEfectivo(modal.tarea, tareas) : null
-          }
-          horasDerivadas={
-            modal.modo === 'editar' ? horasEstimadasTarea(modal.tarea, tareas) : null
           }
           onCerrar={() => setModal(null)}
           onGuardar={guardar}

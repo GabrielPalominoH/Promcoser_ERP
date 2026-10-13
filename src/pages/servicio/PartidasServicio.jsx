@@ -21,9 +21,9 @@ import {
   avanceEfectivo,
   costoSinTarea,
   costoSubarbol,
-  desviacionHoras,
-  horasEstimadasTarea,
-  horasRealesTarea,
+  desviacionDias,
+  diasEstimadosTarea,
+  diasRealesTarea,
   montoTarea,
   presupuestoTareas,
   registrosDeServicio,
@@ -169,11 +169,11 @@ export function PartidasServicio() {
   const margen = valorizado - costo - sinTarea
   const estTotal = tareas
     .filter((t) => t.padre_id == null)
-    .reduce((s, t) => s + horasEstimadasTarea(t, tareas), 0)
+    .reduce((s, t) => s + diasEstimadosTarea(t, tareas), 0)
   const realTotal = tareas
     .filter((t) => t.padre_id == null)
-    .reduce((s, t) => s + horasRealesTarea(t, tareas, estado.registros_servicio, servicio.id), 0)
-  const desvTotal = desviacionHoras(estTotal, realTotal)
+    .reduce((s, t) => s + diasRealesTarea(t, tareas, estado.registros_servicio, servicio.id), 0)
+  const desvTotal = desviacionDias(estTotal, realTotal)
 
   return (
     <div className="space-y-6">
@@ -214,9 +214,9 @@ export function PartidasServicio() {
               <Th alinear="right">Avance</Th>
               <Th alinear="right">Costo</Th>
               <Th alinear="right">Margen</Th>
-              <Th alinear="right">Horas est.</Th>
-              <Th alinear="right">Horas reales</Th>
-              <Th alinear="right">Desv. h</Th>
+              <Th alinear="right">Días est.</Th>
+              <Th alinear="right">Días reales</Th>
+              <Th alinear="right">Desv. d</Th>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -229,9 +229,9 @@ export function PartidasServicio() {
                 const avance = avanceEfectivo(tarea, tareas)
                 const costoFila = costoSubarbol(tarea, tareas, estado.registros_servicio, servicio.id)
                 const margenFila = val - costoFila
-                const estFila = horasEstimadasTarea(tarea, tareas)
-                const realFila = horasRealesTarea(tarea, tareas, estado.registros_servicio, servicio.id)
-                const desvFila = desviacionHoras(estFila, realFila)
+                const estFila = diasEstimadosTarea(tarea, tareas)
+                const realFila = diasRealesTarea(tarea, tareas, estado.registros_servicio, servicio.id)
+                const desvFila = desviacionDias(estFila, realFila)
                 const esPadre = hijas.length > 0
                 const colapsada = esPadre && colapsadas[tarea.id]
                 return (
@@ -303,17 +303,17 @@ export function PartidasServicio() {
                       {formatearMoneda(margenFila)}
                     </Td>
                     <Td alinear="right" className="tabular-nums">
-                      {estFila} h
+                      {estFila} d
                     </Td>
                     <Td alinear="right" className="tabular-nums">
-                      {realFila} h
+                      {realFila} d
                     </Td>
                     <Td
                       alinear="right"
                       className={`tabular-nums ${desvFila.diferencia > 0 ? 'font-semibold text-red-600' : 'text-slate-500'}`}
                       title={desvFila.porcentaje == null ? 'Sin estimado' : `${desvFila.porcentaje}% de lo estimado`}
                     >
-                      {desvFila.diferencia > 0 ? `+${desvFila.diferencia}` : desvFila.diferencia} h
+                      {desvFila.diferencia > 0 ? `+${desvFila.diferencia}` : desvFila.diferencia} d
                       <span className="block text-[11px] font-normal">
                         {desvFila.porcentaje == null ? '—' : `${desvFila.porcentaje}%`}
                       </span>
@@ -349,13 +349,13 @@ export function PartidasServicio() {
                   {formatearMoneda(margen)}
                 </Td>
                 <Td alinear="right" className="tabular-nums">
-                  {estTotal} h
+                  {estTotal} d
                 </Td>
                 <Td alinear="right" className="tabular-nums">
-                  {realTotal} h
+                  {realTotal} d
                 </Td>
                 <Td alinear="right" className={`tabular-nums ${desvTotal.diferencia > 0 ? 'text-red-600' : 'text-slate-900'}`}>
-                  {desvTotal.diferencia > 0 ? `+${desvTotal.diferencia}` : desvTotal.diferencia} h
+                  {desvTotal.diferencia > 0 ? `+${desvTotal.diferencia}` : desvTotal.diferencia} d
                   <span className="block text-[11px] font-normal">
                     {desvTotal.porcentaje == null ? '—' : `${desvTotal.porcentaje}%`}
                   </span>

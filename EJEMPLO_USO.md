@@ -24,9 +24,9 @@ ficticio *"Almacenes del Sur S.A.C."*, del 1 al 15 de octubre, factura total
 
 ## Paso 2. Crear las tareas (Cronograma)
 1. Pestaña **Cronograma** → **Nueva tarea** (3 veces):
-   - *Desmontaje* 01→05 oct, avance 100, horas estimadas **80**.
-   - *Reparación* 06→12 oct, avance 100, horas estimadas **120**.
-   - *Pintado y entrega* 13→15 oct, avance 100, horas estimadas **60**.
+   - *Desmontaje* 01→05 oct, avance 100.
+   - *Reparación* 06→12 oct, avance 100.
+   - *Pintado y entrega* 13→15 oct, avance 100.
 2. **Verás:** las 3 tareas en el Gantt al 100%, avance global 100%, 0 atrasadas.
 
 ## Paso 3. Poner montos (Partidas)
@@ -72,8 +72,8 @@ ficticio *"Almacenes del Sur S.A.C."*, del 1 al 15 de octubre, factura total
    tarea. Guarda.
 5. **Verás** en **Partidas**: Desmontaje costo S/ 385, Reparación S/ 890
    (800+90), Pintado S/ 190, más S/ 250 sin tarea (el flete); márgenes 2115,
-   3110 y 1810 en verde. Horas reales: Reparación 40 h de 120 estimadas
-   (33%); el resto aún en 0. Gastado total del servicio: **S/ 1,715**.
+   3110 y 1810 en verde. Días: Reparación 7 estimados y 5 reales (tareo del
+   6 al 10 oct). Gastado total del servicio: **S/ 1,715**.
 
 ## Paso 9. Facturar y cobrar (Ingresos)
 1. **Ingresos → Agregar ingreso**: fecha 10-02, monto **3000**, concepto *adelanto*,
@@ -117,7 +117,7 @@ ficticio *"Almacenes del Sur S.A.C."*, del 1 al 15 de octubre, factura total
 | Indicador | Valor |
 |---|---|
 | Montos / Valorizado | S/ 8,500 / S/ 8,500 |
-| Horas estimadas / reales | 260 / 40 h |
+| Días estimados / reales | 15 / 5 d |
 | Gastado total | S/ 1,715 (385 + 890 + 190 + 250 sin tarea) |
 | Facturado / Cobrado | 5500 / 8500 |
 | Utilidad real | **S/ 6,785** (margen 79.8%) |

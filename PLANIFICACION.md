@@ -23,7 +23,7 @@ ejecución, excedido, cobrado). El resultado se mide como utilidad real
 (cobrado − gastado) y el avance en Partidas (montos y valorizado por tarea).
 
 ## M3. Personal (costo directo automático)
-**Existe:** asignaciones, costo mensual automático devengado/proyectado, baja con prorrateo, proyección inicio-fin, horas estimadas por tarea con comparador estimado vs. real en Partidas y Resumen (`horasEstimadasTarea`, `horasRealesTarea`, `desviacionHoras`).
+**Existe:** asignaciones, costo mensual automático devengado/proyectado, baja con prorrateo, proyección inicio-fin, estimación por duración con comparador estimado vs. real en Partidas y Resumen (`diasEstimadosTarea`, `diasRealesTarea`, `desviacionDias`).
 **Sin tareo ni asentamiento manual** (eliminados por decisión: Opción A).
 **Falta:**
 - Reportes: horas por trabajador/servicio/periodo, costo laboral por tarea.

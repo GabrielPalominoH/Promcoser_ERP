@@ -51,42 +51,43 @@ export function presupuestoTareas(tareas, servicioId) {
     .reduce((total, t) => total + montoTarea(t, tareas), 0)
 }
 
-// Horas estimadas de una tarea: si tiene hijas, suma automática (solo
-// lectura); si no, su valor manual.
-export function horasEstimadasTarea(tarea, tareas) {
+// Días estimados de una tarea: su duración planificada (fin − inicio + 1).
+// Si tiene hijas, suma automática como los montos; si no, su propia duración.
+export function diasEstimadosTarea(tarea, tareas) {
   const hijas = (tareas ?? []).filter((t) => t.padre_id === tarea.id)
-  if (hijas.length === 0) return Number(tarea.horas_estimadas) || 0
-  return hijas.reduce((total, h) => total + horasEstimadasTarea(h, tareas), 0)
+  if (hijas.length === 0) return duracionTarea(tarea)
+  return hijas.reduce((total, h) => total + diasEstimadosTarea(h, tareas), 0)
 }
 
-// Horas reales de personal en una tarea: registros propios más los de todas
-// las descendientes. Solo tipo personal (mano de obra); los equipos se miden
-// aparte. Los registros se toman como vienen (el llamador decide si filtra
-// domingos con cuentaComoManoDeObra).
-export function horasRealesTarea(tarea, tareas, registros, servicioId) {
-  const propio = (registros ?? [])
-    .filter(
-      (r) =>
-        r.servicio_id === servicioId &&
-        r.tarea_id === tarea.id &&
-        r.tipo_registro === 'personal',
-    )
-    .reduce((total, r) => total + (Number(r.cantidad_o_horas) || 0), 0)
-  return (tareas ?? [])
-    .filter((t) => t.padre_id === tarea.id)
-    .reduce(
-      (total, h) => total + horasRealesTarea(h, tareas, registros, servicioId),
-      propio,
-    )
+// Días reales de personal en una tarea: fechas distintas con registros de
+// personal propios o de descendientes. Solo tipo personal (mano de obra).
+export function diasRealesTarea(tarea, tareas, registros, servicioId) {
+  const ids = new Set([tarea.id])
+  let cambio = true
+  while (cambio) {
+    cambio = false
+    for (const t of tareas ?? []) {
+      if (!ids.has(t.id) && t.padre_id != null && ids.has(t.padre_id)) {
+        ids.add(t.id)
+        cambio = true
+      }
+    }
+  }
+  const fechas = new Set()
+  for (const r of registros ?? []) {
+    if (r.servicio_id !== servicioId || r.tipo_registro !== 'personal' || !r.fecha) continue
+    if (r.tarea_id != null && ids.has(r.tarea_id)) fechas.add(r.fecha.slice(0, 10))
+  }
+  return fechas.size
 }
 
-// Desviación de horas: real − estimado (+ = sobreuso). Porcentaje null sin
-// estimado (no hay base contra qué comparar).
-export function desviacionHoras(estimado, real) {
+// Desviación de días: real − estimado (+ = más días de los planeados).
+// Porcentaje null sin estimado (no hay base contra qué comparar).
+export function desviacionDias(estimado, real) {
   const e = Number(estimado) || 0
   const r = Number(real) || 0
   return {
-    diferencia: Math.round((r - e) * 100) / 100,
+    diferencia: r - e,
     porcentaje: e === 0 ? null : Math.round(((r / e) * 100) * 100) / 100,
   }
 }

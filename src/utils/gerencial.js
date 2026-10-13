@@ -164,6 +164,22 @@ export function proyeccionMensualPersonal({
     .map(([mes, monto]) => ({ mes, monto }))
 }
 
+// Variación del último mes contra el anterior en una serie [{ mes, ... }].
+// null con menos de 2 puntos; porcentaje null sin base (nunca ficticio).
+export function variacionMensual(serie, campo) {
+  const lista = serie ?? []
+  if (lista.length < 2) return null
+  const anterior = Number(lista[lista.length - 2]?.[campo]) || 0
+  const actual = Number(lista[lista.length - 1]?.[campo]) || 0
+  const diferencia = redondear2(actual - anterior)
+  return {
+    actual: redondear2(actual),
+    anterior: redondear2(anterior),
+    diferencia,
+    porcentaje: anterior === 0 ? null : Math.round(((diferencia / anterior) * 100) * 100) / 100,
+  }
+}
+
 // Avance de la meta de ingreso (cobrado real de la empresa). Sin meta (> 0)
 // no hay porcentaje ni faltante: se devuelve `definida: false` en vez de 0/NaN.
 export function avanceMetaIngreso({ cobrado = 0, meta = 0 } = {}) {

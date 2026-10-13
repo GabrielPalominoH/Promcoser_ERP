@@ -10,7 +10,7 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `personal` | `id` | Ficha: nombre, apellido, cargo, DNI, tarifa/hora, ámbito (Obra/Oficina) |
 | `equipos` | `id` | Ficha: nombre, costo/hora |
 | `servicios` | `id` | Obra: nombre, cliente, tipo, presupuesto inicial, inicio, fin estimado, avance, estatus |
-| `tareas` | `id` | Cronograma + montos: servicio, padre (árbol), nombre, fechas, avance %, monto, horas estimadas |
+| `tareas` | `id` | Cronograma + montos: servicio, padre (árbol), nombre, fechas, avance %, monto |
 | `registros_servicio` | `id` | Libro único de costos: servicio, tarea?, tipo, referencia/nombre, cantidad, monto, fecha, modalidad, asignación? |
 | `asignaciones` | `id` | Personal asignado: servicio, persona, tarea?, horas/día, tarifa, inicio, fin? (vacío = vigente). El costo mensual se genera automático |
 | `costos_oficina` | `id` | Gasto general: persona (ámbito Oficina), mes, monto. Sin servicio |
@@ -39,8 +39,8 @@ servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id,
 ## Reglas de negocio (dónde viven)
 
 - **Monto del padre = suma de hijas** (`montoTarea`). Hojas: monto manual editable en Partidas.
-- **Horas estimadas del padre = suma de hijas** (`horasEstimadasTarea`). Hojas: valor manual editable en el Cronograma.
-- **Horas reales = registros de personal propios + descendientes** (`horasRealesTarea`, solo tipo personal). Desviación = real − estimado (`desviacionHoras`, % `null` sin estimado).
+- **Días estimados del padre = suma de hijas** (`diasEstimadosTarea`). Hoja: duración planificada (fin − inicio + 1 día, sale de las fechas del Cronograma).
+- **Días reales = fechas distintas con registros de personal propios + descendientes** (`diasRealesTarea`). Desviación = reales − estimados (`desviacionDias`, % `null` sin estimado).
 - **Valorizado = monto × avance efectivo** (`valorizadoTarea`). Sin metrados.
 - **Costo de fila = propio + descendientes** (`costoSubarbol`). Costos sin tarea van al aviso, nunca se pierden.
 - **Borrados** (`DataContext ELIMINAR_ITEM`): servicio arrastra registros, tareas, asignaciones, facturas y cobros; tarea arrastra subtareas y deja costos sin tarea; asignación arrastra sus meses automáticos.
