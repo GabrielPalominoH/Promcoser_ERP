@@ -125,7 +125,8 @@ de valorización e ingresos anuales (también sirve para misceláneas cortas y
 contratos anuales: todo se cobra por servicio). Al entrar verá el total
 Cobrado y la lista de ingresos y facturas. Para registrar,
 pulse **Agregar ingreso**: cada ingreso lleva fecha,
-monto, concepto, documento opcional y número de factura opcional.
+monto, **concepto** (texto libre: "Adelanto 01", "Valorización N°3"…),
+documento opcional y número de factura opcional.
 
 - **Cobrado:** lo que realmente entró.
 - **Utilidad real:** cobrado menos gastado. Es el resultado económico efectivo.

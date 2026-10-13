@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input, Select } from '../../components/ui/Field'
+import { Campo, Input } from '../../components/ui/Field'
 import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
@@ -23,8 +23,6 @@ import {
 } from '../../utils/calculadora'
 import { estadoFactura, saldoFactura } from '../../utils/finanzas'
 import { fechaHoyISO } from './compartido'
-
-const CONCEPTOS = ['adelanto', 'valorización', 'ingreso anual', 'otro']
 
 // Cómo resolver el número de factura (opcional) al registrar un ingreso:
 // vacío = adelanto; coincide (sin importar mayúsculas) = vincular con tope;
@@ -97,14 +95,17 @@ function ModalEdicionIngreso({ ingreso, factura, onGuardar, onCerrar }) {
             />
           </Campo>
         </div>
-        <Campo label="Concepto" error={errors.concepto?.message} htmlFor="edi-concepto">
-          <Select id="edi-concepto" {...register('concepto', { required: true })}>
-            {CONCEPTOS.map((c) => (
-              <option key={c} value={c} className="capitalize">
-                {c}
-              </option>
-            ))}
-          </Select>
+        <Campo
+          label="Concepto"
+          error={errors.concepto?.message}
+          htmlFor="edi-concepto"
+          hint="Ej. Adelanto 01, Valorización N°3, Contrato anual…"
+        >
+          <Input
+            id="edi-concepto"
+            placeholder="Escribe el concepto del ingreso"
+            {...register('concepto', { required: 'Describe el concepto' })}
+          />
         </Campo>
         <Campo label="Documento (opcional)" error={errors.documento?.message} htmlFor="edi-doc">
           <Input id="edi-doc" placeholder="REC-001" {...register('documento')} />
@@ -147,7 +148,7 @@ export function IngresosServicio() {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { fecha: fechaHoyISO(), monto: '', concepto: 'valorización', documento: '', factura_numero: '' },
+    defaultValues: { fecha: fechaHoyISO(), monto: '', concepto: '', documento: '', factura_numero: '' },
   })
 
   const enviar = ({ fecha, monto, concepto, documento, factura_numero }) => {
@@ -184,7 +185,7 @@ export function IngresosServicio() {
       servicio_id: servicio.id,
       fecha,
       monto: redondearMonto(monto),
-      concepto,
+      concepto: concepto.trim(),
       documento: documento.trim() || null,
       factura_id: facturaId,
     })
@@ -420,14 +421,17 @@ export function IngresosServicio() {
                   rules={reglasMontoMayorACero('Ingresa el monto')}
                 />
               </Campo>
-              <Campo label="Concepto" error={errors.concepto?.message} htmlFor="cob-concepto">
-                <Select id="cob-concepto" {...register('concepto', { required: true })}>
-                  {CONCEPTOS.map((c) => (
-                    <option key={c} value={c} className="capitalize">
-                      {c}
-                    </option>
-                  ))}
-                </Select>
+              <Campo
+                label="Concepto"
+                error={errors.concepto?.message}
+                htmlFor="cob-concepto"
+                hint="Ej. Adelanto 01, Valorización N°3, Contrato anual…"
+              >
+                <Input
+                  id="cob-concepto"
+                  placeholder="Escribe el concepto del ingreso"
+                  {...register('concepto', { required: 'Describe el concepto' })}
+                />
               </Campo>
               <Campo label="Documento (opcional)" error={errors.documento?.message} htmlFor="cob-doc">
                 <Input
