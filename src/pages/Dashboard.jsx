@@ -315,85 +315,6 @@ export function Dashboard() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <Campo label="Cliente" htmlFor="dash-cliente" className="w-56">
-          <Select id="dash-cliente" value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)}>
-            <option value="">Todos</option>
-            {clientes.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </Select>
-        </Campo>
-        <Campo label="Tipo" htmlFor="dash-tipo" className="w-44">
-          <Select id="dash-tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
-            <option value="">Todos</option>
-            {tipos.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </Select>
-        </Campo>
-        <Campo label="Estado" htmlFor="dash-estado" className="w-44">
-          <Select id="dash-estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
-            <option value="">Todos</option>
-            {estados.map((e) => (
-              <option key={e} value={e}>{e}</option>
-            ))}
-          </Select>
-        </Campo>
-        {filtrado && (
-          <Button
-            variante="secundario"
-            tamano="sm"
-            onClick={() => { setFiltroCliente(''); setFiltroTipo(''); setFiltroEstado('') }}
-          >
-            Limpiar filtros
-          </Button>
-        )}
-        <p className="w-full text-xs text-slate-500">
-          Los filtros alcanzan a todo lo por servicio. Oficina y resultado empresa son de la
-          empresa y no se filtran.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          titulo="Resultado empresa"
-          valor={formatearMoneda(kpis.resultadoEmpresa)}
-          detalle={`Margen ${kpis.margenPct == null ? 'N/D' : `${kpis.margenPct}%`} · oficina ${formatearMoneda(kpis.oficina)}`}
-          tono={kpis.resultadoEmpresa < 0 ? 'danger' : 'success'}
-          icono={<Icono nombre="grid" className="size-5" />}
-        />
-        <StatCard
-          titulo="Presupuesto"
-          valor={formatearMoneda(kpis.presupuesto)}
-          detalle={
-            kpis.ejecucion == null
-              ? 'Sin presupuesto'
-              : `Ejecución ${kpis.ejecucion}% · gastado ${formatearMoneda(kpis.gastado)}`
-          }
-          tono={kpis.gastado > kpis.presupuesto ? 'danger' : 'slate'}
-          icono={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5" aria-hidden="true">
-              <path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-          }
-        />
-        <StatCard
-          titulo="Cobrado"
-          valor={formatearMoneda(kpis.cobrado)}
-          detalle={`Por cobrar ${formatearMoneda(kpis.porCobrar)}`}
-          tono="success"
-          icono={<Icono nombre="billete" className="size-5" />}
-        />
-        <StatCard
-          titulo="Servicios"
-          valor={`${kpis.enCurso} / ${kpis.total}`}
-          detalle={`${kpis.enRiesgo} en riesgo · ${kpis.total - kpis.enCurso} fuera de curso`}
-          tono={kpis.enRiesgo > 0 ? 'warning' : 'slate'}
-          icono={<Icono nombre="clipboard" className="size-5" />}
-        />
-      </div>
-
       <Card
         titulo="Meta de ingreso"
         descripcion="Cobrado acumulado de la empresa frente a la meta"
@@ -473,6 +394,85 @@ export function Dashboard() {
           </form>
         </div>
       </Card>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <Campo label="Cliente" htmlFor="dash-cliente" className="w-56">
+          <Select id="dash-cliente" value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)}>
+            <option value="">Todos</option>
+            {clientes.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </Select>
+        </Campo>
+        <Campo label="Tipo" htmlFor="dash-tipo" className="w-44">
+          <Select id="dash-tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+            <option value="">Todos</option>
+            {tipos.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </Select>
+        </Campo>
+        <Campo label="Estado" htmlFor="dash-estado" className="w-44">
+          <Select id="dash-estado" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
+            <option value="">Todos</option>
+            {estados.map((e) => (
+              <option key={e} value={e}>{e}</option>
+            ))}
+          </Select>
+        </Campo>
+        {filtrado && (
+          <Button
+            variante="secundario"
+            tamano="sm"
+            onClick={() => { setFiltroCliente(''); setFiltroTipo(''); setFiltroEstado('') }}
+          >
+            Limpiar filtros
+          </Button>
+        )}
+        <p className="w-full text-xs text-slate-500">
+          Los filtros alcanzan a todo lo por servicio. Oficina y resultado empresa son de la
+          empresa y no se filtran.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          titulo="Resultado empresa"
+          valor={formatearMoneda(kpis.resultadoEmpresa)}
+          detalle={`Margen ${kpis.margenPct == null ? 'N/D' : `${kpis.margenPct}%`} · oficina ${formatearMoneda(kpis.oficina)}`}
+          tono={kpis.resultadoEmpresa < 0 ? 'danger' : 'success'}
+          icono={<Icono nombre="grid" className="size-5" />}
+        />
+        <StatCard
+          titulo="Presupuesto"
+          valor={formatearMoneda(kpis.presupuesto)}
+          detalle={
+            kpis.ejecucion == null
+              ? 'Sin presupuesto'
+              : `Ejecución ${kpis.ejecucion}% · gastado ${formatearMoneda(kpis.gastado)}`
+          }
+          tono={kpis.gastado > kpis.presupuesto ? 'danger' : 'slate'}
+          icono={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-5" aria-hidden="true">
+              <path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          }
+        />
+        <StatCard
+          titulo="Cobrado"
+          valor={formatearMoneda(kpis.cobrado)}
+          detalle={`Por cobrar ${formatearMoneda(kpis.porCobrar)}`}
+          tono="success"
+          icono={<Icono nombre="billete" className="size-5" />}
+        />
+        <StatCard
+          titulo="Servicios"
+          valor={`${kpis.enCurso} / ${kpis.total}`}
+          detalle={`${kpis.enRiesgo} en riesgo · ${kpis.total - kpis.enCurso} fuera de curso`}
+          tono={kpis.enRiesgo > 0 ? 'warning' : 'slate'}
+          icono={<Icono nombre="clipboard" className="size-5" />}
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card
