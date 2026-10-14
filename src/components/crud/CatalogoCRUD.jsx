@@ -4,6 +4,8 @@ import { useData } from '../../context/useData'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 import { Campo, Input, Select } from '../ui/Field'
+import { Buscador, textoCoincide } from '../ui/FiltroBusqueda'
+import { normalizar } from '../ui/ComboBox'
 import { CampoMonto } from '../ui/Monto'
 import { Toggle } from '../ui/Toggle'
 import { Modal } from '../ui/Modal'
@@ -175,12 +177,10 @@ export function CatalogoCRUD({ config }) {
   const [porEliminar, setPorEliminar] = useState(null)
   const [aviso, setAviso] = useState(null)
 
-  const termino = busqueda.trim().toLowerCase()
+  const termino = normalizar(busqueda).trim()
   const visibles = useMemo(() => {
     const filtrados = termino
-      ? items.filter((item) =>
-          String(config.claveBusqueda(item)).toLowerCase().includes(termino),
-        )
+      ? items.filter((item) => textoCoincide(config.claveBusqueda(item), termino))
       : [...items]
     if (typeof config.ordenar === 'function') {
       filtrados.sort(config.ordenar)
@@ -271,27 +271,12 @@ export function CatalogoCRUD({ config }) {
 
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="relative w-full max-w-sm">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-              aria-hidden="true"
-            >
-              <path d="m21 21-4.3-4.3M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
-            </svg>
-            <Input
-              type="search"
-              value={busqueda}
-              onChange={(evento) => setBusqueda(evento.target.value)}
-              placeholder={config.placeholderBusqueda}
-              className="pl-9"
-              aria-label={`Buscar en ${config.titulo}`}
-            />
-          </div>
+          <Buscador
+            valor={busqueda}
+            onChange={setBusqueda}
+            placeholder={config.placeholderBusqueda}
+            ariaLabel={`Buscar en ${config.titulo}`}
+          />
 
           <p className="text-sm text-slate-500">
             {termino ? (

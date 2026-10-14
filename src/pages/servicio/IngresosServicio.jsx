@@ -23,6 +23,13 @@ import {
 } from '../../utils/calculadora'
 import { estadoFactura, saldoFactura } from '../../utils/finanzas'
 import { fechaHoyISO } from './compartido'
+import { normalizar } from '../../components/ui/ComboBox'
+import {
+  Buscador,
+  BarraFiltros,
+  SelectFiltro,
+  textoCoincide,
+} from '../../components/ui/FiltroBusqueda'
 
 // Cómo resolver el número de factura (opcional) al registrar un ingreso:
 // vacío = adelanto; coincide (sin importar mayúsculas) = vincular con tope;
@@ -126,6 +133,8 @@ export function IngresosServicio() {
   const [porAnular, setPorAnular] = useState(null)
   const [porEditar, setPorEditar] = useState(null)
   const [mostrarRegistro, setMostrarRegistro] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('todos')
   const hoy = new Date().toISOString().slice(0, 10)
 
   const cobros = (estado.cobros ?? [])
@@ -246,6 +255,28 @@ export function IngresosServicio() {
     ...facturas.map((f) => ({ tipo: 'factura', fecha: f.fecha_emision, id: f.id, dato: f })),
   ].sort((a, b) => b.fecha.localeCompare(a.fecha) || (a.tipo === b.tipo ? b.id - a.id : a.tipo === 'ingreso' ? -1 : 1))
 
+  // Filtro de la lista: texto (concepto, documento, número de factura, fecha,
+  // monto, estado) y tipo (ingresos / facturas).
+  const termino = normalizar(busqueda).trim()
+  const filasFiltradas = filas.filter((fila) => {
+    if (filtroTipo !== 'todos' && fila.tipo !== filtroTipo) return false
+    if (!termino) return true
+    const d = fila.dato
+    const esFactura = fila.tipo === 'factura'
+    const est = esFactura ? estadoFactura(d, estado.cobros, hoy) : ''
+    const haystack = esFactura
+      ? [d.numero, d.moneda, d.estado, est, formatearFecha(d.fecha_emision), formatearMoneda(d.total)].join(' ')
+      : [
+          d.concepto,
+          d.documento ?? '',
+          formatearFecha(d.fecha),
+          formatearMoneda(d.monto),
+          (estado.facturas ?? []).find((x) => x.id === d.factura_id)?.numero ?? '',
+        ].join(' ')
+    return textoCoincide(haystack, termino)
+  })
+  const hayFiltro = termino !== '' || filtroTipo !== 'todos'
+
   return (
     <div className="space-y-6">
       <Card>
@@ -278,6 +309,30 @@ export function IngresosServicio() {
           </Button>
         }
       >
+        {filas.length > 0 && (
+          <BarraFiltros
+            contador={
+              hayFiltro ? (
+                <>
+                  <span className="font-semibold text-slate-700">{filasFiltradas.length}</span> de{' '}
+                  {filas.length}
+                </>
+              ) : null
+            }
+          >
+            <Buscador
+              valor={busqueda}
+              onChange={setBusqueda}
+              placeholder="Buscar por concepto, documento o factura…"
+              ariaLabel="Buscar ingresos y facturas"
+            />
+            <SelectFiltro label="Filtrar por tipo" value={filtroTipo} onChange={setFiltroTipo}>
+              <option value="todos">Ingresos y facturas</option>
+              <option value="ingreso">Solo ingresos</option>
+              <option value="factura">Solo facturas</option>
+            </SelectFiltro>
+          </BarraFiltros>
+        )}
         <Table>
           <TableHead>
             <TableRow>
@@ -291,8 +346,10 @@ export function IngresosServicio() {
           <TableBody>
             {filas.length === 0 ? (
               <TableEmpty colSpan={5} mensaje="Aún no hay ingresos ni facturas registrados." />
+            ) : filasFiltradas.length === 0 ? (
+              <TableEmpty colSpan={5} mensaje="Ningún movimiento coincide con el filtro." />
             ) : (
-              filas.map((fila) =>
+              filasFiltradas.map((fila) =>
                 fila.tipo === 'ingreso' ? (
                   <TableRow key={`ingreso-${fila.id}`}>
                     <Td className="whitespace-nowrap text-slate-500">
@@ -370,13 +427,17 @@ export function IngresosServicio() {
               )
             )}
 
-            {cobros.length > 0 && (
+            {filasFiltradas.some((f) => f.tipo === 'ingreso') && (
               <TableRow className="bg-slate-50 font-semibold">
                 <Td className="text-slate-600" colSpan={2}>
                   Total cobrado
                 </Td>
                 <Td alinear="right" className="text-slate-900 tabular-nums">
-                  {formatearMoneda(cobrado)}
+                  {formatearMoneda(
+                    filasFiltradas
+                      .filter((f) => f.tipo === 'ingreso')
+                      .reduce((s, f) => s + (Number(f.dato.monto) || 0), 0),
+                  )}
                 </Td>
                 <Td />
                 <Td />

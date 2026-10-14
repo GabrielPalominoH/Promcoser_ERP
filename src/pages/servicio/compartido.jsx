@@ -5,7 +5,13 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
 import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
-import { CampoComboBox } from '../../components/ui/ComboBox'
+import { CampoComboBox, normalizar } from '../../components/ui/ComboBox'
+import {
+  Buscador,
+  BarraFiltros,
+  SelectFiltro,
+  textoCoincide,
+} from '../../components/ui/FiltroBusqueda'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import {
@@ -227,6 +233,8 @@ export function SeccionRegistros({
   const [porEliminar, setPorEliminar] = useState(null)
   const [porEditar, setPorEditar] = useState(null)
   const [mostrarRegistro, setMostrarRegistro] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroTarea, setFiltroTarea] = useState('todas')
   const editable = permitirEditar && tipo === 'gasto'
 
   const refs = {
@@ -248,6 +256,37 @@ export function SeccionRegistros({
     (total, r) => total + (Number(r.cantidad_o_horas) || 0),
     0,
   )
+
+  // Filtro de la lista: texto (concepto, tarea, documento, fecha, monto) y
+  // por tarea asignada. El total del pie refleja lo que se ve.
+  const termino = normalizar(busqueda).trim()
+  const registrosFiltrados = registros.filter((registro) => {
+    if (filtroTarea === 'con' && registro.tarea_id == null) return false
+    if (filtroTarea === 'sin' && registro.tarea_id != null) return false
+    if (!termino) return true
+    const persona =
+      registro.tipo_registro === 'personal'
+        ? refs.personal.find((p) => p.id === registro.referencia_id)
+        : null
+    const tarea = (refs.tareas ?? []).find((t) => t.id === registro.tarea_id)
+    const haystack = [
+      conceptoRegistro(registro, refs),
+      persona?.cargo ?? '',
+      tarea?.nombre ?? '',
+      registro.documento ?? '',
+      formatearFecha(registro.fecha),
+      formatearMoneda(registro.monto_calculado),
+    ].join(' ')
+    return textoCoincide(haystack, termino)
+  })
+  const filtradosQueSuman =
+    tipo === 'personal' ? registrosFiltrados.filter(cuentaComoManoDeObra) : registrosFiltrados
+  const totalFiltrado = sumarMontos(filtradosQueSuman)
+  const cantidadFiltrada = filtradosQueSuman.reduce(
+    (total, r) => total + (Number(r.cantidad_o_horas) || 0),
+    0,
+  )
+  const hayFiltro = termino !== '' || filtroTarea !== 'todas'
 
   const registrar = (datos) => {
     agregarItem('registros_servicio', datos)
@@ -301,8 +340,33 @@ export function SeccionRegistros({
         }
       >
         {tablaAgrupada ? (
-          tablaAgrupada({ registros, refs, onEliminar: setPorEliminar })
+          tablaAgrupada({ registros: registrosFiltrados, refs, onEliminar: setPorEliminar })
         ) : (
+        <>
+        {registros.length > 0 && (
+          <BarraFiltros
+            contador={
+              hayFiltro ? (
+                <>
+                  <span className="font-semibold text-slate-700">{registrosFiltrados.length}</span> de{' '}
+                  {registros.length}
+                </>
+              ) : null
+            }
+          >
+            <Buscador
+              valor={busqueda}
+              onChange={setBusqueda}
+              placeholder={`Buscar en ${titulo.toLowerCase()}…`}
+              ariaLabel={`Buscar en registros de ${titulo.toLowerCase()}`}
+            />
+            <SelectFiltro label="Filtrar por tarea" value={filtroTarea} onChange={setFiltroTarea}>
+              <option value="todas">Con o sin tarea</option>
+              <option value="con">Con tarea</option>
+              <option value="sin">Sin tarea</option>
+            </SelectFiltro>
+          </BarraFiltros>
+        )}
         <Table>
           <TableHead>
             <TableRow>
@@ -316,8 +380,10 @@ export function SeccionRegistros({
           <TableBody>
             {registros.length === 0 ? (
               <TableEmpty colSpan={columnas} mensaje={mensajeVacio} />
+            ) : registrosFiltrados.length === 0 ? (
+              <TableEmpty colSpan={columnas} mensaje="Ningún registro coincide con el filtro." />
             ) : (
-              registros.map((registro) => (
+              registrosFiltrados.map((registro) => (
                 <FilaRegistro
                   key={registro.id}
                   registro={registro}
@@ -329,25 +395,26 @@ export function SeccionRegistros({
               ))
             )}
 
-            {registros.length > 0 && (
+            {registrosFiltrados.length > 0 && (
               <TableRow className="bg-slate-50 font-semibold">
                 <Td className="text-slate-600" colSpan={2}>
                   Total
                 </Td>
                 {columnaCantidad && (
                   <Td alinear="right" className="text-slate-900 tabular-nums">
-                    {formatearCantidad(totalCantidad)}
+                    {formatearCantidad(cantidadFiltrada)}
                     {tipo === 'equipo' ? ' h' : ''}
                   </Td>
                 )}
                 <Td alinear="right" className="text-slate-900 tabular-nums">
-                  {formatearMoneda(totalMonto)}
+                  {formatearMoneda(totalFiltrado)}
                 </Td>
                 <Td />
               </TableRow>
             )}
           </TableBody>
         </Table>
+        </>
         )}
       </Card>
 

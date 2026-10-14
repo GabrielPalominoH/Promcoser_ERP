@@ -1,9 +1,12 @@
 # DOCUMENTACIÓN TÉCNICA DEL SISTEMA — PROMCOSER ERP
 
 Documento exhaustivo que explica **cada** número que muestra el sistema: de dónde
-sale, cómo se calcula y por qué da ese valor. Todos los ejemplos usan los datos
-de ejemplo (servicio 6, *Construcción de almacén industrial*) y están verificados
-contra la suite (`npm run verificar`, 237 pruebas).
+sale, cómo se calcula y por qué da ese valor. Los ejemplos usan los datos de
+ejemplo: tres obras —servicio 6 *Mejoramiento del servicio de agua potable y
+alcantarillado – AA.HH. San Isidro (II Etapa)*, servicio 7 *Mejoramiento y
+ampliación de pistas y veredas – Jr. Amazonas* y servicio 8 *Mantenimiento de
+redes de agua potable – Sector Muyuna*— y están verificados contra la suite
+(`npm run verificar`, 268 pruebas).
 
 > **Verificación**: cada cifra de este documento puede reproducirse con la suite.
 > Si cambias semillas o fórmulas, actualiza este documento y la suite.
@@ -39,13 +42,13 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 
 ## 2. Datos de ejemplo (verificados hoja por hoja)
 
-### Servicio 6 — "Construcción de almacén industrial"
+### Servicio 6 — "Mejoramiento del servicio de agua potable y alcantarillado – AA.HH. San Isidro (II Etapa)"
 ```
-nombre_servicio     = Construcción de almacén industrial
-cliente             = Logística del Pacífico S.A.C.
+nombre_servicio     = Mejoramiento del servicio de agua potable y alcantarillado – AA.HH. San Isidro (II Etapa)
+cliente             = Municipalidad Distrital de Salas
 tipo                = Obra
-presupuesto_asignado= 120,000.00
-fecha_inicio        = 2026-07-01
+presupuesto_asignado= 335,000.00
+fecha_inicio        = 2026-06-01
 fecha_fin_estimada  = 2026-12-20
 avance              = 0   ← NO se usa: el avance sale del cronograma
 estatus             = En curso
@@ -54,59 +57,221 @@ estatus             = En curso
 ### Árbol de tareas (servicio 6)
 | id | nombre | padre | inicio | fin | avance | monto | duración |
 |---|---|---|---|---|---|---|---|
-| 13 | Obras preliminares | — | 01/07 | 15/07 | 100% | 8,000 | 15 d |
-| 14 | Cimentación | — | 16/07 | 15/08 | 100% | 0 | — |
-| 15 | Excavación | 14 | 16/07 | 31/07 | 100% | 9,600 | 16 d |
-| 16 | Vaciado de cimientos | 14 | 01/08 | 15/08 | 100% | 12,000 | 15 d |
-| 17 | Estructuras | — | 16/08 | 15/10 | 60% | 0 | — |
-| 18 | Columnas y vigas | 17 | 16/08 | 20/09 | 70% | 21,000 | 36 d |
-| 19 | Losa aligerada | 17 | 21/09 | 15/10 | 30% | 18,900 | 25 d |
-| 20 | Cobertura y cerramientos | — | 16/10 | 20/11 | 0% | 26,000 | 36 d |
-| 21 | Acabados y entrega | — | 21/11 | 20/12 | 0% | 24,500 | 30 d |
+| 13 | Obras preliminares y trazo | — | 01/06 | 15/06 | 100% | 15,000 | 15 d |
+| 14 | Redes de agua potable | — | 16/06 | 15/08 | 0 (auto) | 0 | — |
+| 15 | Excavación y tendido de tubería PVC | 14 | 16/06 | 15/07 | 100% | 42,000 | 30 d |
+| 16 | Pruebas hidráulicas y empalmes | 14 | 16/07 | 15/08 | 100% | 33,000 | 31 d |
+| 17 | Redes de alcantarillado | — | 16/08 | 31/10 | 0 (auto) | 0 | — |
+| 18 | Excavación e instalación de colectores | 17 | 16/08 | 30/09 | 85% | 58,000 | 46 d |
+| 19 | Buzones y conexiones domiciliarias | 17 | 01/10 | 31/10 | 40% | 47,000 | 31 d |
+| 20 | Reposición de pavimento y veredas | — | 01/11 | 05/12 | 0% | 62,000 | 35 d |
+| 21 | Caseta de bombeo y equipamiento hidráulico | — | 15/11 | 20/12 | 0% | 78,000 | 36 d |
 
 **Montos automáticos**: las tareas con hijas (14 y 17) tienen `monto: 0` y
 muestran la **suma de sus hijas**:
-- Cimentación (14) = 9,600 + 12,000 = **21,600**
-- Estructuras (17) = 21,000 + 18,900 = **39,900**
-- Total montos = 8,000 + 21,600 + 39,900 + 26,000 + 24,500 = **120,000** ✓
+- Redes de agua potable (14) = 42,000 + 33,000 = **75,000**
+- Redes de alcantarillado (17) = 58,000 + 47,000 = **105,000**
+- Total montos = 15,000 + 75,000 + 105,000 + 62,000 + 78,000 = **335,000** ✓
 
 ### Registros del servicio 6 (libro único de costos)
 | id | fecha | tipo | tarea | detalle | cant. | monto |
 |---|---|---|---|---|---|---|
-| 19 | 08/07 | material | 15 | Cemento Portland Tipo I | 200 | 7,700 |
-| 20 | 09/07 | gasto | — | Flete de materiales | 1 | 1,200 |
-| 21 | 15/07 | material | 18 | Acero de refuerzo ½" | 120 | 2,988 |
-| 22 | 20/07 | equipo | 15 | Equipo ref. 11 (45 h) | 45 | 6,750 |
-| 23 | 22/07 | material | 15 | Arena gruesa | 30 | 1,860 |
-| 24 | 01/08 | gasto | 18 | Alquiler de andamios | 1 | 1,500 |
-| 25 | 05/08 | equipo | 16 | Equipo ref. 23 (60 h) | 60 | 4,800 |
-| 26 | 10/08 | material | 14 | Ladrillo Kingsize | 5,000 | 16,000 |
-| 27 | 02/09 | equipo | 20 | Equipo ref. 24 (25 h) | 25 | 2,000 |
-| 28 | 05/09 | material | 21 | Pintura acrílica | 18 | 1,728 |
-| 29 | 12/09 | gasto | — | Movilidad del personal | 1 | 800 |
-| 30 | 12/08 | personal | 16 | Persona ref. 1 | 40 h | 1,000 |
-| 31 | 13/08 | personal | 18 | Persona ref. 3 | 30 h | 540 |
+| 19 | 20/06 | material | 15 | Cemento Portland Tipo I | 260 | 10,010 |
+| 20 | 28/06 | material | 15 | Tubería PVC 160 mm × 6 m | 90 | 8,100 |
+| 21 | 03/06 | equipo | 13 | Equipo ref. 1 (100 h × 60) | 100 | 6,000 |
+| 22 | 02/06 | gasto | 13 | Servicio de topografía y trazo | 1 | 3,500 |
+| 23 | 05/06 | gasto | 13 | Flete de tubería y materiales | 1 | 1,800 |
+| 24 | 22/06 | equipo | 15 | Equipo ref. 3 (60 h × 150) | 60 | 9,000 |
+| 25 | 20/06 | personal | 15 | Persona ref. 25 (40 h × 25) | 40 h | 1,000 |
+| 26 | 22/07 | material | 16 | Arena gruesa | 45 | 2,790 |
+| 27 | 25/07 | equipo | 16 | Equipo ref. 23 (80 h × 80) | 80 | 6,400 |
+| 28 | 10/07 | gasto | 15 | Eliminación de desmonte | 1 | 2,200 |
+| 29 | 22/07 | personal | 16 | Persona ref. 14 (32 h × 25) | 32 h | 800 |
+| 30 | 05/09 | material | 18 | Tubería PVC 200 mm × 6 m | 120 | 13,200 |
+| 31 | 12/09 | equipo | 18 | Equipo ref. 6 (70 h × 150) | 70 | 10,500 |
+| 32 | 08/09 | gasto | 18 | Alquiler de excavadora 320 | 1 | 8,000 |
+| 33 | 12/09 | gasto | — | Movilidad del personal | 1 | 900 |
+| 34 | 05/09 | personal | 18 | Persona ref. 9 (32 h × 25) | 32 h | 800 |
+| 35 | 08/10 | material | 19 | Ladrillo KK 18 huecos | 3,500 | 4,725 |
+| 36 | 06/10 | equipo | 19 | Equipo ref. 1 (40 h × 60) | 40 | 2,400 |
+| 37 | 10/10 | material | 19 | Cemento Portland Tipo I | 120 | 4,620 |
+| 38 | 08/10 | personal | 19 | Persona ref. 12 (24 h × 25) | 24 h | 600 |
 
-**Total gastado** = 7700+1200+2988+6750+1860+1500+4800+16000+2000+1728+800+1000+540
-= **48,866.00** ✓ (40.72 % del presupuesto)
+**Total gastado** = 10010+8100+6000+3500+1800+9000+1000+2790+6400+2200+800+13200
++10500+8000+900+800+4725+2400+4620+600 = **97,345.00** ✓ (29.06 % del presupuesto).
 
-### Cobros (ingresos)
-| id | fecha | monto | concepto |
-|---|---|---|---|
-| 1 | 05/07 | 24,000 | adelanto |
-| 2 | 10/09 | 30,000 | valorización |
+### Cobros (ingresos) y facturas
+| id | fecha | monto | concepto | factura |
+|---|---|---|---|---|
+| 1 | 05/06 | 50,250 | adelanto | — (sin factura) |
+| 2 | 10/08 | 60,000 | valorización N°1 | F001-000101 (aplicado, saldo 0) |
+| 3 | 10/10 | 45,000 | valorización N°2 | F001-000102 (aplicado, saldo 0) |
 
-**Total cobrado = 54,000.00**. `facturas`: vacía (0 registros).
+**Total cobrado = 155,250.00**.
+
+| factura | emisión | vencimiento | total | estado | saldo |
+|---|---|---|---|---|---|
+| F001-000101 | 08/08 | 08/09 | 60,000 | emitida (cobrada: cobro 2 la cancela) | 0 |
+| F001-000102 | 05/10 | 05/11 | 45,000 | emitida (cobrada: cobro 3 la cancela) | 0 |
+| F001-000103 | 12/10 | 12/11 | 52,500 | emitida (pendiente) | 52,500 |
+
+Regla de coherencia: ningún cobro aplicado excede el saldo de su factura
+(`resolverFacturaIngreso`); los adelantos no tienen factura.
 
 ### Asignaciones (motor del costo personal)
 | id | servicio | persona | tarea | h/día | tarifa | inicio | fin |
 |---|---|---|---|---|---|---|---|
-| 1 | 6 | 1 | 16 | 8 | 25 | 12/08 | vigente |
-| 2 | 6 | 3 | 18 | 8 | 18 | 13/08 | 15/09 (baja) |
+| 1 | 6 | 26 (Damian C. Cayo Gutierrez, capataz) | 15 | 8 | 40 | 16/06 | vigente |
+| 2 | 6 | 3 (Ronald M. Alvarado Agreda, ayudante) | 18 | 8 | 18 | 16/08 | 30/09 (baja) |
+| 3 | 6 | 17 (Miguel Á. Cabrera Barranca, operario) | 19 | 8 | 25 | 01/10 | 31/10 (baja) |
+
+Detalle mensual de cada una en §4.
 
 ### Costos de oficina
 6 registros: sep 6,300 (4500+1800) y oct 17,500 (4500+3200+1800+8000)
 = **23,800.00** total.
+
+### Servicio 7 — "Mejoramiento y ampliación de pistas y veredas – Jr. Amazonas"
+Obra pensada para **ejercitar los casos difíciles**: arrastra retraso y
+sobrecosto desde marzo, de modo que el gráfico combinado del panel tenga
+columnas y las dos líneas con valores reales.
+
+```
+nombre_servicio     = Mejoramiento y ampliación de pistas y veredas – Jr. Amazonas
+cliente             = Municipalidad Provincial de Chachapoyas
+tipo                = Obra
+presupuesto_asignado= 180,000.00
+fecha_inicio        = 2026-03-02
+fecha_fin_estimada  = 2026-10-25
+estatus             = En curso
+```
+
+**Árbol de tareas (servicio 7)** — todas raíz (sin jerarquía):
+| id | nombre | inicio | fin | avance | monto | duración |
+|---|---|---|---|---|---|---|
+| 22 | Trabajos preliminares y trazo | 02/03 | 20/03 | 100 % | 18,000 | 19 d |
+| 23 | Movimiento de tierras | 21/03 | 30/06 | 100 % | 52,000 | 102 d |
+| 24 | Pavimento rígido (losas) | 01/07 | 15/10 | 45 % | 80,000 | 107 d |
+| 25 | Señalización y áreas verdes | 16/10 | 25/10 | 0 % | 30,000 | 10 d |
+
+Suma de montos = 18,000+52,000+80,000+30,000 = **180,000.00** ✓ (igual al
+presupuesto). Avance global (`metricasCronograma.avanceGlobal`, ponderado por
+duración) = **71 %** a la fecha de corte (14/10/2026): las tareas 22 y 23 están
+al 100 %, la 24 al 45 % y la 25 (que recién empieza el 16/10) al 0 %.
+
+**Registros del servicio 7** (libro único de costos, ids 39–47):
+| id | fecha | tipo | tarea | detalle | cantidad | monto |
+|---|---|---|---|---|---|---|
+| 39 | 20/09 | material | 24 | Concreto premezclado f'c=210 | 250 m³ | 60,000 |
+| 40 | 25/08 | material | 24 | Acero de refuerzo fy=4200 | 3,600 kg | 36,000 |
+| 41 | 10/05 | material | 23 | Base granular | 400 m³ | 24,000 |
+| 42 | 15/03 | material | 22 | Agregados y cemento para trazo | 120 | 7,000 |
+| 43 | 25/09 | equipo | 24 | Mezcladora de concreto (equipo 23, 80/h) | 175 h | 14,000 |
+| 44 | 30/08 | equipo | 24 | Camioneta CNS-898 (equipo 1, 60/h) | 200 h | 12,000 |
+| 45 | 05/07 | gasto | 24 | Alquiler de volquete | 1 | 9,000 |
+| 46 | 10/09 | personal | 24 | Persona 12, 25/h | 240 h | 6,000 |
+| 47 | 01/06 | gasto | 23 | Eliminación de desmonte | 1 | 7,000 |
+
+**Total gastado = 60,000+36,000+24,000+7,000+14,000+12,000+9,000+6,000+7,000
+= 175,000.00** → 97.2 % de los 180,000 presupuestados, pero contra un avance del
+71 %: por eso el desfase de costo es alto.
+
+Gasto por mes (`gastoPorMes`, serie continua):
+| mes | monto | de dónde |
+|---|---|---|
+| mar | 7,000 | reg. 42 |
+| abr | 0 | mes intermedio |
+| may | 24,000 | reg. 41 |
+| jun | 7,000 | reg. 47 |
+| jul | 9,000 | reg. 45 |
+| ago | 48,000 | reg. 40 (36,000) + reg. 44 (12,000) |
+| sep | 80,000 | reg. 39 (60,000) + reg. 43 (14,000) + reg. 46 (6,000) |
+| oct | 0 | sin registros |
+
+Suma = 7,000+24,000+7,000+9,000+48,000+80,000 = **175,000.00** ✓.
+
+**Cobros y facturas (servicio 7)**:
+| id | fecha | monto | concepto | factura |
+|---|---|---|---|---|
+| 4 | 20/04 | 98,000 | adelanto | — (sin factura) |
+| 5 | 15/08 | 60,000 | valorización N°1 | F002-000201 (aplicado, saldo 0) |
+
+**Total cobrado = 158,000.00**.
+
+| factura | emisión | vencimiento | total | estado | saldo |
+|---|---|---|---|---|---|
+| F002-000201 | 12/08 | 12/09 | 60,000 | emitida (cobrada: cobro 5 la cancela) | 0 |
+
+Utilidad real del servicio 7 = 158,000 − 175,000 = **−17,000.00** (pérdida: gastó
+más de lo que cobró). Es la obra que empuja el resultado de la empresa hacia
+abajo y la que marca 🟡 en el semáforo (plazo cercano: vence el 25/10).
+
+### Servicio 8 — "Mantenimiento de redes de agua potable – Sector Muyuna"
+Obra **sana**: dentro de plazo y con gasto por debajo del valor ganado. Sirve de
+contrapeso para que el desfase de costo promedio de la cartera no sea uniforme.
+
+```
+nombre_servicio     = Mantenimiento de redes de agua potable – Sector Muyuna
+cliente             = Municipalidad Distrital de la Banda de Shilcayo
+tipo                = Misceláneo
+presupuesto_asignado= 95,000.00
+fecha_inicio        = 2026-08-01
+fecha_fin_estimada  = 2027-02-28
+estatus             = En curso
+```
+
+**Árbol de tareas (servicio 8)** — todas raíz:
+| id | nombre | inicio | fin | avance | monto | duración |
+|---|---|---|---|---|---|---|
+| 26 | Inspección y limpieza de reservorios | 01/08 | 15/09 | 100 % | 22,000 | 46 d |
+| 27 | Reparación de tuberías y válvulas | 16/09 | 20/12 | 100 % | 43,000 | 96 d |
+| 28 | Rehabilitación de cámaras de bombeo | 21/12 | 28/02/27 | 0 % | 30,000 | 70 d |
+
+Suma de montos = 22,000+43,000+30,000 = **95,000.00** ✓.
+
+**Registros del servicio 8** (ids 48–51):
+| id | fecha | tipo | tarea | detalle | cantidad | monto |
+|---|---|---|---|---|---|---|
+| 48 | 20/08 | material | 26 | Cemento y mortero | 180 | 9,000 |
+| 49 | 05/10 | material | 27 | Tubería PVC y accesorios | 90 | 12,000 |
+| 50 | 28/08 | equipo | 26 | Mezcladora de concreto (equipo 23, 80/h) | 62.5 h | 5,000 |
+| 51 | 30/09 | personal | 27 | Persona 9, 25/h | 240 h | 6,000 |
+
+**Total gastado = 9,000+12,000+5,000+6,000 = 32,000.00** (33.7 % del presupuesto,
+muy por debajo de su avance: por eso su desfase de costo es 0).
+
+Gasto por mes:
+| mes | monto | de dónde |
+|---|---|---|
+| ago | 14,000 | reg. 48 (9,000) + reg. 50 (5,000) |
+| sep | 6,000 | reg. 51 |
+| oct | 12,000 | reg. 49 |
+| nov–feb | 0 | sin registros (aún) |
+
+**Cobros y facturas (servicio 8)**:
+| id | fecha | monto | concepto | factura |
+|---|---|---|---|---|
+| 6 | 05/08 | 30,000 | adelanto | — (sin factura) |
+
+**Total cobrado = 30,000.00**.
+
+| factura | emisión | vencimiento | total | estado | saldo |
+|---|---|---|---|---|---|
+| F003-000301 | 08/10 | 08/11 | 35,000 | emitida (pendiente) | 35,000 |
+
+Utilidad real del servicio 8 = 30,000 − 32,000 = **−2,000.00** (levemente
+negativa a la fecha porque el gasto va adelantado al cobro; no es sobrecosto).
+
+### Cartera completa (3 obras) — totales que usan el panel y la suite
+| servicio | presupuesto | gastado | cobrado | utilidad real |
+|---|---|---|---|---|
+| 6 — Agua potable San Isidro | 335,000.00 | 97,345.00 | 155,250.00 | +57,905.00 |
+| 7 — Pistas y veredas Jr. Amazonas | 180,000.00 | 175,000.00 | 158,000.00 | −17,000.00 |
+| 8 — Redes Muyuna | 95,000.00 | 32,000.00 | 30,000.00 | −2,000.00 |
+| **Total** | **610,000.00** | **304,345.00** | **343,250.00** | **+38,905.00** |
+
+Estos totales son la base del §8 (resultado empresa y caja) y del gráfico
+combinado del panel (§9), cuya fórmula vive en §3.4.
 
 ---
 
@@ -117,31 +282,31 @@ Toda la lógica vive en `src/utils/`; las pantallas **no recalculan**.
 ### 3.1 `calculadora.js` — el corazón
 | Función | Fórmula | Ejemplo serv. 6 |
 |---|---|---|
-| `sumarMontos(registros)` | Σ `monto_calculado` | 48,866 |
-| `desglosePorTipo(registros)` | Σ por `tipo_registro` | material 30,276 / personal 1,540 / equipo 13,550 / gasto 3,500 |
-| `registrosDeServicio(regs, id)` | filtra `servicio_id === id` | 13 registros |
-| `montoTarea(t, tareas)` | hoja: `monto`; padre: Σ hijas (recursivo) | Cimentación 21,600 |
+| `sumarMontos(registros)` | Σ `monto_calculado` | 97,345 |
+| `desglosePorTipo(registros)` | Σ por `tipo_registro` | material 43,445 / personal 3,200 / equipo 34,300 / gasto 16,400 |
+| `registrosDeServicio(regs, id)` | filtra `servicio_id === id` | 20 registros |
+| `montoTarea(t, tareas)` | hoja: `monto`; padre: Σ hijas (recursivo) | Redes de agua 75,000 |
 | `avanceEfectivo(t, tareas)` | hoja: `avance`; padre: promedio ponderado por duración de hijas | ver §5 |
-| `valorizadoTarea(t, tareas)` | `montoTarea × avanceEfectivo / 100` | Excavación 9,600 |
-| `costoPorTarea(regs, id, tarea)` | Σ montos con `tarea_id === tarea` | Excavación 16,310 |
-| `costoSubarbol(t, tareas, regs, id)` | propio + Σ `costoSubarbol(hijas)` | Cimentación 38,110 |
-| `costoSinTarea(regs, id)` | Σ con `tarea_id == null` | 2,000 (fletes + movilidad) |
-| `presupuestoTareas(tareas, id)` | Σ `montoTarea` de raíces | 120,000 |
-| `estadoPresupuesto(s, regs, cobros)` | `{presupuesto, gastado, disponible, porcentaje, excedido, cobrado}` | 120,000 / 48,866 / 71,134 / 40.72 % / false / 54,000 |
-| `horasPorMes(regs, id)` | Σ `cantidad_o_horas` de personal por mes, serie continua con ceros | ago: 70 h |
-| `metricasCronograma(tareas)` | conteos por estado + avance global ponderado por duración | 9 / 4 / 54 % |
-| `indiceAvance(servicio, avance)` | SPI = avance ÷ esperado por tiempo transcurrido | 0.96 |
-| `gastoPorMes(regs)` | Σ `monto_calculado` por mes, serie continua | jul 20,498 / ago 23,840 / sep 4,528 |
-| `proyeccionAsignaciones(asig, serv, regs)` | costo mensual devengado + proyectado (ver §4) | total 30,896 |
+| `valorizadoTarea(t, tareas)` | `montoTarea × avanceEfectivo / 100` | Tendido PVC 42,000 |
+| `costoPorTarea(regs, id, tarea)` | Σ montos con `tarea_id === tarea` | Tendido PVC 30,310 |
+| `costoSubarbol(t, tareas, regs, id)` | propio + Σ `costoSubarbol(hijas)` | Redes de agua 40,300 |
+| `costoSinTarea(regs, id)` | Σ con `tarea_id == null` | 900 (movilidad) |
+| `presupuestoTareas(tareas, id)` | Σ `montoTarea` de raíces | 335,000 |
+| `estadoPresupuesto(s, regs, cobros)` | `{presupuesto, gastado, disponible, porcentaje, excedido, cobrado}` | 335,000 / 97,345 / 237,655 / 29.06 % / false / 155,250 |
+| `horasPorMes(regs, id)` | Σ `cantidad_o_horas` de personal por mes, serie continua con ceros | jun–oct: 40/32/0/32/24 |
+| `metricasCronograma(tareas)` | conteos por estado + avance global ponderado por duración | 9 / 4 / 66 % |
+| `indiceAvance(servicio, avance)` | SPI = avance ÷ esperado por tiempo transcurrido | 0.99 |
+| `gastoPorMes(regs)` | Σ `monto_calculado` por mes, serie continua | jun 39,410 / jul 12,190 / ago 0 / sep 33,400 / oct 12,345 |
+| `proyeccionAsignaciones(asig, serv, regs)` | costo mensual devengado + proyectado (ver §4) | total 71,824 |
 | `diferenciaPersonalAuto(...)` | qué registros mensuales crear/actualizar/eliminar | sincroniza asentamiento |
-| `diasEstimadosTarea(t, tareas)` | duración `fin − inicio + 1`; padre Σ hijas | Excavación 16 d |
-| `diasRealesTarea(t, tareas, regs, id)` | fechas distintas con registros de personal (subárbol) | Vaciado 1 d |
+| `diasEstimadosTarea(t, tareas)` | duración `fin − inicio + 1`; padre Σ hijas | Tendido PVC 30 d |
+| `diasRealesTarea(t, tareas, regs, id)` | fechas distintas con registros de personal (subárbol) | Colectores 1 d |
 | `desviacionDias(est, real)` | `{diferencia: real − est, porcentaje}` | ver §6 |
-| `utilidadReal(cobrado, gastado)` | `cobrado − gastado` | 5,134 |
-| `cobradoServicio(cobros, id)` | Σ `monto` del servicio | 54,000 |
+| `utilidadReal(cobrado, gastado)` | `cobrado − gastado` | 57,905 |
+| `cobradoServicio(cobros, id)` | Σ `monto` del servicio | 155,250 |
 | `alertasServicio({estado, dias})` | excedido / margen-bajo / plazo | [] |
-| `proyeccionFinanciera({...})` | ver §7 | utilidad proy. 29,507.41 |
-| `mediaMovil(valores, 3)` | promedio de los últimos 3 | — |
+| `proyeccionFinanciera({...})` | ver §7 | utilidad proy. 187,507.58 |
+| `mediaMovil(valores, 3)` | promedio de los últimos 3 | ver §9.1 |
 
 ### 3.2 `finanzas.js`
 | Función | Fórmula | Uso |
@@ -160,10 +325,52 @@ Toda la lógica vive en `src/utils/`; las pantallas **no recalculan**.
 | `kpisEmpresa` | gastado = Σ registros; cobrado = Σ `cobradoServicio`; utilidad = `utilidadReal(cobrado, gastado)`; oficina = Σ costos_oficina; **resultado = utilidad − oficina** |
 | `rentabilidadPorCliente` | agrupa por cliente: gastado, cobrado, utilidad, `utilidadPct = margenBruto(utilidad, cobrado)` |
 | `flujoCajaMensualReal` | por mes: cobrado (cobros), egresoObra (registros), oficina (costos), `margenReal = cobrado − egresoObra − oficina` |
-| `proyeccionMensualPersonal` | `proyeccionAsignaciones` por servicio, solo meses futuros estimados |
+| `proyeccionMensualPersonal` | `proyeccionAsignaciones` por servicio, solo meses estimados |
 | `variacionMensual(serie, campo)` | mes actual vs. anterior; `null` si < 2 puntos o base 0 |
 | `estadoEmpresa` | rojo si resultado < 0; amarillo si obras en riesgo o caja del mes < 0; verde si no |
 | `avanceMetaIngreso` | logrado ÷ meta; `null` si no hay meta |
+| `desfaseMensualProyectos(...)` | serie mensual de cartera (volumen + desfases) para el gráfico combinado; ver §3.4 |
+
+### 3.4 `desfaseMensualProyectos` — el motor del gráfico combinado
+`desfaseMensualProyectos({ servicios, tareas, registros, hoy })` devuelve la serie
+mensual que consume el **Gráfico combinado de columnas y líneas con doble eje Y**
+del panel (ver §9). Ventana: del mes de la obra más antigua al de la que termina
+más tarde; `hoy` por defecto es la fecha del sistema.
+
+```
+serie[i] = {
+  mes,           // 'YYYY-MM'
+  activos,       // obras cuyo [fecha_inicio, fecha_fin] cubre algún día del mes
+  evaluables,    // obras activas con avance esperado > 0 hasta el corte
+  conRetraso,    // evaluables cuyo avance real + 0.5 pts < avance esperado
+  desfaseTiempo, // conRetraso ÷ evaluables × 100   (null si evaluables = 0 o mes futuro)
+  desfaseCosto,  // promedio por obra de max(0, (AC − EV) ÷ EV × 100)  (null sin base o mes futuro)
+}
+maxVolumen = max(activos)   // techo del eje Y derecho
+mesHoy     = 'YYYY-MM'      // mes del corte
+```
+
+- **Volumen** (columnas, eje derecho): nº de obras con actividad planificada en
+  el mes. Es un entero; el eje va de 0 a `maxVolumen`.
+- **Desfase de tiempo** (línea, eje izquierdo 0–100 %): % de obras activas que,
+  al cierre del mes, iban por detrás de su avance esperado. El avance **esperado**
+  de cada mes se reconstruye prorrateando el `avance` actual de cada tarea dentro
+  de su ventana `[fecha_inicio, min(corte, fecha_fin)]`; el avance **real** se lee
+  del mismo modo pero solo hasta el corte. La tolerancia de 0.5 pts evita marcar
+  retrasos por redondeo.
+- **Desfase de costo** (línea, eje izquierdo 0–100 %): sobrecosto medio de las
+  obras activas, con `AC` = gasto acumulado a la fecha y `EV` = valor ganado
+  (`monto × avance`). Se **recorta a 0** cuando la obra gasta por debajo de lo
+  ganado, y se **promedia por obra** (no se suman montos) para que una obra muy
+  económica no tape el sobrecosto de otra.
+- Los meses **futuros** (posteriores a `mesHoy`) no tienen desfase: son `null` y
+  la línea se corta en el gráfico en lugar de inventar 0.
+
+Ejemplo con las semillas (corte 14/10/2026): `maxVolumen = 3`; volumen
+`1,1,1,2,2,3,3,3,2,2,1,1`; desfase de tiempo jun 50 % / ago 33.33 % / oct 66.67 %;
+desfase de costo sep 14.16 % / oct 12.39 % (hasta julio es 0 %; en agosto apenas
+0.26 % por un pequeño exceso del serv. 8, y en septiembre–octubre lo empuja el
+sobrecosto del serv. 7). Ver la tabla completa en §9.2.
 
 ---
 
@@ -171,6 +378,14 @@ Toda la lógica vive en `src/utils/`; las pantallas **no recalculan**.
 
 Las **asignaciones** no generan un gasto directo al crearse: generan un
 **registro mensual automático** por cada mes devengado.
+
+La asignación se crea desde el panel del servicio (**Personal → "Asignar
+personal"**, un botón que abre `ModalAsignacion`, igual que "Registrar
+ingreso"): persona (excluye personal de Oficina), tarea opcional, horas por
+día, tarifa (sugerida de la ficha), desde y hasta. La validación de fechas es
+inline (`setError`); si la persona ya está vigente en otra obra en ese periodo,
+se avisa que las horas se comparten (cada servicio calcula lo suyo, no se
+duplican).
 
 ### Cómo se calcula un mes (`costoMensualAsignacion`)
 ```
@@ -183,35 +398,50 @@ horas = dias × horas_por_dia
 monto = horas × tarifa
 ```
 
-### Caso asignación 1 (Elmer, persona 1, tarea 16, 8 h/día, S/ 25, desde 12/08, vigente)
+### Caso asignación 1 (Damian, persona 26, tarea 15, 8 h/día, S/ 40, desde 16/06, vigente)
 | Mes | Días contados | Horas | Monto |
 |---|---|---|---|
-| jul 2026 | 0 (empieza el 12/08) | — | S/ 0 |
-| ago 2026 | 20 (12/08→31/08) | 160 | **S/ 4,000** |
-| sep 2026 | 30 (cubre el mes) | 240 | **S/ 6,000** |
-| oct 2026 | 30 (cubre el mes) | 240 | **S/ 6,000** |
-| nov 2026 | 30 (cubre el mes) | 240 | **S/ 6,000** |
-| dic 2026 | 20 (recortado al fin de obra 20/12) | 160 | **S/ 4,000** |
+| jun 2026 | 15 (16/06→30/06) | 120 | **S/ 4,800** |
+| jul 2026 | 30 (cubre el mes) | 240 | **S/ 9,600** |
+| ago 2026 | 30 (cubre el mes) | 240 | **S/ 9,600** |
+| sep 2026 | 30 (cubre el mes) | 240 | **S/ 9,600** |
+| oct 2026 | 30 (cubre el mes) | 240 | **S/ 9,600** |
+| nov 2026 | 30 (cubre el mes) | 240 | **S/ 9,600** |
+| dic 2026 | 20 (recortado al fin de obra 20/12) | 160 | **S/ 6,400** |
 
-### Caso asignación 2 (Ronald, persona 3, tarea 18, 8 h/día, S/ 18, 13/08 → baja 15/09)
+Subtotal asignación 1 = 4,800 + 9,600×5 + 6,400 = **59,200**.
+
+### Caso asignación 2 (Ronald, persona 3, tarea 18, 8 h/día, S/ 18, 16/08 → baja 30/09)
 | Mes | Días contados | Horas | Monto |
 |---|---|---|---|
-| jul 2026 | 0 (empieza el 13/08) | — | S/ 0 |
-| ago 2026 | 19 (13/08→31/08) | 152 | **S/ 2,736** |
-| sep 2026 | 15 (01/09→15/09, fecha de baja) | 120 | **S/ 2,160** |
+| ago 2026 | 16 (16/08→31/08) | 128 | **S/ 2,304** |
+| sep 2026 | 30 (01/09→30/09, cubre el mes) | 240 | **S/ 4,320** |
 | oct 2026 en adelante | 0 (baja) | — | S/ 0 |
 
-**Totales**: Elmer 26,000 + Ronald 4,896 = **30,896** (= "total inicio-fin con baja").
-Sin la baja, Ronald seguiría hasta el 20/12: 2,736 + 4,320 + 4,320 + 4,320 + 2,880
-= 18,576, y el total sería **44,576** (verificado en suite).
+Subtotal asignación 2 = **6,624**.
 
-### Por qué el gastado por personal es solo S/ 1,540
+### Caso asignación 3 (Miguel, persona 17, tarea 19, 8 h/día, S/ 25, 01/10 → baja 31/10)
+| Mes | Días contados | Horas | Monto |
+|---|---|---|---|
+| oct 2026 | 30 (01/10→31/10, cubre el mes) | 240 | **S/ 6,000** |
+| nov 2026 en adelante | 0 (baja) | — | S/ 0 |
+
+Subtotal asignación 3 = **6,000**.
+
+**Total inicio-fin con bajas** = 59,200 + 6,624 + 6,000 = **71,824**.
+Sin las bajas, Ronald y Miguel seguirían hasta el 20/12: Ronald 2,304+4,320+4,320
++4,320+2,880 = 18,144; Miguel 6,000+6,000+4,000 = 16,000; total
+59,200 + 18,144 + 16,000 = **93,344** (verificado en suite).
+
+### Por qué el gastado por personal es solo S/ 3,200
 El gastado **solo cuenta los registros existentes** (devengado). Las semillas traen
-dos registros manuales de personal (40 h × 25 = 1,000 y 30 h × 18 = 540 =
-**1,540**). La proyección inicio-fin (S/ 30,896) es **lo que faltaría**: las
-asignaciones crean sus registros mensuales automáticos al sincronizar
-(`diferenciaPersonalAuto` en `PersonalServicio.jsx`), y esos sí subirían el gastado.
-Por eso la suite dice "sin devengar todo es proyectado" (gastado 0, proyectado 30,896).
+cuatro registros manuales de personal (40 h × 25 = 1,000; 32 h × 25 = 800;
+32 h × 25 = 800; 24 h × 25 = 600 = **3,200**). La proyección inicio-fin
+(S/ 71,824) es **lo que faltaría**: las asignaciones crean sus registros mensuales
+automáticos al sincronizar (`diferenciaPersonalAuto` en `PersonalServicio.jsx`), y
+esos sí subirían el gastado. Por eso la suite dice "sin devengar todo es
+proyectado" (gastado 0, proyectado 71,824). Los registros manuales usan personas
+distintas a las asignadas para no duplicar costos tras la sincronización.
 
 ---
 
@@ -227,33 +457,33 @@ Por eso la suite dice "sin devengar todo es proyectado" (gastado 0, proyectado 3
 | id | avance efectivo | duración | aporte (avance × días) |
 |---|---|---|---|
 | 13 | 100 % | 15 | 1,500 |
-| 14 | 100 % (hijas al 100 %) | 31 | 3,100 |
-| 15 | 100 % | 16 | 1,600 |
-| 16 | 100 % | 15 | 1,500 |
-| 17 | 54 % (ponderado de sus hijas) | 61 | 3,294 |
-| 18 | 70 % | 36 | 2,520 |
-| 19 | 30 % | 25 | 750 |
-| 20 | 0 % | 36 | 0 |
-| 21 | 0 % | 30 | 0 |
-| **Total** | | **265 d** | **14,264** |
+| 14 | 100 % (hijas al 100 %) | 61 | 6,100 |
+| 15 | 100 % | 30 | 3,000 |
+| 16 | 100 % | 31 | 3,100 |
+| 17 | 67 % (ponderado de sus hijas) | 77 | 5,159 |
+| 18 | 85 % | 46 | 3,910 |
+| 19 | 40 % | 31 | 1,240 |
+| 20 | 0 % | 35 | 0 |
+| 21 | 0 % | 36 | 0 |
+| **Total** | | **362 d** | **24,009** |
 
-Avance global = 14,264 ÷ 265 = 53.83 → **54 %** ✓
+Avance global = 24,009 ÷ 362 = 66.32 → **66 %** ✓
 
-Nota: el ponderado usa las 9 tareas (265 días), mientras que la productividad
-(§6) solo cuenta las **raíces** (173 días). Son dos agregaciones distintas a
+Nota: el ponderado usa las 9 tareas (362 días), mientras que la productividad
+(§6) solo cuenta las **raíces** (224 días). Son dos agregaciones distintas a
 propósito: el avance mide trabajo por tarea, la productividad mide plazo por obra.
 
-Detalle del avance de **Estructuras** (17), ponderado por duración de hijas:
-(70 % × 36 d + 30 % × 25 d) ÷ 61 d = (2,520 + 750) ÷ 61 = 53.57 → **54 %** (redondeo).
+Detalle del avance de **Redes de alcantarillado** (17), ponderado por duración de
+hijas: (85 % × 46 d + 40 % × 31 d) ÷ 77 d = (3,910 + 1,240) ÷ 77 = 66.88 → **67 %**.
 
 ### SPI (`indiceAvance`)
 ```
-diasTotales        = fecha_fin_estimada − fecha_inicio = 20/12/2026 − 01/07/2026 = 172 d
-diasTranscurridos  = hoy − fecha_inicio (la suite fija hoy = 06/10/2026) = 97 d
-esperado           = min(100, 97 ÷ 172 × 100) = 56.40 %
-SPI                = avanceGlobal ÷ esperado = 54 ÷ 56.40 = 0.957 ≈ 0.96
+diasTotales        = fecha_fin_estimada − fecha_inicio = 20/12/2026 − 01/06/2026 = 202 d
+diasTranscurridos  = hoy − fecha_inicio (la suite fija hoy = 14/10/2026) = 135 d
+esperado           = min(100, 135 ÷ 202 × 100) = 66.83 %
+SPI                = avanceGlobal ÷ esperado = 66 ÷ 66.83 = 0.9876 ≈ 0.99
 ```
-La suite usa `indiceAvance(servicio6, 54, '2026-10-06')` → **0.96**.
+La suite usa `indiceAvance(servicio6, 66, '2026-10-14')` → **0.99**.
 
 ---
 
@@ -264,14 +494,15 @@ con las fechas (no hay campo manual).
 
 | tarea | estimado | real (fechas con personal) |
 |---|---|---|
-| 15 Excavación | 16 d | 0 |
-| 16 Vaciado | 15 d | 1 (12/08) |
-| 18 Columnas y vigas | 36 d | 1 (13/08) |
-| 14 Cimentación (padre) | 31 d | 1 (junta hijas) |
-| 17 Estructuras (padre) | 61 d | 1 |
-| **Servicio (raíces)** | **173 d** | **2 d** (12 y 13/08) |
+| 15 Tendido PVC | 30 d | 1 (20/06) |
+| 16 Pruebas hidráulicas | 31 d | 1 (22/07) |
+| 18 Colectores | 46 d | 1 (05/09) |
+| 19 Buzones | 31 d | 1 (08/10) |
+| 14 Redes de agua (padre) | 61 d | 2 (junta hijas 15 y 16) |
+| 17 Redes de alcantarillado (padre) | 77 d | 2 (junta hijas 18 y 19) |
+| **Servicio (raíces)** | **224 d** | **4 d** (20/06, 22/07, 05/09, 08/10) |
 
-`desviacionDias(173, 2)` → diferencia **−171**, porcentaje **1.16 %**.
+`desviacionDias(224, 4)` → diferencia **−220**, porcentaje **1.79 %**.
 
 ---
 
@@ -281,61 +512,87 @@ Todo en `proyeccionFinanciera({presupuesto, gastado, cobrado, avance, spi})`:
 
 | Métrica | Fórmula | Resultado serv. 6 |
 |---|---|---|
-| Valor ganado | `presupuesto × avance/100` | 120,000 × 0.54 = **64,800.00** |
-| Ritmo de gasto (CPI) | `valorGanado ÷ gastado` | 64,800 ÷ 48,866 = **1.33** |
-| Costo final estimado | `gastado ÷ (avance/100)` | 48,866 ÷ 0.54 = **90,492.59** |
-| Utilidad proyectada | `presupuesto − costoFinal` | 120,000 − 90,492.59 = **29,507.41** |
-| Margen proyectado % | `utilidadProy ÷ presupuesto × 100` | **24.59 %** |
-| Cobro proyectado | `cobrado ÷ (avance/100)` | 54,000 ÷ 0.54 = **100,000.00** |
-| Faltante por facturar | `presupuesto − cobroProyectado` | **20,000.00** |
+| Valor ganado | `presupuesto × avance/100` | 335,000 × 0.66 = **221,100.00** |
+| Ritmo de gasto (CPI) | `valorGanado ÷ gastado` | 221,100 ÷ 97,345 = **2.27** |
+| Costo final estimado | `gastado ÷ (avance/100)` | 97,345 ÷ 0.66 = **147,492.42** |
+| Utilidad proyectada | `presupuesto − costoFinal` | 335,000 − 147,492.42 = **187,507.58** |
+| Margen proyectado % | `utilidadProy ÷ presupuesto × 100` | **55.97 %** |
+| Cobro proyectado | `cobrado ÷ (avance/100)` | 155,250 ÷ 0.66 = **235,227.27** |
+| Faltante por facturar | `presupuesto − cobroProyectado` | **99,772.73** |
 
 **Semáforo** (reglas explícitas):
 - 🔴 rojo si `utilidadProyectada ≤ 0` o `CPI < 0.9`.
-- 🟡 amarillo si `SPI < 0.9` o `utilidadProyectada < 10 % del presupuesto`.
+- 🟡 amarillo si `CPI < 1` o `SPI < 0.9` o `utilidadProyectada < 10 % del presupuesto`.
 - 🟢 verde en otro caso.
-Serv. 6: utilidad +29,507, CPI 1.33, SPI 0.96 → **🟢 verde**.
+Serv. 6: utilidad +187,507, CPI 2.27, SPI 0.99 → **🟢 verde**.
 
 ---
 
 ## 8. Resultado empresa y semáforo ejecutivo
 
+Con las **tres obras** de la cartera:
 ```
-utilidadServicios = cobradoTotal − gastadoTotal = 54,000 − 48,866 = 5,134
+gastadoTotal      = 97,345 + 175,000 + 32,000 = 304,345
+cobradoTotal      = 155,250 + 158,000 + 30,000 = 343,250
+utilidadServicios = cobradoTotal − gastadoTotal = 343,250 − 304,345 = 38,905
 oficina           = Σ costos_oficina = 23,800
-resultadoEmpresa  = 5,134 − 23,800 = −18,666.00   ← negativo esperado con seeds
+resultadoEmpresa  = 38,905 − 23,800 = 15,105.00   ← positivo con estas semillas
 ```
 
-**Semáforo del Dashboard** (`estadoEmpresa`): 🔴 "Empresa en rojo" porque el
-resultado es negativo. Con utilidad suficiente para cubrir oficina pasaría a
-🟡/🟢. (Es el comportamiento deseado: con una sola obra en curso y oficina
-completa, el sistema avisa.)
+Detalle por obra en §2 (cartera completa). Ojo: la utilidad de servicios baja de
+57,905 (solo serv. 6) a 38,905 al incorporar el servicio 7, que pierde 17,000.
+
+**Semáforo del Dashboard** (`estadoEmpresa`): 🟡 "Atención requerida" porque,
+aunque el resultado es positivo, **hay 1 obra en riesgo** (el servicio 7 vence el
+25/10 y estamos a 11 días): *"Hay señales para mirar: 1 obra(s) en riesgo."*
+Reglas: resultado < 0 → 🔴; si no, obras en riesgo o caja del último mes < 0 → 🟡;
+si no, 🟢. La caja de octubre es positiva (+3,155), así que no añade motivo.
 
 ### Caja real por mes (`flujoCajaMensualReal`)
-`margenReal = cobrado − egresoObra − oficina`:
+`margenReal = cobrado − egresoObra − oficina`, desde el primer mes con actividad
+de cartera (marzo) hasta el mes del corte (octubre):
 
 | mes | cobrado | egreso obra | oficina | margen |
 |---|---|---|---|---|
-| jul 2026 | 24,000 | 20,498 | 0 | **+3,502** |
-| ago 2026 | 0 | 23,840 | 0 | **−23,840** |
-| sep 2026 | 30,000 | 4,528 | 6,300 | **+19,172** |
-| oct 2026 | 0 | 0 | 17,500 | **−17,500** |
+| mar 2026 | 0 | 7,000 | 0 | **−7,000** |
+| abr 2026 | 98,000 | 0 | 0 | **+98,000** |
+| may 2026 | 0 | 24,000 | 0 | **−24,000** |
+| jun 2026 | 50,250 | 46,410 | 0 | **+3,840** |
+| jul 2026 | 0 | 21,190 | 0 | **−21,190** |
+| ago 2026 | 150,000 | 62,000 | 0 | **+88,000** |
+| sep 2026 | 0 | 119,400 | 6,300 | **−125,700** |
+| oct 2026 | 45,000 | 24,345 | 17,500 | **+3,155** |
 
-Verificado en la suite: caja jul–oct = `3502/-23840/19172/-17500`, 4 meses.
+El egreso de obra por mes es la suma de los tres servicios (p. ej. jun =
+39,410 serv. 6 + 7,000 serv. 7; ago = 0 + 48,000 + 14,000; sep = 33,400 + 80,000
++ 6,000). El cobrado de agosto (150,000) suma las tres valorizaciones/adelantos
+del mes (60,000 serv. 6 + 60,000 serv. 7 + 30,000 serv. 8).
+
+Verificado en la suite: caja mar–oct =
+`-7000/98000/-24000/3840/-21190/88000/-125700/3155`, **8 meses**. Los meses sin
+cobro (mar, may, jul, sep) cierran en rojo: es el efecto normal de obras que
+cobran por valorizaciones espaciadas.
 
 ---
 
 ## 9. Recorrido por pantalla
 
 ### Dashboard principal (`/`)
-1. **Semáforo ejecutivo** → `estadoEmpresa` (🔴/🟡/🟢 + motivo).
-2. **Meta de ingreso** → `avanceMetaIngreso` (cobrado empresa vs. meta configurable).
+Orden real de la pantalla:
+1. **Meta de ingreso** → `avanceMetaIngreso` (cobrado empresa vs. meta configurable).
+2. **Filtros** (cliente / tipo / estado): alcanzan a todo lo que es por servicio;
+   oficina y resultado empresa no se filtran.
 3. **4 StatCards** (Resultado / Gastado / Cobrado / Servicios) con tendencia
    `variacionMensual` sobre la serie de caja y "¿Cómo se calcula?".
-4. **Obras en riesgo** → `analizarServicios.motivos` (excedido, plazo vencido/cercano).
-5. **Caja real por mes**, **Proyección de personal por mes**, **Utilidad por cliente**,
+4. **Semáforo ejecutivo** → `estadoEmpresa` (🔴/🟡/🟢 + motivo).
+5. **Gráfico combinado de columnas y líneas con doble eje Y** → `desfaseMensualProyectos`
+   (§3.4). Columnas de volumen, líneas de desfase de tiempo y de costo. Datos
+   exactos en §9.2.
+6. **Obras en riesgo** → `analizarServicios.motivos` (excedido, plazo vencido/cercano).
+7. **Caja real por mes**, **Proyección de personal por mes**, **Utilidad por cliente**,
    **Gasto por servicio**, **Cobros por concepto**, **Cronograma global**.
-6. **Movimientos recientes** colapsado (detalle operativo).
-7. **Datos y respaldo**: exportar / importar / restablecer ejemplo / vaciar todo.
+8. **Movimientos recientes** colapsado (detalle operativo).
+9. **Datos y respaldo**: exportar / importar / restablecer ejemplo / vaciar todo.
 
 ### Resumen del servicio (`/servicios/:id`)
 1. Fechas y días restantes (`diasRestantes`).
@@ -358,46 +615,139 @@ Más "sin tarea asignada" en el total para que nada se pierda.
 
 ### 9.1 Datos exactos de cada gráfico del Resumen (servicio 6)
 
-**Curva de gasto acumulado** (de `gastoPorMes`: jul 20,498 / ago 23,840 /
-sep 4,528):
+**Curva de gasto acumulado** (de `gastoPorMes`: jun 39,410 / jul 12,190 / ago 0 /
+sep 33,400 / oct 12,345):
 | mes | gasto del mes | acumulado |
 |---|---|---|
-| jul 2026 | 20,498 | 20,498 |
-| ago 2026 | 23,840 | 44,338 |
-| sep 2026 | 4,528 | 48,866 |
+| jun 2026 | 39,410 | 39,410 |
+| jul 2026 | 12,190 | 51,600 |
+| ago 2026 | 0 | 51,600 |
+| sep 2026 | 33,400 | 85,000 |
+| oct 2026 | 12,345 | 97,345 |
 
 **Tendencia de gasto mensual + media móvil de 3** (`mediaMovil`):
 | mes | barra (gasto) | línea MM3 |
 |---|---|---|
-| jul | 20,498 | 20,498.00 (promedia lo que hay: 1 mes) |
-| ago | 23,840 | 22,169.00 ((20498+23840) ÷ 2) |
-| sep | 4,528 | 16,288.67 ((20498+23840+4528) ÷ 3) |
+| jun | 39,410 | 39,410.00 (promedia lo que hay: 1 mes) |
+| jul | 12,190 | 25,800.00 ((39410+12190) ÷ 2) |
+| ago | 0 | 17,200.00 ((39410+12190+0) ÷ 3) |
+| sep | 33,400 | 15,196.67 ((12190+0+33400) ÷ 3) |
+| oct | 12,345 | 15,248.33 ((0+33400+12345) ÷ 3) |
 
-Lectura: la línea ámbar cae en septiembre → el ritmo de gasto se frena.
+Lectura: la línea ámbar (MM3) cae hasta agosto y se estabiliza cerca de S/ 15.2 k;
+agosto sin gasto arrastra el promedio y septiembre lo recupera.
 
 **Horas hombre por mes** (`horasPorMes`, solo tipo personal):
 | mes | horas | de dónde |
 |---|---|---|
-| ago 2026 | 70 h | reg. 30 (40 h, tarea 16) + reg. 31 (30 h, tarea 18) |
+| jun 2026 | 40 h | reg. 25 (40 h, tarea 15) |
+| jul 2026 | 32 h | reg. 29 (32 h, tarea 16) |
+| ago 2026 | 0 h | mes intermedio (sin registros) |
+| sep 2026 | 32 h | reg. 34 (32 h, tarea 18) |
+| oct 2026 | 24 h | reg. 38 (24 h, tarea 19) |
 
-Es el único mes con registros de personal; por eso la serie tiene 1 punto.
+La serie es continua (incluye el cero de agosto) para que la tendencia no mienta.
 
 **Valorizado contra costo por trabajo** (una fila por tarea raíz):
 | trabajo | valorizado (monto × avance) | costo (subárbol) | lectura |
 |---|---|---|---|
-| Obras preliminares (13) | 8,000 × 100 % = 8,000 | 0 (sin registros) | margen 8,000 |
-| Cimentación (14) | 21,600 × 100 % = 21,600 | 38,110 (15: 16,310 + 16: 5,800 + directo 16,000) | **−16,510 en rojo** |
-| Estructuras (17) | 39,900 × 54 % = 21,546 | 5,028 (tarea 18) | margen 16,518 |
-| Cobertura (20) | 26,000 × 0 % = 0 | 2,000 | −2,000 |
-| Acabados (21) | 24,500 × 0 % = 0 | 1,728 | −1,728 |
+| Obras preliminares (13) | 15,000 × 100 % = 15,000 | 11,300 | margen 3,700 |
+| Redes de agua (14) | 75,000 × 100 % = 75,000 | 40,300 (15: 30,310 + 16: 9,990) | margen 34,700 |
+| Redes de alcantarillado (17) | 105,000 × 67 % = 70,350 | 44,845 (18: 32,500 + 19: 12,345) | margen 25,505 |
+| Reposición de pavimento (20) | 62,000 × 0 % = 0 | 0 | pendiente |
+| Caseta de bombeo (21) | 78,000 × 0 % = 0 | 0 | pendiente |
 
-La barra de costo sale roja solo si supera a su valorizado (caso Cimentación:
-38,110 > 21,600). La escala máxima del gráfico es 38,110.
+Ninguna barra de costo supera a su valorizado: la obra avanza por delante del
+gasto. La escala máxima del gráfico es 75,000 (valorizado de Redes de agua).
 
-### Partidas
-Mismo árbol del Cronograma con columnas: Monto (sumable), Valorizado, Avance,
-Costo (subárbol), Margen (valorizado − costo), Días est., Días reales, Desv.
-Más "sin tarea asignada" en el total para que nada se pierda.
+### 9.2 Datos exactos del gráfico combinado del panel (cartera)
+
+Serie de `desfaseMensualProyectos` con las tres obras y corte 14/10/2026
+(`maxVolumen = 3`, eje izquierdo fijo 0–100 %). El gráfico muestra un **resumen
+compacto** ("Situación de la cartera · oct 2026") con tres fichas (volumen,
+desfase de tiempo, desfase de costo) —que reemplazan la leyenda— y, debajo, un
+gráfico combinado más corto y centrado (sin distorsionar el tooltip): columnas
+detrás (eje derecho) y líneas delante (eje izquierdo 0–100 %):
+
+| mes | volumen (barras) | evaluables | con retraso | desfase tiempo (línea) | desfase costo (línea) |
+|---|---|---|---|---|---|
+| mar 2026 | 1 | 1 | 0 | 0.00 % | 0.00 % |
+| abr 2026 | 1 | 1 | 0 | 0.00 % | 0.00 % |
+| may 2026 | 1 | 1 | 0 | 0.00 % | 0.00 % |
+| jun 2026 | 2 | 2 | 1 | 50.00 % | 0.00 % |
+| jul 2026 | 2 | 2 | 1 | 50.00 % | 0.00 % |
+| ago 2026 | 3 | 3 | 1 | 33.33 % | 0.26 % |
+| sep 2026 | 3 | 3 | 1 | 33.33 % | 14.16 % |
+| oct 2026 | 3 | 3 | 2 | 66.67 % | 12.39 % |
+| nov 2026 | 2 | — | — | — (futuro) | — (futuro) |
+| dic 2026 | 2 | — | — | — (futuro) | — (futuro) |
+| ene 2027 | 1 | — | — | — (futuro) | — (futuro) |
+| feb 2027 | 1 | — | — | — (futuro) | — (futuro) |
+
+**Volumen** (por qué cambia): la ventana de cada obra es serv. 7 = 02/03–25/10,
+serv. 6 = 01/06–20/12, serv. 8 = 01/08–28/02/27. Entonces mar–may = 1 (solo el 7),
+jun–jul = 2 (entran con el 6), ago–oct = 3 (entra el 8), nov = 2 (sale el 7),
+dic = 2 (sigue el 6 hasta el 20), ene–feb = 1 (solo el 8).
+
+**Desfase de tiempo**: junio 50 % (1 de 2) porque el serv. 6, recién iniciado,
+iba al 12.4 % real frente a un 14.4 % esperado (el serv. 7, en cambio, iba al
+50.8 % real vs. 50.6 % plan, justo en línea). En octubre sube a 66.67 % (2 de 3):
+el serv. 7 va muy atrasado (70.9 % real vs. 95.4 % plan, su pavimento está al
+45 %) y el serv. 6 también queda algo corto (62.5 % real vs. 66.8 % plan); el
+serv. 8 va justo por encima de su plan. Baja a 33.33 % en agosto–septiembre
+(1 de 3) porque en ambas fechas solo el serv. 7 queda rezagado.
+
+**Desfase de costo**: 0 hasta julio (todas las obras gastan dentro de lo ganado).
+Sube en agosto (0.26 %), septiembre (14.16 %) y octubre (12.39 %): lo empuja el
+**servicio 7**, que a octubre acumula 175,000 de gasto contra un valor ganado de
+180,000 × 70.88 % ≈ 127,580 → sobrecosto de (175,000 − 127,580) / 127,580 ≈
+37.2 %; el serv. 6 y el serv. 8 van por debajo de su valor ganado (0 %), así que
+el **promedio por obra** de los tres da 12.39 %. Si se sumaran montos en vez de
+promediar, la obra 8 (muy holgada) taparía el problema de la 7: por eso se
+promedia por proyecto.
+
+Estos números están fijados en la suite (`[ combo cartera ]`), de modo que el
+gráfico no puede desviarse sin que la verificación lo detecte.
+
+### 9.3 Filtros de las listas
+
+Toda lista con registros tiene un filtro para encontrar cosas rápido. Los
+módulos globales (**Servicios**, **Personal**, **Equipos**) ya lo traían en el
+catálogo; el resto se completó con el mismo lenguaje visual (caja de búsqueda
+con lupa y, donde aplica, un selector), piezas reutilizables en
+`src/components/ui/FiltroBusqueda.jsx` (`Buscador`, `BarraFiltros`,
+`SelectFiltro`) y normalización sin tildes/mayúsculas (`textoCoincide`, reusa
+`normalizar` de `ComboBox`).
+
+| Lista | Buscador | Selector |
+|---|---|---|
+| Materiales, Gastos, Equipos (paneles) | concepto/equipo, tarea, documento, fecha, monto | Con / sin tarea |
+| Asignaciones (personal del servicio) | persona, cargo, tarea | Vigentes / de baja |
+| Costo mensual automático | mes | Pagado / proyectado |
+| Ingresos y facturas | concepto, documento, n.º de factura, estado | Ingresos / facturas |
+| Partidas | nombre de tarea | — |
+| Cronograma (Gantt) | nombre de tarea | — |
+| Utilidad por servicio (Oficina) | servicio, cliente | — |
+| Servicios, Personal, Equipos (global) | catálogo (`CatalogoCRUD`) | — |
+| Dashboard | cliente, tipo, estado (global) | cliente/tipo/estado |
+
+Reglas de comportamiento:
+
+- El filtro aparece **solo si la lista tiene datos**; si está vacía, no se
+  muestra nada (no estorba).
+- El contador "**X de Y**" aparece solo cuando hay un filtro activo.
+- Los **totales del pie** reflejan lo visible: al filtrar, el "Total" suma las
+  filas mostradas; al quitar el filtro vuelve al total completo.
+- En árboles (**Partidas**, **Cronograma**) la búsqueda **expande** los grupos
+  colapsados y **conserva los ancestros** de cada coincidencia para no romper la
+  jerarquía ni la numeración (1, 1.1, 1.1.1…). En Partidas el total se oculta
+  mientras hay búsqueda (el árbol parcial no representa el total del servicio).
+- Si una búsqueda no arropa nada, la tabla muestra "Ningún… coincide con el
+  filtro." en vez del mensaje de lista vacía.
+
+`scripts/verificar.jsx` fija estos filtros con la sección de render (`filtro en
+materiales`, `gastos`, `equipos`, `personal`, `ingresos`, `partidas`,
+`cronograma`, `oficina`): si alguien quita un buscador, la suite falla.
 
 ---
 
@@ -422,17 +772,24 @@ Más "sin tarea asignada" en el total para que nada se pierda.
 ## 11. Verificación (cómo reproducir todo este documento)
 
 ```
-npm run verificar   # 237 pruebas: reducer, calculadora, asignaciones, cobros,
-                    # gerencial, montos por tareas, productividad, proyección
-                    # financiera, formato, persistencias, rutas SSR
+npm run verificar   # 268 pruebas: reducer, calculadora, asignaciones, cobros,
+                    # gerencial, combo de cartera, montos por tareas,
+                    # productividad, proyección financiera, formato,
+                    # persistencias, rutas SSR, filtros de listas y modal
+                    # de asignación de personal
 npm run build       # build cliente
 ```
 
 Secciones clave de `scripts/verificar.jsx`:
-- `[ calculadora ]`: gastado 48,866, desgloses, ejecución 40.72 %, presupuesto 120,000.
-- `[ asignaciones de personal ]`: 4,000 / 6,000 / 30,896.
-- `[ gerencial ]`: KPI utilidad 5,134, resultado empresa −18,666, caja, variación,
-  semáforo.
-- `[ montos por tareas ]`: 120,000, Cimentación 21,600, Excavación 16,310.
-- `[ productividad ]`: duraciones, 173/2 días, desviaciones.
-- `[ proyección financiera ]`: 64,800 / 1.33 / 90,492.59 / 29,507.41 / verde.
+- `[ calculadora ]`: gastado serv. 6 97,345, mensual `39410/12190/0/33400/12345`, desgloses.
+- `[ asignaciones de personal ]`: 4,800 / 4,320 / 71,824.
+- `[ gerencial ]`: KPI utilidad 57,905 (serv. 6), resultado empresa **15,105**, caja
+  mar–oct `-7000/98000/-24000/3840/-21190/88000/-125700/3155` (**8 meses**),
+  variación, semáforo (🟡 por 1 obra en riesgo).
+- `[ combo cartera ]`: 12 meses mar–feb, volumen máximo 3, serie `1,1,1,2,2,3,3,3,2,2,1,1`,
+  desfase tiempo (jun 50 / ago 33.33 / oct 66.67), desfase costo (sep 14.16 / oct 12.39),
+  meses futuros sin desfase y sin NaN.
+- `[ montos por tareas ]`: 335,000, Redes de agua 75,000, Tendido PVC 30,310.
+- `[ productividad ]`: duraciones, 224/4 días, desviaciones.
+- `[ proyección financiera ]`: 221,100 / 2.27 / 147,492.42 / 187,507.58 / verde.
+- `[ personal y facturas ]`: factura 101 y 102 cobradas (saldo 0), 103 pendiente 52,500.

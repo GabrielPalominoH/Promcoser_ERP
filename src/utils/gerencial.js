@@ -8,8 +8,11 @@ import {
   cobradoServicio,
   diasRestantes,
   estadoPresupuesto,
+  hoyISO,
+  mesesEntre,
   proyeccionAsignaciones,
   sumarMontos,
+  ultimoDiaMes,
   utilidadReal,
 } from './calculadora'
 import { margenBruto, redondear2 } from './finanzas'
@@ -162,6 +165,141 @@ export function proyeccionMensualPersonal({
   return [...porMes.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([mes, monto]) => ({ mes, monto }))
+}
+
+// ------------------------------------------------------------
+//  Gráfico combinado de cartera (volumen + desfases de tiempo y costo)
+// ------------------------------------------------------------
+
+// Tolerancia (puntos porcentuales) para no marcar retraso por redondeos.
+const TOLERANCIA_DESFASE = 0.5
+
+// Días inclusivos entre dos fechas ISO (misma base que la duración del
+// cronograma: fin − inicio + 1).
+function diasInclusivos(desde, hasta) {
+  if (!desde || !hasta) return 0
+  const [ai, mi, di] = desde.split('-').map(Number)
+  const [af, mf, df] = hasta.split('-').map(Number)
+  return Math.round((new Date(af, mf - 1, df) - new Date(ai, mi - 1, di)) / 86400000) + 1
+}
+
+// Avance reconstruido de una tarea en una fecha de corte. Como el sistema no
+// guarda historial, se prorratea el avance actual dentro de la ventana
+// trabajada [inicio, min(corte, fin)]; las tareas con hijas promedian por
+// duración, igual que `avanceEfectivo`. Al corte = hoy devuelve el avance actual.
+function avanceTareaEnFecha(tarea, todas, corte) {
+  const hijas = todas.filter((t) => t.padre_id === tarea.id)
+  if (hijas.length > 0) {
+    const dur = hijas.reduce((s, h) => s + diasInclusivos(h.fecha_inicio, h.fecha_fin), 0)
+    if (!dur) return 0
+    return (
+      hijas.reduce(
+        (s, h) => s + avanceTareaEnFecha(h, todas, corte) * diasInclusivos(h.fecha_inicio, h.fecha_fin),
+        0,
+      ) / dur
+    )
+  }
+  const avance = Number(tarea.avance) || 0
+  if (!tarea.fecha_inicio || !tarea.fecha_fin || corte < tarea.fecha_inicio) return 0
+  const total = Math.max(1, diasInclusivos(tarea.fecha_inicio, tarea.fecha_fin))
+  const hasta = corte < tarea.fecha_fin ? corte : tarea.fecha_fin
+  const transcurridos = Math.min(total, diasInclusivos(tarea.fecha_inicio, hasta))
+  return (avance * transcurridos) / total
+}
+
+// Avance global del servicio en una fecha (mismo peso por duración que
+// `metricasCronograma`: todas las tareas, padres e hijas).
+function avanceServicioEnFecha(tareasServicio, corte) {
+  const durTotal = tareasServicio.reduce((s, t) => s + diasInclusivos(t.fecha_inicio, t.fecha_fin), 0)
+  if (!durTotal) return 0
+  return (
+    tareasServicio.reduce(
+      (s, t) => s + avanceTareaEnFecha(t, tareasServicio, corte) * diasInclusivos(t.fecha_inicio, t.fecha_fin),
+      0,
+    ) / durTotal
+  )
+}
+
+// Avance esperado del servicio por tiempo transcurrido (misma base que el SPI):
+// lineal entre el inicio y el fin estimado, tope 100 %.
+function avancePlanEnFecha(servicio, corte) {
+  const { fecha_inicio, fecha_fin_estimada } = servicio
+  if (!fecha_inicio || !fecha_fin_estimada || fecha_fin_estimada <= fecha_inicio) return null
+  if (corte < fecha_inicio) return 0
+  const total = Math.round((new Date(fecha_fin_estimada) - new Date(fecha_inicio)) / 86400000)
+  if (total <= 0) return null
+  const van = Math.round((new Date(corte) - new Date(fecha_inicio)) / 86400000)
+  return Math.min(100, (van / total) * 100)
+}
+
+// Serie mensual para el gráfico combinado del panel gerencial:
+//   - `activos`: proyectos con ventana planificada que cubre el mes (barras).
+//   - `desfaseTiempo`: % de proyectos activos y evaluables detrás de su plan
+//     (avance reconstruido + tolerancia < avance esperado). null en meses futuros.
+//   - `desfaseCosto`: % de sobrecosto promedio de los proyectos activos con
+//     valor ganado. Por proyecto: (gasto real − valor ganado) / valor ganado
+//     × 100, con 0 % si va bajo presupuesto; luego se promedian. null sin base
+//     de valor ganado o en meses futuros.
+// Todo puro; nunca devuelve NaN (null cuando no hay base).
+export function desfaseMensualProyectos({
+  servicios = [],
+  tareas = [],
+  registros = [],
+  hoy = hoyISO(),
+} = {}) {
+  const mesHoy = hoy.slice(0, 7)
+  const conInicio = servicios.filter((s) => s.fecha_inicio)
+  if (conInicio.length === 0) return { serie: [], maxVolumen: 0, mesHoy }
+
+  const finEfectiva = (s) => s.fecha_fin_estimada || s.fecha_inicio
+  const desdeMes = conInicio.map((s) => s.fecha_inicio.slice(0, 7)).sort()[0]
+  const hastaMes = [...conInicio.map((s) => finEfectiva(s).slice(0, 7)), mesHoy].sort().at(-1)
+
+  const serie = []
+  for (const mes of mesesEntre(desdeMes, hastaMes)) {
+    const inicioMes = `${mes}-01`
+    const finMes = ultimoDiaMes(mes)
+    const corte = finMes < hoy ? finMes : hoy
+    const activos = conInicio.filter((s) => s.fecha_inicio <= finMes && finEfectiva(s) >= inicioMes)
+
+    let evaluables = 0
+    let conRetraso = 0
+    let sumaSobrecosto = 0
+    let proyectosConCosto = 0
+    for (const s of activos) {
+      const tareasServicio = tareas.filter((t) => t.servicio_id === s.id)
+      const real = tareasServicio.length ? avanceServicioEnFecha(tareasServicio, corte) : 0
+      const plan = avancePlanEnFecha(s, corte)
+      if (tareasServicio.length && plan != null && plan > 0) {
+        evaluables += 1
+        if (real + TOLERANCIA_DESFASE < plan) conRetraso += 1
+      }
+      // Sobrecosto del proyecto: gasto real vs valor ganado (AC − EV) / EV.
+      // Bajo presupuesto = 0 % (no es sobrecosto); luego se promedian los
+      // proyectos activos con valor ganado para no esconder una obra sobre
+      // costo detrás de otra muy económica.
+      const valorGanado = (Number(s.presupuesto_asignado) || 0) * (real / 100)
+      if (valorGanado > 0) {
+        const costoReal = registros
+          .filter((r) => r.servicio_id === s.id && (r.fecha || '') <= corte)
+          .reduce((total, r) => total + (Number(r.monto_calculado) || 0), 0)
+        proyectosConCosto += 1
+        sumaSobrecosto += Math.max(0, ((costoReal - valorGanado) / valorGanado) * 100)
+      }
+    }
+
+    const futuro = mes > mesHoy
+    serie.push({
+      mes,
+      activos: activos.length,
+      evaluables,
+      conRetraso,
+      desfaseTiempo: futuro || evaluables === 0 ? null : redondear2((conRetraso / evaluables) * 100),
+      desfaseCosto: futuro || proyectosConCosto === 0 ? null : redondear2(sumaSobrecosto / proyectosConCosto),
+    })
+  }
+
+  return { serie, maxVolumen: Math.max(0, ...serie.map((f) => f.activos)), mesHoy }
 }
 
 // Variación del último mes contra el anterior en una serie [{ mes, ... }].

@@ -264,14 +264,14 @@ export const CATALOGO_SERVICIOS = {
       etiqueta: 'Presupuesto',
       alinear: 'right',
       render: (item) => (
-        <span className="tabular-nums">{formatearMoneda(item.presupuesto_asignado)}</span>
+        <span className="whitespace-nowrap tabular-nums">{formatearMoneda(item.presupuesto_asignado)}</span>
       ),
     },
     {
       etiqueta: 'Cobrado',
       alinear: 'right',
       render: (item, ctx) => (
-        <span className="tabular-nums">{formatearMoneda(cobradoServicio(ctx.estado.cobros, item.id))}</span>
+        <span className="whitespace-nowrap tabular-nums">{formatearMoneda(cobradoServicio(ctx.estado.cobros, item.id))}</span>
       ),
     },
     {
@@ -281,7 +281,7 @@ export const CATALOGO_SERVICIOS = {
         const gastado = sumarMontos(registrosDeServicio(ctx.estado.registros_servicio, item.id))
 
         return (
-          <span className="tabular-nums">
+          <span className="whitespace-nowrap tabular-nums">
             {formatearMoneda(gastado)}
           </span>
         )
@@ -295,7 +295,7 @@ export const CATALOGO_SERVICIOS = {
 
         return (
           <span
-            className={`font-medium tabular-nums ${estado.disponible < 0 ? 'text-red-600' : 'text-slate-900'}`}
+            className={`whitespace-nowrap font-medium tabular-nums ${estado.disponible < 0 ? 'text-red-600' : 'text-slate-900'}`}
             title={estado.disponible < 0 ? 'Excedente' : 'Saldo disponible'}
           >
             {formatearMoneda(estado.disponible)}
@@ -339,7 +339,7 @@ export const CATALOGO_SERVICIOS = {
 
         return (
           <span
-            className={`font-medium tabular-nums ${utilidad < 0 ? 'text-red-600' : 'text-slate-900'}`}
+            className={`whitespace-nowrap font-medium tabular-nums ${utilidad < 0 ? 'text-red-600' : 'text-slate-900'}`}
             title={`Utilidad real ${formatearMoneda(utilidad)} (cobrado menos gastado)`}
           >
             {formatearMoneda(utilidad)}
@@ -353,7 +353,11 @@ export const CATALOGO_SERVICIOS = {
     },
     {
       etiqueta: 'Estatus',
-      render: (item) => <BadgeEstatus estatus={item.estatus} />,
+      render: (item) => (
+        <span className="whitespace-nowrap">
+          <BadgeEstatus estatus={item.estatus} />
+        </span>
+      ),
     },
   ],
 

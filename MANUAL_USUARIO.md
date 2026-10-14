@@ -47,12 +47,28 @@ Al lado izquierdo siempre verá el menú con estas opciones:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | El panel gerencial de la empresa. Arriba el **semáforo ejecutivo** (🟢 en orden / 🟡 atención / 🔴 en rojo) con su motivo, la meta de ingreso y los 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado). Luego el detalle: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo, restablece los datos de ejemplo o vacía todo para empezar de cero. |
+| **Dashboard** | El panel gerencial de la empresa. Arriba el **semáforo ejecutivo** (🟢 en orden / 🟡 atención / 🔴 en rojo) con su motivo, la meta de ingreso y los 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado). Luego el **gráfico combinado de columnas y líneas con doble eje Y**: las columnas son el volumen de obras activas por mes (eje derecho) y las dos líneas son el desfase de tiempo y el desfase de costo de la cartera (eje izquierdo 0–100 %); al pasar el mouse por cada mes aparece el detalle. Después, el detalle: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo, restablece los datos de ejemplo o vacía todo para empezar de cero. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
 | **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. |
 | **Tipos de servicio** | Al crear o editar una obra eliges su tipo: Obra, Misceláneo o Contrato. Sirve para filtrar en el Dashboard. |
+
+### Buscar y filtrar (en todas las listas)
+
+Cada lista que tenga datos trae una **caja de búsqueda** (el ícono de la lupa).
+Escriba parte del texto y la lista se reduce al instante; no hacen falta tildes
+ni mayúsculas ("valorizacion" encuentra "Valorización"). Donde la lista tiene
+grupos, al lado hay un **selector** (por ejemplo: con / sin tarea, vigentes / de
+baja, ingresos / facturas, pagado / proyectado).
+
+- El pie de la tabla ("Total") **suma lo que está viendo**: si filtra, el total
+  baja con la lista; al limpiar la búsqueda vuelve el total completo.
+- Al filtrar aparece un contador "**X de Y**" a un costado.
+- En el **Cronograma** y en **Partidas**, escribir un nombre **abre** los grupos
+  para mostrar las coincidencias y deja sus tareas madre a la vista.
+- Si la búsqueda no encuentra nada, la lista avisa "Ningún… coincide con el
+  filtro" (no significa que la lista esté vacía).
 
 ---
 
@@ -84,11 +100,12 @@ generales que no son de ninguna tarea (ej. flete) se dejan sin tarea y suman
 igual al gastado. Pulse **"Agregar material"**.
 
 ### Personal
-Aquí se **asigna** quién trabaja en la obra: persona, tarea (opcional),
-horas por día, tarifa y desde cuándo. No se toma asistencia día por día. El
-sistema calcula la **proyección total de inicio a fin** (lo que costará la
-mano de obra si nadie se mueve) y la muestra en 3 números: gastado
-(asentado), proyectado restante y total.
+Aquí se **asigna** quién trabaja en la obra. Pulse **"Asignar personal"**
+(arriba a la derecha de la tarjeta *Asignaciones*): se abre una ventana donde
+elige la persona, la tarea (opcional), las horas por día, la tarifa y desde
+cuándo. No se toma asistencia día por día. El sistema calcula la **proyección
+total de inicio a fin** (lo que costará la mano de obra si nadie se mueve) y la
+muestra en 3 números: gastado (asentado), proyectado restante y total.
 
 **Asentar mes:** cada mes se pulsa **Asentar** y se crea el gasto real de ese
 mes por cada persona vigente (un solo registro por persona). Solo lo asentado
@@ -152,11 +169,12 @@ borran: quedan como "sin tarea".
 ### Partidas (montos y valorizado por tarea)
 Una **partida es un trabajo del cronograma con su monto**. En vez de manejar
 la obra como un solo monto grande, el valor se reparte entre los
-trabajos reales: por ejemplo, "Cimentación" S/ 21,600, "Estructuras"
-S/ 39,900. ¿Para qué sirve? Para saber **qué trabajo deja margen y cuál
-genera sobrecosto**: sin esto solo sabría si la obra en general va bien o
-mal; aquí ve, por ejemplo, que la cimentación dejó margen pero los acabados
-generaron sobrecosto. Eso le dice dónde mirar.
+trabajos reales: por ejemplo, "Redes de agua potable" S/ 75,000, "Redes de
+alcantarillado" S/ 105,000. ¿Para qué sirve? Para saber **qué trabajo deja
+margen y cuál genera sobrecosto**: sin esto solo sabría si la obra en general
+va bien o mal; aquí ve, por ejemplo, que el tendido de tubería deja margen
+mientras que un trabajo puntual se pasa del monto previsto. Eso le dice dónde
+mirar.
 
 La pantalla muestra la **misma lista de tareas del Cronograma**, con padres
 e hijas, y estas columnas:
@@ -221,7 +239,7 @@ tal como figura en la factura, para poder ubicarla después.
 - **Gastado:** todo lo que ya se gastó en la obra.
 - **Saldo / disponible:** presupuesto inicial menos gastado. Lo que queda.
 - **Ejecución:** gastado ÷ presupuesto inicial × 100.
-- **Partida:** un trabajo del cronograma con su monto (ej. cimentación S/ 21,600). Sirve para saber
+- **Partida:** un trabajo del cronograma con su monto (ej. redes de agua potable S/ 75,000). Sirve para saber
   qué trabajo deja margen y cuál genera sobrecosto.
 - **Valorizado:** monto × avance. Lo ya ejecutado de ese trabajo.
 - **Margen:** valorizado menos costo. Positivo = el trabajo va dejando

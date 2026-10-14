@@ -17,6 +17,8 @@ import {
   Th,
 } from '../../components/ui/Table'
 import { formatearMoneda } from '../../utils/formatters'
+import { normalizar } from '../../components/ui/ComboBox'
+import { Buscador, BarraFiltros, textoCoincide } from '../../components/ui/FiltroBusqueda'
 import {
   avanceEfectivo,
   costoSinTarea,
@@ -105,6 +107,7 @@ export function PartidasServicio() {
   const [aviso, setAviso] = useState(null)
   const [montoEditando, setMontoEditando] = useState(null)
   const [colapsadas, setColapsadas] = useState({})
+  const [busqueda, setBusqueda] = useState('')
 
   const alternarGrupo = (id) =>
     setColapsadas((previo) => ({ ...previo, [id]: !previo[id] }))
@@ -121,8 +124,14 @@ export function PartidasServicio() {
     [estado.registros_servicio, servicio.id],
   )
 
+  // Filtro de la lista: texto sobre el nombre de la tarea. Al buscar se
+  // expande el árbol (se ignoran los grupos colapsados) y se conservan los
+  // ancestros de cada coincidencia para no perder la jerarquía.
+  const termino = normalizar(busqueda).trim()
+
   // Filas planas del árbol con sangría, como en el cronograma.
   // Respeta los grupos colapsados: sus hijas no aparecen en la lista.
+  // Mientras se busca, se expande todo para poder encontrar cualquier tarea.
   const filas = useMemo(() => {
     const lista = []
     const porPadre = new Map()
@@ -134,7 +143,7 @@ export function PartidasServicio() {
     const recorrer = (tarea, nivel, numero) => {
       const hijas = porPadre.get(tarea.id) ?? []
       lista.push({ tarea, nivel, numero, hijas })
-      if (hijas.length > 0 && !colapsadas[tarea.id]) {
+      if (hijas.length > 0 && (termino || !colapsadas[tarea.id])) {
         for (const [j, hija] of hijas.entries()) {
           recorrer(hija, nivel + 1, `${numero}.${j + 1}`)
         }
@@ -144,7 +153,22 @@ export function PartidasServicio() {
       recorrer(raiz, 0, `${i + 1}`)
     }
     return lista
-  }, [tareas, colapsadas])
+  }, [tareas, colapsadas, termino])
+
+  const filasFiltradas = useMemo(() => {
+    if (!termino) return filas
+    const padreDe = new Map(tareas.map((t) => [t.id, t.padre_id ?? null]))
+    const incluir = new Set()
+    for (const fila of filas) {
+      if (!textoCoincide(fila.tarea.nombre, termino)) continue
+      let actual = fila.tarea.id
+      while (actual != null && !incluir.has(actual)) {
+        incluir.add(actual)
+        actual = padreDe.get(actual) ?? null
+      }
+    }
+    return filas.filter((fila) => incluir.has(fila.tarea.id))
+  }, [filas, tareas, termino])
 
   const grupos = useMemo(
     () => tareas.filter((t) => tieneHijas(t.id, tareas)).map((t) => t.id),
@@ -205,6 +229,25 @@ export function PartidasServicio() {
             : 'Ponle monto a cada tarea: las principales suman solas.'
         }
       >
+        {tareas.length > 0 && (
+          <BarraFiltros
+            contador={
+              termino ? (
+                <>
+                  <span className="font-semibold text-slate-700">{filasFiltradas.length}</span> de{' '}
+                  {filas.length}
+                </>
+              ) : null
+            }
+          >
+            <Buscador
+              valor={busqueda}
+              onChange={setBusqueda}
+              placeholder="Buscar tarea…"
+              ariaLabel="Buscar tareas"
+            />
+          </BarraFiltros>
+        )}
         <Table>
           <TableHead>
             <TableRow>
@@ -222,8 +265,10 @@ export function PartidasServicio() {
           <TableBody>
             {filas.length === 0 ? (
               <TableEmpty colSpan={9} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
+            ) : filasFiltradas.length === 0 ? (
+              <TableEmpty colSpan={9} mensaje="Ninguna tarea coincide con el filtro." />
             ) : (
-              filas.map(({ tarea, nivel, numero, hijas }) => {
+              filasFiltradas.map(({ tarea, nivel, numero, hijas }) => {
                 const monto = montoTarea(tarea, tareas)
                 const val = valorizadoTarea(tarea, tareas)
                 const avance = avanceEfectivo(tarea, tareas)
@@ -323,7 +368,7 @@ export function PartidasServicio() {
               })
             )}
 
-            {filas.length > 0 && (
+            {filasFiltradas.length > 0 && !termino && (
               <TableRow className="bg-slate-50 font-semibold">
                 <Td className="text-slate-600">
                   Total

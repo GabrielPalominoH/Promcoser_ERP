@@ -37,7 +37,7 @@ Estado al: commit actual en `master` (ver `git log`).
 - **Reactivar:** ver historial git si se necesita.
 
 ## 10. Servicios de prueba eliminados
-- Solo queda el servicio 6 en `src/data/mockData.js`. Los servicios 1–5 y sus registros/tareas se quitaron de las semillas (siguen en el historial git anterior si se necesitan como ejemplo).
+- Quedan los servicios 6, 7 y 8 en `src/data/mockData.js` (3 obras para que la cartera, el semáforo y el gráfico combinado tengan sentido). Los servicios 1–5 y sus registros/tareas se quitaron de las semillas (siguen en el historial git anterior si se necesitan como ejemplo).
 
 ## 11. Módulo Presupuesto por categorías y proyecciones EVM
 - **Estado:** ❌ ELIMINADOS por decisión (el dinero que ingresa se registra en Ingresos). Sin ruta `/presupuesto`, sin colección `presupuestos`, sin campo Categoría en gastos y sin proyecciones EVM (`consumoPresupuesto`, `rentabilidadServicio`, `proyeccionCierre`, `presupuestoPorCategoria`, `realPorCategoria`, `desviacionCategoria`). Se conservan el `presupuesto_asignado` de cada servicio (monto inicial editable) y la lectura de control `estadoPresupuesto` (disponible, % de ejecución, excedido, cobrado). El resultado se mide como utilidad real (cobrado − gastado) y el avance en Partidas (montos y valorizado por tarea, que se conservan). Esquema `_v: 8`; lo guardado con `presupuestos` se ignora al cargar.

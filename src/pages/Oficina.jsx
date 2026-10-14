@@ -4,6 +4,8 @@ import { useData } from '../context/useData'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Campo, Input } from '../components/ui/Field'
+import { normalizar } from '../components/ui/ComboBox'
+import { Buscador, BarraFiltros, textoCoincide } from '../components/ui/FiltroBusqueda'
 import { CampoMonto, reglasMontoMayorACero } from '../components/ui/Monto'
 import { CampoComboBox } from '../components/ui/ComboBox'
 import { Modal } from '../components/ui/Modal'
@@ -124,6 +126,7 @@ export function Oficina() {
   const [mes, setMes] = useState(mesActual())
   const [aviso, setAviso] = useState(null)
   const [porEliminar, setPorEliminar] = useState(null)
+  const [busquedaUtilidad, setBusquedaUtilidad] = useState('')
 
   const utilidades = useMemo(
     () =>
@@ -134,6 +137,12 @@ export function Oficina() {
     [servicios, registros_servicio, todosLosCobros],
   )
   const utilidadTotal = utilidades.reduce((t, m) => t + m.utilidad, 0)
+
+  // Filtro de la tabla: texto sobre el nombre del servicio o el cliente.
+  const terminoUtilidad = normalizar(busquedaUtilidad).trim()
+  const utilidadesFiltradas = utilidades.filter(({ servicio }) =>
+    textoCoincide(`${servicio.nombre_servicio} ${servicio.cliente ?? ''}`, terminoUtilidad),
+  )
 
   const costosMes = useMemo(
     () => costos.filter((c) => c.mes === mes),
@@ -207,6 +216,25 @@ export function Oficina() {
         titulo="Utilidad por servicio"
         descripcion="Cobrado menos gastado de cada servicio."
       >
+        {utilidades.length > 0 && (
+          <BarraFiltros
+            contador={
+              terminoUtilidad ? (
+                <>
+                  <span className="font-semibold text-slate-700">{utilidadesFiltradas.length}</span> de{' '}
+                  {utilidades.length}
+                </>
+              ) : null
+            }
+          >
+            <Buscador
+              valor={busquedaUtilidad}
+              onChange={setBusquedaUtilidad}
+              placeholder="Buscar por servicio o cliente…"
+              ariaLabel="Buscar servicios"
+            />
+          </BarraFiltros>
+        )}
         <Table>
           <TableHead>
             <TableRow>
@@ -217,8 +245,10 @@ export function Oficina() {
           <TableBody>
             {utilidades.length === 0 ? (
               <TableEmpty colSpan={2} mensaje="No hay servicios." />
+            ) : utilidadesFiltradas.length === 0 ? (
+              <TableEmpty colSpan={2} mensaje="Ningún servicio coincide con el filtro." />
             ) : (
-              utilidades.map(({ servicio, utilidad }) => (
+              utilidadesFiltradas.map(({ servicio, utilidad }) => (
                 <TableRow key={servicio.id}>
                   <Td>
                     <span className="font-medium text-slate-900">{servicio.nombre_servicio}</span>

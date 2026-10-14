@@ -6,7 +6,13 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
 import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
-import { CampoComboBox } from '../../components/ui/ComboBox'
+import { CampoComboBox, normalizar } from '../../components/ui/ComboBox'
+import {
+  Buscador,
+  BarraFiltros,
+  SelectFiltro,
+  textoCoincide,
+} from '../../components/ui/FiltroBusqueda'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import {
@@ -41,12 +47,8 @@ function nombreTarea(tareas, id) {
 
 // Asignar personal al servicio: persona + pago + vigencia. El gasto se
 // genera solo con la asignación (costo directo automático, sin tareo ni
-// botón de asentar).
-function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
-  const elegibles = useMemo(
-    () => [...personal].filter((p) => (p.ambito ?? 'Obra') !== 'Oficina'),
-    [personal],
-  )
+// botón de asentar). Se abre en un modal, igual que "Registrar ingreso".
+function ModalAsignacion({ servicio, personal, tareas, notificar, onCerrar }) {
   const {
     register,
     handleSubmit,
@@ -54,6 +56,7 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
     setValue,
     watch,
     control,
+    setError,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -69,15 +72,15 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
   const personalId = watch('personal_id')
 
   useEffect(() => {
-    const ficha = elegibles.find((p) => String(p.id) === String(personalId))
+    const ficha = personal.find((p) => String(p.id) === String(personalId))
     if (ficha && Number(ficha.tarifa_por_hora) > 0) {
       setValue('tarifa', ficha.tarifa_por_hora)
     }
-  }, [personalId, elegibles, setValue])
+  }, [personalId, personal, setValue])
 
   const enviar = ({ personal_id, tarea_id, horas, tarifa, fecha_inicio, fecha_fin }) => {
     if (fecha_fin && fecha_fin < fecha_inicio) {
-      notificar('error', 'La fecha de fin no puede ser anterior al inicio.')
+      setError('fecha_fin', { message: 'No puede ser anterior al inicio.' })
       return
     }
     const traslape = (estado.asignaciones ?? []).some(
@@ -103,22 +106,25 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
         : 'Personal asignado. El costo se genera automáticamente cada mes.',
     )
     reset()
-  }
-
-  if (elegibles.length === 0) {
-    return (
-      <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        Todavía no hay personal registrado.{' '}
-        <Link to="/personal" className="font-medium underline">
-          Registra personal
-        </Link>{' '}
-        para poder asignarlo a este servicio.
-      </p>
-    )
+    onCerrar()
   }
 
   return (
-    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+    <Modal
+      abierto
+      titulo="Asignar personal"
+      descripcion="Quién trabaja en la obra, con qué pago y desde cuándo. El costo se genera automáticamente cada mes."
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit(enviar)}>Asignar personal</Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Campo
           label="Persona"
@@ -132,7 +138,7 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
             name="personal_id"
             rules={{ required: 'Selecciona a una persona' }}
             placeholder="Escribe para buscar…"
-            opciones={elegibles.map((p) => ({
+            opciones={personal.map((p) => ({
               valor: String(p.id),
               etiqueta: `${nombreCompleto(p)} — ${p.cargo}`,
             }))}
@@ -198,10 +204,8 @@ function FormularioAsignacion({ servicio, personal, tareas, notificar }) {
           <Input id="asi-hasta" type="date" {...register('fecha_fin')} />
         </Campo>
       </div>
-      <div className="flex justify-end">
-        <Button type="submit">Asignar personal</Button>
-      </div>
-    </form>
+      </form>
+    </Modal>
   )
 }
 
@@ -211,9 +215,19 @@ export function PersonalServicio() {
   const [aviso, setAviso] = useState(null)
   const [bajaDe, setBajaDe] = useState(null)
   const [fechaBaja, setFechaBaja] = useState('')
+  const [busquedaAsig, setBusquedaAsig] = useState('')
+  const [filtroVigencia, setFiltroVigencia] = useState('todas')
+  const [busquedaCosto, setBusquedaCosto] = useState('')
+  const [filtroCosto, setFiltroCosto] = useState('todo')
+  const [mostrarAsignacion, setMostrarAsignacion] = useState(false)
   const notificar = (tipo, mensaje) => setAviso({ tipo, mensaje })
 
   const personal = estado.personal
+  // No se asigna personal de Oficina a una obra.
+  const personalElegible = useMemo(
+    () => personal.filter((p) => (p.ambito ?? 'Obra') !== 'Oficina'),
+    [personal],
+  )
   const tareas = useMemo(
     () => (estado.tareas ?? []).filter((t) => t.servicio_id === servicio.id),
     [estado.tareas, servicio.id],
@@ -262,6 +276,33 @@ export function PersonalServicio() {
   const personaDe = (id) => personal.find((p) => p.id === id)
   const devengadoPor = (asignacionId) =>
     registros.filter((r) => r.asignacion_id === asignacionId)
+
+  // Filtro de la tabla de asignaciones: texto (persona, cargo, tarea) y
+  // vigencia (vigente / de baja).
+  const terminoAsig = normalizar(busquedaAsig).trim()
+  const asignacionesFiltradas = asignaciones.filter((a) => {
+    if (filtroVigencia === 'vigente' && a.fecha_fin) return false
+    if (filtroVigencia === 'baja' && !a.fecha_fin) return false
+    if (!terminoAsig) return true
+    const persona = personaDe(a.personal_id)
+    const haystack = [
+      persona ? nombreCompleto(persona) : '',
+      persona?.cargo ?? '',
+      nombreTarea(tareas, a.tarea_id),
+    ].join(' ')
+    return textoCoincide(haystack, terminoAsig)
+  })
+  const hayFiltroAsig = terminoAsig !== '' || filtroVigencia !== 'todas'
+
+  // Filtro del detalle mensual: texto (mes) y tipo (pagado / proyectado).
+  const terminoCosto = normalizar(busquedaCosto).trim()
+  const coincideCosto = (m) => textoCoincide(formatearMes(m.mes), terminoCosto)
+  const devengadosFiltrados =
+    filtroCosto === 'proyectado' ? [] : devengados.filter(coincideCosto)
+  const proyectadosFiltrados =
+    filtroCosto === 'pagado' ? [] : proyectados.filter(coincideCosto)
+  const hayFiltroCosto = terminoCosto !== '' || filtroCosto !== 'todo'
+  const costosVisibles = devengadosFiltrados.length + proyectadosFiltrados.length
 
   const confirmarBaja = () => {
     if (!fechaBaja) {
@@ -316,21 +357,49 @@ export function PersonalServicio() {
       </div>
 
       <Card
-        titulo="Asignar personal"
-        descripcion="Quién trabaja en la obra, con qué pago y desde cuándo. El costo se genera automáticamente cada mes."
-      >
-        <FormularioAsignacion
-          servicio={servicio}
-          personal={personal}
-          tareas={tareas}
-          notificar={notificar}
-        />
-      </Card>
-
-      <Card
         titulo="Asignaciones"
         descripcion="Vigentes generan costo automático; de baja solo conservan lo devengado."
+        acciones={
+          personalElegible.length > 0 ? (
+            <Button tamano="sm" onClick={() => setMostrarAsignacion(true)}>
+              Asignar personal
+            </Button>
+          ) : undefined
+        }
       >
+        {personalElegible.length === 0 && (
+          <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Todavía no hay personal registrado.{' '}
+            <Link to="/personal" className="font-medium underline">
+              Registra personal
+            </Link>{' '}
+            para poder asignarlo a este servicio.
+          </p>
+        )}
+        {asignaciones.length > 0 && (
+          <BarraFiltros
+            contador={
+              hayFiltroAsig ? (
+                <>
+                  <span className="font-semibold text-slate-700">{asignacionesFiltradas.length}</span> de{' '}
+                  {asignaciones.length}
+                </>
+              ) : null
+            }
+          >
+            <Buscador
+              valor={busquedaAsig}
+              onChange={setBusquedaAsig}
+              placeholder="Buscar por persona, cargo o tarea…"
+              ariaLabel="Buscar asignaciones"
+            />
+            <SelectFiltro label="Filtrar por vigencia" value={filtroVigencia} onChange={setFiltroVigencia}>
+              <option value="todas">Todas</option>
+              <option value="vigente">Vigentes</option>
+              <option value="baja">De baja</option>
+            </SelectFiltro>
+          </BarraFiltros>
+        )}
         <Table>
           <TableHead>
             <TableRow>
@@ -345,8 +414,10 @@ export function PersonalServicio() {
           <TableBody>
             {asignaciones.length === 0 ? (
               <TableEmpty colSpan={6} mensaje="Aún no hay personal asignado a este servicio." />
+            ) : asignacionesFiltradas.length === 0 ? (
+              <TableEmpty colSpan={6} mensaje="Ninguna asignación coincide con el filtro." />
             ) : (
-              asignaciones.map((a) => {
+              asignacionesFiltradas.map((a) => {
                 const persona = personaDe(a.personal_id)
                 const vigente = !a.fecha_fin
                 const mensual = vigente
@@ -429,34 +500,72 @@ export function PersonalServicio() {
             Sin costo de personal: asigna personal para generar el costo mensual.
           </p>
         ) : (
-          <ul className="space-y-1.5">
-            {devengados.map((m) => (
-              <li
-                key={m.mes}
-                className="flex items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2 text-sm"
-              >
-                <span className="text-slate-700">
-                  <span className="font-medium capitalize">{formatearMes(m.mes)}</span> ·{' '}
-                  <span className="tabular-nums">{formatearMoneda(m.monto)}</span>
-                </span>
-                <span className="text-xs font-medium text-emerald-700">Pagado</span>
-              </li>
-            ))}
-            {proyectados.map((m) => (
-              <li
-                key={m.mes}
-                className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm"
-              >
-                <span className="text-slate-700">
-                  <span className="font-medium capitalize">{formatearMes(m.mes)}</span> ·{' '}
-                  <span className="tabular-nums">{formatearMoneda(m.monto)}</span>
-                </span>
-                <span className="text-xs font-medium text-slate-500">Proyectado</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <BarraFiltros
+              contador={
+                hayFiltroCosto ? (
+                  <>
+                    <span className="font-semibold text-slate-700">{costosVisibles}</span> de{' '}
+                    {devengados.length + proyectados.length}
+                  </>
+                ) : null
+              }
+            >
+              <Buscador
+                valor={busquedaCosto}
+                onChange={setBusquedaCosto}
+                placeholder="Buscar por mes…"
+                ariaLabel="Buscar meses de costo"
+              />
+              <SelectFiltro label="Filtrar por estado" value={filtroCosto} onChange={setFiltroCosto}>
+                <option value="todo">Pagado y proyectado</option>
+                <option value="pagado">Solo pagado</option>
+                <option value="proyectado">Solo proyectado</option>
+              </SelectFiltro>
+            </BarraFiltros>
+            {costosVisibles === 0 ? (
+              <p className="text-sm text-slate-400">Ningún mes coincide con el filtro.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {devengadosFiltrados.map((m) => (
+                  <li
+                    key={m.mes}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2 text-sm"
+                  >
+                    <span className="text-slate-700">
+                      <span className="font-medium capitalize">{formatearMes(m.mes)}</span> ·{' '}
+                      <span className="tabular-nums">{formatearMoneda(m.monto)}</span>
+                    </span>
+                    <span className="text-xs font-medium text-emerald-700">Pagado</span>
+                  </li>
+                ))}
+                {proyectadosFiltrados.map((m) => (
+                  <li
+                    key={m.mes}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                  >
+                    <span className="text-slate-700">
+                      <span className="font-medium capitalize">{formatearMes(m.mes)}</span> ·{' '}
+                      <span className="tabular-nums">{formatearMoneda(m.monto)}</span>
+                    </span>
+                    <span className="text-xs font-medium text-slate-500">Proyectado</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </Card>
+
+      {mostrarAsignacion && (
+        <ModalAsignacion
+          servicio={servicio}
+          personal={personalElegible}
+          tareas={tareas}
+          notificar={notificar}
+          onCerrar={() => setMostrarAsignacion(false)}
+        />
+      )}
 
       {bajaDe && (
         <Modal

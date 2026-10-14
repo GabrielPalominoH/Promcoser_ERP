@@ -35,6 +35,7 @@ import {
 import {
   analizarServicios,
   avanceMetaIngreso,
+  desfaseMensualProyectos,
   estadoEmpresa,
   flujoCajaMensualReal,
   kpisEmpresa,
@@ -42,6 +43,7 @@ import {
   rentabilidadPorCliente,
   variacionMensual,
 } from '../utils/gerencial'
+import { GraficoComboCartera } from '../components/charts/GraficoComboCartera'
 
 function descargarCSV(nombre, filas) {
   const contenido = filas.map((fila) => fila.join(',')).join('\n')
@@ -230,6 +232,12 @@ export function Dashboard() {
   const personalProyectado = proyeccionMensualPersonal({
     asignaciones: asigF,
     servicios: serviciosF,
+    registros: registrosF,
+  })
+  // Gráfico combinado de cartera: volumen de obras + desfases de tiempo y costo.
+  const comboCartera = desfaseMensualProyectos({
+    servicios: serviciosF,
+    tareas: tareasF,
     registros: registrosF,
   })
 
@@ -528,6 +536,28 @@ export function Dashboard() {
           {semaforoEmpresa.mensaje}
         </p>
       </div>
+
+      <Card
+        titulo="Gráfico combinado de columnas y líneas con doble eje Y"
+        descripcion="Dual-Axis Combo Chart · columnas = obras activas (eje derecho); líneas = desfase de tiempo y de costo (eje izquierdo, 0–100 %)"
+      >
+        <GraficoComboCartera
+          serie={comboCartera.serie}
+          maxVolumen={comboCartera.maxVolumen}
+          mesHoy={comboCartera.mesHoy}
+        />
+        <details className="mt-4 text-xs text-slate-500">
+          <summary className="cursor-pointer font-medium hover:text-slate-700">
+            ¿Cómo se calcula?
+          </summary>
+          <p className="mt-1">
+            Volumen = obras con ventana planificada que cubre el mes. Desfase de tiempo = % de obras
+            activas detrás de su avance esperado. Desfase de costo = sobrecosto promedio de las obras
+            activas (gasto real frente al valor ganado; 0 % si van bajo presupuesto). Los meses futuros
+            no muestran desfase: todavía no hay avance real que medir.
+          </p>
+        </details>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card

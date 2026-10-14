@@ -11,6 +11,8 @@ import { Aviso } from '../../components/ui/Aviso'
 import { Badge } from '../../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../../utils/formatters'
 import { avanceEfectivo, estadoTarea, hoyISO, nombreReferencia, sumarMontos } from '../../utils/calculadora'
+import { normalizar } from '../../components/ui/ComboBox'
+import { Buscador, textoCoincide } from '../../components/ui/FiltroBusqueda'
 
 // En SSR useLayoutEffect avisa; cae a useEffect en el servidor.
 const usarLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -271,6 +273,7 @@ export function CronogramaServicio() {
   const [aviso, setAviso] = useState(null)
   const [modal, setModal] = useState(null) // null | { modo: 'crear', padre? } | { modo: 'editar', tarea }
   const [colapsadas, setColapsadas] = useState({})
+  const [busqueda, setBusqueda] = useState('')
   const [zoomManual, setZoomManual] = useState(null) // px por día elegido con +/−; null = ajuste automático
   const PASOS_ZOOM = [6, 10, 16, 28, 48, 80, 130]
   const indicePaso = (valor, direccion) => {
@@ -319,20 +322,41 @@ export function CronogramaServicio() {
     return (hijasPorPadre.get(null) ?? []).map(armar)
   }, [tareas])
 
+  // Filtro de la lista: texto sobre el nombre de la tarea. Al buscar se
+  // expande el árbol (se ignoran los grupos colapsados) y se conservan los
+  // ancestros de cada coincidencia para no perder la jerarquía.
+  const termino = normalizar(busqueda).trim()
+
   // Filas planas para la lista y el diagrama, con numeración jerárquica
-  // 1, 1.1, 1.1.1… Respetan los grupos colapsados.
+  // 1, 1.1, 1.1.1… Respetan los grupos colapsados. Mientras se busca, se
+  // expande todo para poder encontrar cualquier tarea.
   const filas = useMemo(() => {
     const lista = []
     const recorrer = (nodo, nivel, numero) => {
       const hijas = nodo.hijas
       lista.push({ tarea: nodo.tarea, nivel, numero, hijas: hijas.map((h) => h.tarea) })
-      if (hijas.length > 0 && !colapsadas[nodo.tarea.id]) {
+      if (hijas.length > 0 && (termino || !colapsadas[nodo.tarea.id])) {
         hijas.forEach((hija, j) => recorrer(hija, nivel + 1, `${numero}.${j + 1}`))
       }
     }
     arbol.forEach((nodo, i) => recorrer(nodo, 0, `${i + 1}`))
     return lista
-  }, [arbol, colapsadas])
+  }, [arbol, colapsadas, termino])
+
+  const filasFiltradas = useMemo(() => {
+    if (!termino) return filas
+    const padreDe = new Map(tareas.map((t) => [t.id, t.padre_id ?? null]))
+    const incluir = new Set()
+    for (const fila of filas) {
+      if (!textoCoincide(fila.tarea.nombre, termino)) continue
+      let actual = fila.tarea.id
+      while (actual != null && !incluir.has(actual)) {
+        incluir.add(actual)
+        actual = padreDe.get(actual) ?? null
+      }
+    }
+    return filas.filter((fila) => incluir.has(fila.tarea.id))
+  }, [filas, tareas, termino])
 
   const alternarGrupo = (id) =>
     setColapsadas((previo) => ({ ...previo, [id]: !previo[id] }))
@@ -651,7 +675,25 @@ export function CronogramaServicio() {
               : `${tareas.length} tareas · ${completadas} completadas · ${atrasadas} atrasadas · avance global ${avanceGlobal}%`}
           </p>
         </div>
-        <Button onClick={() => setModal({ modo: 'crear' })}>Nueva tarea</Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {tareas.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Buscador
+                valor={busqueda}
+                onChange={setBusqueda}
+                placeholder="Buscar tarea…"
+                ariaLabel="Buscar tareas"
+              />
+              {termino && (
+                <p className="text-sm whitespace-nowrap text-slate-500">
+                  <span className="font-semibold text-slate-700">{filasFiltradas.length}</span> de{' '}
+                  {filas.length}
+                </p>
+              )}
+            </div>
+          )}
+          <Button onClick={() => setModal({ modo: 'crear' })}>Nueva tarea</Button>
+        </div>
       </div>
 
       {tareas.length > 0 && (
@@ -881,7 +923,12 @@ export function CronogramaServicio() {
               </div>
 
               {/* Filas agrupadas: tareas y subtareas multinivel */}
-              {filas.map(({ tarea: t, nivel, numero, hijas }) => {
+              {termino && filasFiltradas.length === 0 && (
+                <div className="flex h-16 items-center px-4 text-sm text-slate-500">
+                  Ninguna tarea coincide con el filtro.
+                </div>
+              )}
+              {filasFiltradas.map(({ tarea: t, nivel, numero, hijas }) => {
                 const pct = avanceEfectivo(t, tareas)
                 const estado = estadoTarea({ ...t, avance: pct }, hoy)
                 const esPadre = hijas.length > 0
