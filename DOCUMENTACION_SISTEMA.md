@@ -346,9 +346,53 @@ Verificado en la suite: caja jul–oct = `3502/-23840/19172/-17500`, 4 meses.
    (`cobrado − materiales − personal − equipos − gastos = utilidad`).
 5. **Tendencias** (cuadrícula 2×2): curva de gasto acumulado, gasto mensual con
    media móvil, horas hombre por mes, valorizado vs. costo por trabajo.
+   Datos exactos de cada uno en §9.1.
 6. **Productividad**: días estimados vs. reales.
 7. **Proyección financiera** con semáforo.
 8. **Ritmo de avance** (SPI).
+
+### Partidas
+Mismo árbol del Cronograma con columnas: Monto (sumable), Valorizado, Avance,
+Costo (subárbol), Margen (valorizado − costo), Días est., Días reales, Desv.
+Más "sin tarea asignada" en el total para que nada se pierda.
+
+### 9.1 Datos exactos de cada gráfico del Resumen (servicio 6)
+
+**Curva de gasto acumulado** (de `gastoPorMes`: jul 20,498 / ago 23,840 /
+sep 4,528):
+| mes | gasto del mes | acumulado |
+|---|---|---|
+| jul 2026 | 20,498 | 20,498 |
+| ago 2026 | 23,840 | 44,338 |
+| sep 2026 | 4,528 | 48,866 |
+
+**Tendencia de gasto mensual + media móvil de 3** (`mediaMovil`):
+| mes | barra (gasto) | línea MM3 |
+|---|---|---|
+| jul | 20,498 | 20,498.00 (promedia lo que hay: 1 mes) |
+| ago | 23,840 | 22,169.00 ((20498+23840) ÷ 2) |
+| sep | 4,528 | 16,288.67 ((20498+23840+4528) ÷ 3) |
+
+Lectura: la línea ámbar cae en septiembre → el ritmo de gasto se frena.
+
+**Horas hombre por mes** (`horasPorMes`, solo tipo personal):
+| mes | horas | de dónde |
+|---|---|---|
+| ago 2026 | 70 h | reg. 30 (40 h, tarea 16) + reg. 31 (30 h, tarea 18) |
+
+Es el único mes con registros de personal; por eso la serie tiene 1 punto.
+
+**Valorizado contra costo por trabajo** (una fila por tarea raíz):
+| trabajo | valorizado (monto × avance) | costo (subárbol) | lectura |
+|---|---|---|---|
+| Obras preliminares (13) | 8,000 × 100 % = 8,000 | 0 (sin registros) | margen 8,000 |
+| Cimentación (14) | 21,600 × 100 % = 21,600 | 38,110 (15: 16,310 + 16: 5,800 + directo 16,000) | **−16,510 en rojo** |
+| Estructuras (17) | 39,900 × 54 % = 21,546 | 5,028 (tarea 18) | margen 16,518 |
+| Cobertura (20) | 26,000 × 0 % = 0 | 2,000 | −2,000 |
+| Acabados (21) | 24,500 × 0 % = 0 | 1,728 | −1,728 |
+
+La barra de costo sale roja solo si supera a su valorizado (caso Cimentación:
+38,110 > 21,600). La escala máxima del gráfico es 38,110.
 
 ### Partidas
 Mismo árbol del Cronograma con columnas: Monto (sumable), Valorizado, Avance,
