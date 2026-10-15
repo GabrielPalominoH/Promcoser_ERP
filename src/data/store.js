@@ -14,6 +14,9 @@
 //   5 = reserva (llegó a usarse para asignaciones_equipos, ya retiradas)
 //   6 = sin pagos (se quita el módulo; lo guardado se ignora)
 //   8 = sin presupuestos (se quita el módulo; lo guardado se ignora)
+//   9 = + cargos (catálogo maestro de cargos; el personal se vincula por nombre)
+//  10 = + lineas_base, lecturas_avance, valorizaciones, adelantos (control de
+//       obra: línea base del PV, lecturas del EV y valorizaciones del cobro)
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -23,7 +26,7 @@ import {
   migrarPresupuestoATareas,
 } from './mockData'
 
-export const VERSION_ESQUEMA = 8
+export const VERSION_ESQUEMA = 10
 
 const memoria = {}
 const backendMemoria = {
@@ -125,13 +128,23 @@ export function validarRespaldo(datos) {
   if (!datos || typeof datos !== 'object' || Array.isArray(datos)) {
     return { ok: false, errores: ['El archivo no contiene un objeto JSON válido.'] }
   }
-  if (datos._v != null && Number(datos._v) > VERSION_ESQUEMA) {
+  const version = Number(datos._v)
+  if (datos._v != null && Number.isFinite(version) && version > VERSION_ESQUEMA) {
     errores.push(`Respaldo de versión ${datos._v}: esta app lee hasta la ${VERSION_ESQUEMA}.`)
   }
-  for (const coleccion of COLECCIONES) {
-    if (!Array.isArray(datos[coleccion])) {
-      errores.push(`Falta la colección "${coleccion}".`)
+  // Respaldo del esquema actual: debe traer todas las colecciones.
+  // Respaldo de un esquema anterior: basta con que traiga alguna colección
+  // conocida; las que falten se rellenan con el estado inicial al normalizar
+  // (combinarEstado), de modo que un respaldo v8 (sin `cargos`) sigue
+  // importándose y recibe el catálogo semilla.
+  if (version >= VERSION_ESQUEMA) {
+    for (const coleccion of COLECCIONES) {
+      if (!Array.isArray(datos[coleccion])) {
+        errores.push(`Falta la colección "${coleccion}".`)
+      }
     }
+  } else if (!COLECCIONES.some((coleccion) => Array.isArray(datos[coleccion]))) {
+    errores.push('El archivo no contiene ninguna colección del sistema.')
   }
   return { ok: errores.length === 0, errores }
 }

@@ -27,7 +27,9 @@ import {
 } from '../utils/formatters'
 import {
   cobradoServicio,
+  cuentaComoManoDeObra,
   desglosePorTipo,
+  hoyISO,
   metricasCronograma,
   nombreReferencia,
   ordenarPorFechaDesc,
@@ -44,6 +46,9 @@ import {
   variacionMensual,
 } from '../utils/gerencial'
 import { GraficoComboCartera } from '../components/charts/GraficoComboCartera'
+import { GraficoCurvaSCartera, GraficoHistogramaHH } from '../components/charts/GraficosControl'
+import { controlCPMCartera, evmCartera } from '../utils/cartera'
+import { serieHorasHombre } from '../utils/horasHombre'
 
 function descargarCSV(nombre, filas) {
   const contenido = filas.map((fila) => fila.join(',')).join('\n')
@@ -67,6 +72,18 @@ function BarraGasto({ monto, maximo }) {
         className="h-full rounded-full bg-primary-600 transition-all"
         style={{ width: `${ancho}%` }}
       />
+    </div>
+  )
+}
+
+// Indicador con lectura para el control de proyecto (SPI/CPI/EAC/VAC…).
+// `tono` colorea el número: verde favorable, ámbar en observación, rojo mal.
+function IndicadorP6({ etiqueta, valor, detalle, tono = 'text-slate-900' }) {
+  return (
+    <div className="rounded-xl border border-slate-300 p-4">
+      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">{etiqueta}</p>
+      <p className={`mt-1 text-xl font-bold tabular-nums ${tono}`}>{valor}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{detalle}</p>
     </div>
   )
 }
@@ -240,6 +257,29 @@ export function Dashboard() {
     tareas: tareasF,
     registros: registrosF,
   })
+
+  // --- Control de proyecto (P6): valor ganado de cartera + recursos --------
+  // Los registros que alimentan la curva excluyen los domingos de personal
+  // (cuenta como mano de obra), igual que la Curva S de cada servicio.
+  const registrosCurva = registrosF.filter(cuentaComoManoDeObra)
+  const carteraEVM = evmCartera({
+    servicios: serviciosF,
+    tareas: tareasF,
+    registros: registrosCurva,
+    lineasBase: estado.lineas_base ?? [],
+    lecturas: estado.lecturas_avance ?? [],
+  })
+  const controlP6 = controlCPMCartera({ servicios: serviciosF, tareas: tareasF, hoy: hoyISO() })
+  const serieHH = serieHorasHombre({
+    asignaciones: asigF,
+    servicios: serviciosF,
+    registros: registrosCurva,
+  })
+  const hhPlanTotal = serieHH.reduce((s, m) => s + m.plan, 0)
+  const hhRealTotal = serieHH.reduce((s, m) => s + m.real, 0)
+  const dinero = (v) => (v == null ? '—' : formatearMoneda(v))
+  const tonoIndice = (v) =>
+    v == null ? 'text-slate-400' : v >= 1 ? 'text-emerald-700' : v >= 0.9 ? 'text-amber-700' : 'text-red-600'
 
   const totalPersonal = personal.length
   const totalEquipos = equipos.length
@@ -521,7 +561,16 @@ export function Dashboard() {
                 : 'danger'
           }
         >
-          {semaforoEmpresa.nivel === 'verde' ? '🟢' : semaforoEmpresa.nivel === 'amarillo' ? '🟡' : '🔴'}{' '}
+          <span
+            className={`mr-1.5 inline-block size-2 rounded-full align-middle ${
+              semaforoEmpresa.nivel === 'verde'
+                ? 'bg-emerald-500'
+                : semaforoEmpresa.nivel === 'amarillo'
+                  ? 'bg-amber-500'
+                  : 'bg-red-500'
+            }`}
+            aria-hidden="true"
+          />
           {semaforoEmpresa.titulo}
         </Badge>
         <p
@@ -557,6 +606,181 @@ export function Dashboard() {
             no muestran desfase: todavía no hay avance real que medir.
           </p>
         </details>
+      </Card>
+
+      <Card
+        titulo="Control de proyecto (P6)"
+        descripcion="Valor ganado y recursos de toda la cartera: desempeño (SPI/CPI), proyección (EAC/VAC), curva S consolidada e histograma de horas-hombre."
+      >
+        {!carteraEVM.hayDatos ? (
+          <p className="text-sm text-slate-400">
+            Sin datos suficientes. Planifica tareas y registra avances para ver el control de
+            proyecto.
+          </p>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              <IndicadorP6
+                etiqueta="SPI · Plazo"
+                valor={carteraEVM.spi == null ? '—' : carteraEVM.spi.toFixed(2)}
+                tono={tonoIndice(carteraEVM.spi)}
+                detalle="EV ÷ PV · mayor a 1 = adelantado"
+              />
+              <IndicadorP6
+                etiqueta="CPI · Costo"
+                valor={carteraEVM.cpi == null ? '—' : carteraEVM.cpi.toFixed(2)}
+                tono={tonoIndice(carteraEVM.cpi)}
+                detalle="EV ÷ AC · mayor a 1 = eficiente"
+              />
+              <IndicadorP6
+                etiqueta="Avance valorizado"
+                valor={`${carteraEVM.avance}%`}
+                detalle={`EV ${dinero(carteraEVM.ev)} de ${dinero(carteraEVM.presupuesto)}`}
+              />
+              <IndicadorP6
+                etiqueta="EAC · Costo final"
+                valor={dinero(carteraEVM.eac)}
+                detalle={`Proyección sobre ${dinero(carteraEVM.presupuesto)}`}
+              />
+              <IndicadorP6
+                etiqueta="VAC · Desviación final"
+                valor={dinero(carteraEVM.vac)}
+                tono={
+                  carteraEVM.vac == null
+                    ? 'text-slate-400'
+                    : carteraEVM.vac >= 0
+                      ? 'text-emerald-700'
+                      : 'text-red-600'
+                }
+                detalle="Presupuesto − EAC · mayor a 0 = margen"
+              />
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-semibold text-slate-700">
+                Curva S consolidada de la cartera
+              </p>
+              <GraficoCurvaSCartera serie={carteraEVM.serie} indiceHoy={carteraEVM.indiceHoy} />
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-0.5 w-5" style={{ backgroundColor: '#2563eb' }} /> Costo
+                  planificado (PV)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-0.5 w-5" style={{ backgroundColor: '#dc2626' }} /> Costo real
+                  (AC)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-0.5 w-5" style={{ backgroundColor: '#059669' }} /> Valor ganado
+                  (EV)
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-700">
+                  Histograma de horas-hombre
+                </p>
+                <span className="text-xs text-slate-500 tabular-nums">
+                  Plan {formatearCantidad(hhPlanTotal)} h · Real {formatearCantidad(hhRealTotal)} h
+                </span>
+              </div>
+              <GraficoHistogramaHH serie={serieHH} />
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: '#94a3b8' }} /> HH
+                  planificadas
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: '#0f766e' }} /> HH
+                  reales
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <div>
+                <p className="mb-2 text-sm font-semibold text-slate-700">
+                  Look-ahead · próximas 3 semanas
+                </p>
+                {controlP6.proximas.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    Sin actividades programadas para las próximas semanas.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {controlP6.proximas.slice(0, 8).map((a) => (
+                      <li key={`${a.servicio_id}-${a.tarea_id}`} className="flex justify-between gap-2 text-sm">
+                        <Link
+                          to={`/servicios/${a.servicio_id}/cronograma`}
+                          className="min-w-0 truncate text-slate-700 hover:text-primary-700 hover:underline"
+                        >
+                          {a.tarea}
+                        </Link>
+                        <span className="shrink-0 whitespace-nowrap text-slate-500 tabular-nums">
+                          {formatearFecha(a.inicio)}
+                          {a.critica && (
+                            <span className="ml-2 font-semibold text-red-600">crítica</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-semibold text-slate-700">
+                  Ruta crítica · {controlP6.totalCriticas} actividad(es)
+                </p>
+                {controlP6.criticas.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    Sin actividades críticas: todas tienen holgura.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {controlP6.criticas.slice(0, 8).map((a) => (
+                      <li key={`${a.servicio_id}-${a.tarea_id}`} className="flex justify-between gap-2 text-sm">
+                        <Link
+                          to={`/servicios/${a.servicio_id}/cronograma`}
+                          className="min-w-0 truncate text-slate-700 hover:text-primary-700 hover:underline"
+                        >
+                          {a.tarea}
+                        </Link>
+                        <span className="shrink-0 whitespace-nowrap text-slate-500 tabular-nums">
+                          {formatearFecha(a.inicio)} → {formatearFecha(a.fin)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <details className="rounded-lg bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
+              <summary className="cursor-pointer font-medium text-slate-700">
+                ¿Cómo se calcula?
+              </summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>
+                  SPI y CPI son la suma de EV, PV y AC de todos los servicios (mismo criterio que la
+                  Curva S de cada obra).
+                </li>
+                <li>
+                  EAC proyecta el costo final al ritmo actual; VAC es el margen que quedaría.
+                </li>
+                <li>
+                  El histograma compara las horas comprometidas por las asignaciones (plan) con las
+                  horas registradas (real).
+                </li>
+                <li>
+                  El look-ahead y la ruta crítica salen del motor CPM con las predecesoras del
+                  cronograma de cada obra.
+                </li>
+              </ul>
+            </details>
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
@@ -979,6 +1203,7 @@ export function Dashboard() {
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {formatearCantidad(registro.cantidad_o_horas)}
+                      {registro.unidad ? ` ${registro.unidad}` : ''}
                     </Td>
                     <Td alinear="right" className="font-medium text-slate-900 tabular-nums">
                       {formatearMoneda(registro.monto_calculado)}

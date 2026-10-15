@@ -21,7 +21,7 @@ import {
   estadoPresupuesto,
   gastoPorMes,
   horasPorMes,
-  indiceAvance,
+  hoyISO,
   mediaMovil,
   metricasCronograma,
   proyeccionFinanciera,
@@ -29,6 +29,9 @@ import {
   utilidadReal,
   valorizadoTarea,
 } from '../../utils/calculadora'
+import { curvaServicio } from '../../utils/curvaS'
+import { lineaBaseVigente } from '../../utils/lineaBase'
+import { resumenHorasServicio } from '../../utils/horasHombre'
 import { usePanelServicio } from './panel'
 
 // Diagrama de cascada vertical: cómo lo cobrado se consume paso a paso
@@ -439,7 +442,15 @@ export function ResumenServicio() {
   const { servicio } = useOutletContext()
   const { abrirEditar } = usePanelServicio()
   const {
-    estado: { registros_servicio: todosLosRegistros, tareas: todasLasTareas, personal, cobros: todosLosCobros },
+    estado: {
+      registros_servicio: todosLosRegistros,
+      tareas: todasLasTareas,
+      personal,
+      asignaciones: todasLasAsignaciones,
+      cobros: todosLosCobros,
+      lineas_base: lineasBase,
+      lecturas_avance: lecturasAvance,
+    },
   } = useData()
 
   // El personal con costo sí suma al gastado, igual que materiales y
@@ -466,6 +477,16 @@ export function ResumenServicio() {
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio))
   const cronograma = metricasCronograma(tareas)
+  // Índices del valor ganado: el mismo SPI/EV/PV que muestra la Curva S, para
+  // que Resumen y Curva S nunca lean distinto el ritmo de la obra.
+  const curva = curvaServicio({
+    servicio,
+    tareas,
+    registros: registrosVigentes,
+    hoy: hoyISO(),
+    lineaBase: lineaBaseVigente(servicio.id, lineasBase),
+    lecturas: lecturasAvance ?? [],
+  })
   const diasEst = tareas
     .filter((t) => t.padre_id == null)
     .reduce((s, t) => s + diasEstimadosTarea(t, tareas), 0)
@@ -473,13 +494,13 @@ export function ResumenServicio() {
     .filter((t) => t.padre_id == null)
     .reduce((s, t) => s + diasRealesTarea(t, tareas, registrosVigentes, servicio.id), 0)
   const desvDias = desviacionDias(diasEst, diasReales)
-  const ritmoAvance = indiceAvance(servicio, cronograma.avanceGlobal)
+  const ritmoAvance = curva.spi
   const proyeccion = proyeccionFinanciera({
     presupuesto: estado.presupuesto,
     gastado,
     cobrado,
     avance: cronograma.avanceGlobal,
-    spi: ritmoAvance?.spi ?? null,
+    spi: ritmoAvance,
   })
   const semaforo = {
     verde: {
@@ -501,14 +522,21 @@ export function ResumenServicio() {
   const lecturaSpi =
     ritmoAvance == null
       ? null
-      : ritmoAvance.spi >= 1
+      : ritmoAvance >= 1
         ? { texto: 'A tiempo o adelantado', tono: 'text-emerald-700' }
-        : ritmoAvance.spi >= 0.85
+        : ritmoAvance >= 0.9
           ? { texto: 'Leve retraso en tiempo', tono: 'text-amber-700' }
           : { texto: 'Atrasado en tiempo', tono: 'text-red-600' }
   const horasEquipos = registros
     .filter((r) => r.tipo_registro === 'equipo')
     .reduce((s, r) => s + (Number(r.cantidad_o_horas) || 0), 0)
+  const hh = resumenHorasServicio({
+    tareas: todasLasTareas,
+    asignaciones: todasLasAsignaciones ?? [],
+    registros: todosLosRegistros,
+    servicio,
+  })
+  const costoHH = hh.real > 0 ? desglose.personal / hh.real : null
   const alertas = alertasServicio({ estado, dias })
 
   return (
@@ -851,6 +879,75 @@ export function ResumenServicio() {
       </Card>
 
       <Card
+        titulo="Horas-hombre"
+        descripcion="Lo que comprometen las asignaciones de personal contra las horas realmente trabajadas."
+      >
+        <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-slate-300 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              HH planificadas
+            </p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {formatearCantidad(hh.plan)} h
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Días de asignación × horas por día.
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-300 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              HH reales
+            </p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {formatearCantidad(hh.real)} h
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Suma de los registros de personal.
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-300 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Desviación
+            </p>
+            <p
+              className={`mt-1 text-xl font-bold tabular-nums ${
+                hh.desviacion.diferencia > 0 ? 'text-red-600' : 'text-emerald-700'
+              }`}
+            >
+              {hh.desviacion.diferencia > 0 ? '+' : ''}
+              {formatearCantidad(hh.desviacion.diferencia)} h
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
+              {hh.desviacion.porcentaje == null
+                ? 'Sin horas planificadas'
+                : `${hh.desviacion.porcentaje}% de lo planificado`}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-300 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              Costo por HH
+            </p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {costoHH == null ? '—' : formatearMoneda(costoHH)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Gasto de personal ÷ horas reales.
+            </p>
+          </div>
+        </div>
+        <details className="mt-4 text-xs text-slate-500">
+          <summary className="cursor-pointer font-medium hover:text-slate-700">
+            ¿Cómo se calcula?
+          </summary>
+          <p className="mt-1">
+            HH planificadas = horas comprometidas por las asignaciones dentro de la ventana de
+            cada partida. HH reales = lo registrado como personal (los domingos no cuentan salvo
+            régimen mensual). Desviación = reales − planificadas.
+          </p>
+        </details>
+      </Card>
+
+      <Card
         titulo="Proyección financiera"
         descripcion="Estimado a futuro con el ritmo actual. No es dinero ejecutado."
         acciones={<Badge variante="warning">Estimado</Badge>}
@@ -871,10 +968,7 @@ export function ResumenServicio() {
                       : 'bg-red-50'
                 }`}
               >
-                <Badge variante={semaforo.variante}>
-                  {proyeccion.semaforo === 'verde' ? '🟢' : proyeccion.semaforo === 'amarillo' ? '🟡' : '🔴'}{' '}
-                  {semaforo.titulo}
-                </Badge>
+                <Badge variante={semaforo.variante}>{semaforo.titulo}</Badge>
                 <p
                   className={`text-sm font-medium ${
                     proyeccion.semaforo === 'verde'
@@ -987,31 +1081,62 @@ export function ResumenServicio() {
       </Card>
 
       <Card
-        titulo="Ritmo de avance"
-        descripcion="Avance del cronograma contra el tiempo transcurrido del plazo."
+        titulo="Control de avance (valor ganado)"
+        descripcion="Índices estándar de valor ganado: PV planificado, EV ganado y SPI = EV ÷ PV. Coinciden con la Curva S."
       >
         <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-slate-300 p-4">
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Ritmo de avance
+              SPI (desempeño de plazo)
             </p>
             {ritmoAvance == null ? (
               <>
                 <p className="mt-1 text-xl font-bold text-slate-400">—</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Requiere plazo y avance.
-                </p>
+                <p className="mt-0.5 text-xs text-slate-500">Requiere plan y avance.</p>
               </>
             ) : (
               <>
                 <p className={`mt-1 text-xl font-bold tabular-nums ${lecturaSpi.tono}`}>
-                  {ritmoAvance.spi.toFixed(2)}
+                  {ritmoAvance.toFixed(2)}
                 </p>
                 <p className={`mt-0.5 text-xs font-medium ${lecturaSpi.tono}`}>
-                  {lecturaSpi.texto} · esperado {ritmoAvance.esperado.toFixed(0)}%
+                  {lecturaSpi.texto}
                 </p>
               </>
             )}
+          </div>
+          <div className="rounded-xl border border-slate-300 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              PV planificado a hoy
+            </p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {curva.pv == null ? '—' : formatearMoneda(curva.pv)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">Costo que debería llevar el plan.</p>
+          </div>
+          <div className="rounded-xl border border-slate-300 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              EV valor ganado
+            </p>
+            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+              {formatearMoneda(curva.ev)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Avance {cronograma.avanceGlobal}% del presupuesto.
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-300 p-4">
+            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              SV desviación de cronograma
+            </p>
+            <p
+              className={`mt-1 text-xl font-bold tabular-nums ${
+                curva.sv == null ? 'text-slate-400' : curva.sv < 0 ? 'text-red-600' : 'text-emerald-700'
+              }`}
+            >
+              {curva.sv == null ? '—' : formatearMoneda(curva.sv)}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">EV − PV. Negativo = atrasado.</p>
           </div>
         </div>
       </Card>

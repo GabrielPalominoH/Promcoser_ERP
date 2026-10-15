@@ -2,6 +2,11 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { COLECCIONES, ESTADO_INICIAL, TIPOS_SERVICIO, migrarPresupuestoATareas, tipoServicio } from '../src/data/mockData'
+import { UNIDADES } from '../src/data/unidades'
+import { CATALOGO_CARGOS, CATALOGO_PERSONAL } from '../src/config/catalogos'
+import { FormularioCatalogo } from '../src/components/crud/CatalogoCRUD'
+import { mismoCargo, opcionesCargo, personasConCargo, puedeEliminarCargo } from '../src/utils/cargos'
+import { esPersonalActivo, personalAsignable, puedeEliminarPersonal } from '../src/utils/personal'
 import {
   cargarEstado,
   guardarEstado,
@@ -26,7 +31,7 @@ import {
   saldoPorPagar,
   soloVigentes,
 } from '../src/utils/finanzas'
-import { alertasServicio, asentamientoDe, avanceEfectivo, cobradoServicio, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, desviacionDias, diasCalendarioRango, diasEstimadosTarea, diasRealesTarea, diferenciaPersonalAuto, esDomingo, estadoPresupuesto, horasPorMes, sumarMontos, mediaMovil, proyeccionFinanciera, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, proyeccionAsignaciones, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
+import { alertasServicio, asentamientoDe, avanceEfectivo, avanceGlobalTareas, cobradoServicio, costoMensualAsignacion, costoPorTarea, costoSinTarea, costoSubarbol, cuentaComoManoDeObra, desglosePorTipo, desviacionDias, diasCalendarioRango, diasEstimadosTarea, diasRealesTarea, diferenciaPersonalAuto, esDomingo, estadoPresupuesto, horasPorMes, sumarMontos, mediaMovil, proyeccionFinanciera, registrosDeServicio, metricasCronograma, montoTarea, presupuestoTareas, proyeccionAsignaciones, gastoPorMes, indiceAvance, utilidadReal, valorizadoTarea } from '../src/utils/calculadora'
 import {
   analizarServicios,
   avanceMetaIngreso,
@@ -39,6 +44,36 @@ import {
   variacionMensual,
 } from '../src/utils/gerencial'
 import { redondearMonto, formatearMoneda, normalizarEntradaMonto, formatearEntradaMonto, parsearEntradaMonto } from '../src/utils/formatters'
+import { curvaServicio } from '../src/utils/curvaS'
+import {
+  armarLectura,
+  armarLineaBase,
+  compararConLineaBase,
+  instantaneaTareas,
+  lineaBaseVigente,
+  presupuestoLineaBase,
+  siguienteVersionLineaBase,
+} from '../src/utils/lineaBase'
+import {
+  basePrecio,
+  calcularValorizacion,
+  configValorizacion,
+  partidasValorizables,
+  resumenValorizaciones,
+  saldoAdelantos,
+  siguienteNumero,
+} from '../src/utils/valorizaciones'
+import {
+  desviacionHoras,
+  horasPlanTarea,
+  horasRealesMensual,
+  horasRealesTarea,
+  productividadHH,
+  resumenHorasServicio,
+  serieHorasHombre,
+} from '../src/utils/horasHombre'
+import { programar } from '../src/utils/cpm'
+import { controlCPMCartera, evmCartera } from '../src/utils/cartera'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
 import App from '../src/App'
@@ -182,7 +217,11 @@ const tareas6 = tareas.filter((t) => t.servicio_id === 6)
 const met6 = metricasCronograma(tareas6)
 comprobar('cronograma serv. 6 = 9 tareas', met6.total === 9, String(met6.total))
 comprobar('cronograma serv. 6 = 4 completadas', met6.completadas === 4, String(met6.completadas))
-comprobar('avance global serv. 6 = 66', met6.avanceGlobal === 66, String(met6.avanceGlobal))
+comprobar(
+  'avance global serv. 6 = 47 (valorizado, solo hojas)',
+  met6.avanceGlobal === 47,
+  String(met6.avanceGlobal),
+)
 const metVacio = metricasCronograma([])
 comprobar('cronograma vacío en ceros', metVacio.total === 0 && metVacio.avanceGlobal === 0)
 
@@ -285,7 +324,17 @@ const porConcepto = cobros
   .filter((c) => c.servicio_id === 6)
   .reduce((a, c) => ({ ...a, [c.concepto]: (a[c.concepto] || 0) + c.monto }), {})
 comprobar('adelanto 50250 y valorizaciones 60000/45000', porConcepto.adelanto === 50250 && porConcepto['valorización N°1'] === 60000 && porConcepto['valorización N°2'] === 45000)
-comprobar('COLECCIONES trae asignaciones y cobros, sin partidas ni presupuestos', COLECCIONES.includes('asignaciones') && COLECCIONES.includes('cobros') && !COLECCIONES.includes('partidas') && !COLECCIONES.includes('valorizaciones') && !COLECCIONES.includes('presupuestos'))
+comprobar(
+  'COLECCIONES trae asignaciones, cobros y control de obra, sin partidas ni presupuestos',
+  COLECCIONES.includes('asignaciones') &&
+    COLECCIONES.includes('cobros') &&
+    COLECCIONES.includes('lineas_base') &&
+    COLECCIONES.includes('lecturas_avance') &&
+    COLECCIONES.includes('valorizaciones') &&
+    COLECCIONES.includes('adelantos') &&
+    !COLECCIONES.includes('partidas') &&
+    !COLECCIONES.includes('presupuestos'),
+)
 const spi6 = indiceAvance(servicio6, 66, '2026-10-14')
 comprobar('SPI serv. 6 ≈ 0.99', spi6 && Math.abs(spi6.spi - 0.99) < 0.01, String(spi6?.spi))
 comprobar('sin plazo no hay SPI', indiceAvance({ fecha_inicio: '', fecha_fin_estimada: '' }, 50, '2026-10-06') === null)
@@ -605,6 +654,35 @@ comprobar('K respaldo válido pasa', valido.ok, JSON.stringify(valido.errores))
 const normalizado = normalizarRespaldo(JSON.parse(serial))
 comprobar('K normalizado conserva todo', normalizado && COLECCIONES.every((c) => normalizado[c].length === ESTADO_INICIAL[c].length))
 comprobar('K inválido se rechaza sin tocar nada', validarRespaldo({ foo: 1 }).ok === false && validarRespaldo(null).ok === false && normalizarRespaldo({ foo: 1 }) === null)
+// Respaldo de un esquema anterior (v8, sin `cargos`): se acepta y el catálogo
+// semilla rellena la colección nueva.
+const respaldoV8 = { ...JSON.parse(serial), _v: 8 }
+delete respaldoV8.cargos
+const validadoV8 = validarRespaldo(respaldoV8)
+comprobar('K respaldo v8 sin cargos se acepta', validadoV8.ok, JSON.stringify(validadoV8.errores))
+comprobar(
+  'K respaldo v8 rellena los cargos semilla',
+  normalizarRespaldo(respaldoV8)?.cargos.length === ESTADO_INICIAL.cargos.length,
+)
+// Un respaldo de un esquema anterior (v9, sin las colecciones de control de
+// obra) se acepta y el semilla rellena línea base, lecturas y valorizaciones.
+const respaldoV9 = { ...JSON.parse(serial), _v: 9 }
+delete respaldoV9.cargos
+delete respaldoV9.lineas_base
+delete respaldoV9.lecturas_avance
+delete respaldoV9.valorizaciones
+delete respaldoV9.adelantos
+comprobar('K respaldo v9 sin control de obra se acepta', validarRespaldo(respaldoV9).ok)
+const normV9 = normalizarRespaldo(respaldoV9)
+comprobar(
+  'K respaldo v9 rellena línea base y valorizaciones',
+  normV9?.lineas_base.length === ESTADO_INICIAL.lineas_base.length &&
+    Array.isArray(normV9?.valorizaciones),
+)
+// Un respaldo del esquema actual (v10) incompleto sí se rechaza.
+const respaldoV10 = { ...JSON.parse(serial), _v: 10 }
+delete respaldoV10.cargos
+comprobar('K respaldo v10 incompleto se rechaza', validarRespaldo(respaldoV10).ok === false)
 
 // ============================================================
 //  6. Personal automático y facturas (sin pagos ni cierre mensual)
@@ -658,7 +736,915 @@ comprobar(
 )
 
 // ============================================================
-//  8. Render de rutas
+//  7.1 Catálogo de cargos (vínculo por nombre con personal)
+// ============================================================
+
+console.log('\n[ cargos ]')
+
+const cargosSeed = ESTADO_INICIAL.cargos
+comprobar('cargos semilla = 48 (uno por cargo en uso)', cargosSeed.length === 48, String(cargosSeed.length))
+comprobar(
+  'cargos semilla activos, con unidad HH y categoría',
+  cargosSeed.every((c) => c.activo === true && c.unidad === 'HH' && c.nombre && c.categoria),
+)
+comprobar(
+  'todo cargo del personal existe en el catálogo',
+  ESTADO_INICIAL.personal.every((p) => cargosSeed.some((c) => mismoCargo(c.nombre, p.cargo))),
+)
+// Vínculo por nombre: sin tildes, sin mayúsculas y sin espacios sobrantes.
+comprobar('vínculo tolera tildes y mayúsculas', mismoCargo('OFICIAL ', 'oficial') && !mismoCargo('', ''))
+comprobar(
+  'personas ligadas a Oficial = 10',
+  personasConCargo(ESTADO_INICIAL.personal, 'Oficial').length === 10,
+  String(personasConCargo(ESTADO_INICIAL.personal, 'Oficial').length),
+)
+// Guarda de borrado: con personal ligado no se puede; sin personal sí.
+const bloqueado = puedeEliminarCargo(ESTADO_INICIAL.personal, 'Oficial')
+comprobar(
+  'no se borra un cargo con personal ligado',
+  bloqueado.ok === false && bloqueado.total === 10 && bloqueado.motivo.includes('No se puede eliminar'),
+)
+comprobar('sí se borra un cargo sin personal ligado', puedeEliminarCargo(ESTADO_INICIAL.personal, 'Cargo inexistente').ok === true)
+comprobar(
+  'CATALOGO_CARGOS bloquea el borrado del cargo en uso',
+  CATALOGO_CARGOS.bloquearEliminar({ id: 26, nombre: 'Oficial' }, ESTADO_INICIAL) !== null &&
+    CATALOGO_CARGOS.bloquearEliminar({ id: 999, nombre: 'Cargo nuevo' }, ESTADO_INICIAL) === null,
+)
+// Renombrar un cargo arrastra el nombre a las fichas de personal vinculadas.
+const cambiosPersonal = []
+CATALOGO_CARGOS.alActualizar(
+  { id: 26, nombre: 'Oficial' },
+  { id: 26, nombre: 'Oficial de obra' },
+  { estado: ESTADO_INICIAL, actualizarItem: (coleccion, item) => cambiosPersonal.push({ coleccion, ...item }) },
+)
+comprobar(
+  'renombrar el cargo arrastra al personal ligado',
+  cambiosPersonal.length === 10 &&
+    cambiosPersonal.every((c) => c.coleccion === 'personal' && c.cargo === 'Oficial de obra'),
+)
+const sinRenombre = []
+CATALOGO_CARGOS.alActualizar(
+  { id: 26, nombre: 'Oficial' },
+  { id: 26, nombre: 'OFICIAL' },
+  { estado: ESTADO_INICIAL, actualizarItem: (coleccion, item) => sinRenombre.push(item) },
+)
+comprobar('un cambio que no renombra no arrastra nada', sinRenombre.length === 0)
+
+// ============================================================
+//  7.2 Personal: cargo elegido del catálogo + estado Activo/Inactivo
+// ============================================================
+
+console.log('\n[ personal: cargo y estado ]')
+
+// El cargo de cada ficha coincide EXACTAMENTE con un nombre del catálogo (el
+// catálogo se construyó a partir de los cargos en uso), por eso el selector
+// del formulario puede ofrecer esos nombres sin ambigüedad.
+comprobar(
+  'cada cargo del personal coincide exactamente con el catálogo',
+  ESTADO_INICIAL.personal.every((p) => cargosSeed.some((c) => c.nombre === p.cargo)),
+)
+
+// El campo `cargo` del formulario de Personal es un selector alimentado por
+// el módulo Cargos: 48 opciones activas para una ficha nueva.
+const campoCargo = CATALOGO_PERSONAL.campos.find((campo) => campo.name === 'cargo')
+const opcionesNueva = campoCargo.opciones(ESTADO_INICIAL, null)
+comprobar(
+  'el cargo del personal se elige del catálogo (48 opciones)',
+  campoCargo.tipo === 'combo' && opcionesNueva.length === 48,
+  `${campoCargo.tipo} · ${opcionesNueva.length}`,
+)
+
+// Un cargo desactivado sale del selector…
+const cargosConInactivo = cargosSeed.map((c) =>
+  c.nombre === 'Oficial' ? { ...c, activo: false } : c,
+)
+const opcionesSinOficial = opcionesCargo(cargosConInactivo, null)
+comprobar(
+  'un cargo desactivado sale del selector de cargos',
+  opcionesSinOficial.length === 47 && !opcionesSinOficial.some((o) => o.valor === 'Oficial'),
+  String(opcionesSinOficial.length),
+)
+// …pero el cargo guardado en la ficha se conserva al editarla (no se pierde).
+const opcionesConservando = opcionesCargo(cargosConInactivo, 'Oficial')
+comprobar(
+  'el cargo de una ficha se conserva aunque el cargo esté inactivo',
+  opcionesConservando.length === 48 &&
+    opcionesConservando[0].valor === 'Oficial' &&
+    opcionesConservando[0].etiqueta.includes('no activo'),
+)
+
+// Estado: la semilla trae 104 fichas activas y el catálogo lleva íconos.
+comprobar(
+  'personal semilla = 104 fichas activas',
+  ESTADO_INICIAL.personal.length === 104 &&
+    ESTADO_INICIAL.personal.every((p) => p.activo === true),
+  String(ESTADO_INICIAL.personal.length),
+)
+comprobar(
+  'el catálogo Personal trae estado con íconos',
+  CATALOGO_PERSONAL.tieneActivo === true &&
+    CATALOGO_PERSONAL.editarIcono === true &&
+    CATALOGO_PERSONAL.activoIcono === true,
+)
+
+// --- Regla de borrado: solo fichas sin ligas -----------------------------
+// El botón Eliminar vive dentro del modal de edición y la guarda sale de
+// `bloquearEliminar` (que llama a `puedeEliminarPersonal`).
+comprobar(
+  'el catálogo Personal elimina dentro del modal de edición',
+  CATALOGO_PERSONAL.eliminarEnEdicion === true &&
+    typeof CATALOGO_PERSONAL.bloquearEliminar === 'function',
+)
+
+const fichaDe = (id) => ESTADO_INICIAL.personal.find((p) => p.id === id)
+const puedePersonal = (id) => puedeEliminarPersonal(ESTADO_INICIAL, fichaDe(id))
+
+// Ligas reales de la semilla: asignaciones (26, 3, 17), registros de costo
+// (25, 14, 9, 12) y costos de oficina (54, 15, 33, 62).
+const casoAsignacion = puedePersonal(26)
+const casoRegistro = puedePersonal(9)
+const casoOficina = puedePersonal(54)
+comprobar(
+  'no se elimina personal con asignación en obra',
+  casoAsignacion.ok === false &&
+    casoAsignacion.total === 1 &&
+    casoAsignacion.motivo.includes('1 asignación en obra'),
+  casoAsignacion.motivo,
+)
+comprobar(
+  'no se elimina personal con registro de costo en un servicio',
+  casoRegistro.ok === false &&
+    casoRegistro.total === 2 &&
+    casoRegistro.motivo.includes('2 registros de costo'),
+  casoRegistro.motivo,
+)
+comprobar(
+  'no se elimina personal con costo de oficina',
+  casoOficina.ok === false &&
+    casoOficina.total === 2 &&
+    casoOficina.motivo.includes('2 costos de oficina'),
+  casoOficina.motivo,
+)
+// Ficha sin ninguna liga (el id 1 no aparece en ninguna colección) → sí.
+comprobar('sí se elimina personal sin ninguna liga', puedePersonal(1).ok === true)
+// El motivo nombra a la persona y ofrece la alternativa (desactivar).
+comprobar(
+  'el motivo del bloqueo nombra a la persona y sugiere desactivar',
+  casoAsignacion.motivo.includes(fichaDe(26).nombre) &&
+    casoAsignacion.motivo.includes('desactívala') &&
+    casoAsignacion.total > 0,
+)
+// La guarda se aplica desde la configuración del catálogo.
+comprobar(
+  'CATALOGO_PERSONAL bloquea el borrado solo si hay ligas',
+  CATALOGO_PERSONAL.bloquearEliminar(fichaDe(26), ESTADO_INICIAL) !== null &&
+    CATALOGO_PERSONAL.bloquearEliminar({ id: 999, nombre: 'Ficha', apellido: 'Nueva' }, ESTADO_INICIAL) === null,
+)
+
+// `activo` ausente cuenta como activo (datos antiguos sin migración).
+comprobar(
+  'personal sin campo activo cuenta como activo',
+  esPersonalActivo({ id: 1 }) === true && esPersonalActivo({ id: 2, activo: false }) === false,
+)
+
+// `personalAsignable` excluye desactivados y filtra por ámbito.
+comprobar(
+  'personal asignable excluye desactivados y respeta el ámbito',
+  personalAsignable(
+    [
+      { id: 1, activo: true, ambito: 'Obra' },
+      { id: 2, activo: false, ambito: 'Obra' },
+      { id: 3, ambito: 'Obra' },
+      { id: 4, activo: true, ambito: 'Oficina' },
+    ],
+    'Obra',
+  )
+    .map((p) => p.id)
+    .join(',') === '1,3',
+)
+comprobar(
+  'personal asignable de Oficina = 15',
+  personalAsignable(ESTADO_INICIAL.personal, 'Oficina').length === 15,
+  String(personalAsignable(ESTADO_INICIAL.personal, 'Oficina').length),
+)
+
+// El reducer alterna estado: activo -> inactivo, activo -> inactivo,
+// inactivo -> activo, y una ficha SIN el campo se desactiva al primer clic.
+const trasDesactivar = dataReducer(ESTADO_INICIAL, {
+  type: 'ALTERNAR_ACTIVO',
+  payload: { coleccion: 'personal', id: 1 },
+})
+comprobar(
+  'alternar activo desactiva una ficha activa',
+  trasDesactivar.personal.find((p) => p.id === 1).activo === false,
+)
+const sinCampoActivo = { ...ESTADO_INICIAL, personal: [{ id: 1, nombre: 'Prueba' }] }
+comprobar(
+  'alternar activo sobre una ficha sin el campo la desactiva',
+  dataReducer(sinCampoActivo, {
+    type: 'ALTERNAR_ACTIVO',
+    payload: { coleccion: 'personal', id: 1 },
+  }).personal[0].activo === false,
+)
+comprobar(
+  'alternar activo reactiva una ficha inactiva',
+  dataReducer(trasDesactivar, {
+    type: 'ALTERNAR_ACTIVO',
+    payload: { coleccion: 'personal', id: 1 },
+  }).personal.find((p) => p.id === 1).activo === true,
+)
+
+// El formulario de alta de Personal usa el selector de cargo (combo) del
+// módulo Cargos y no un campo de texto libre.
+const htmlFormPersonal = renderToString(
+  <FormularioCatalogo
+    config={CATALOGO_PERSONAL}
+    item={null}
+    estado={ESTADO_INICIAL}
+    onCancelar={() => {}}
+    onGuardar={() => {}}
+  />,
+)
+comprobar(
+  'personal: el formulario elige el cargo con un selector con búsqueda',
+  htmlFormPersonal.includes('role="combobox"') &&
+    htmlFormPersonal.includes('Escribe para buscar en Cargos…') &&
+    htmlFormPersonal.includes('Registrar personal'),
+)
+comprobar(
+  'personal: el formulario no muestra valores rotos',
+  !htmlFormPersonal.includes('undefined') && !htmlFormPersonal.includes('NaN'),
+)
+// Al editar una ficha con cargo inactivo, el formulario conserva el valor.
+const htmlFormPersonalInactivo = renderToString(
+  <FormularioCatalogo
+    config={CATALOGO_PERSONAL}
+    item={{ id: 1, nombre: 'Andrea', apellido: 'Cueto', cargo: 'Cargo retirado', dni: '12345678', tarifa_por_hora: 30, ambito: 'Oficina' }}
+    estado={ESTADO_INICIAL}
+    onCancelar={() => {}}
+    onGuardar={() => {}}
+  />,
+)
+// Al editar una ficha con cargo fuera del catálogo, el formulario debe
+// renderizar sin romperse (el valor se conserva en la primera opción; ver la
+// prueba pura de `opcionesCargo`).
+comprobar(
+  'personal: editar con un cargo fuera del catálogo no rompe el formulario',
+  !htmlFormPersonalInactivo.includes('undefined') && !htmlFormPersonalInactivo.includes('NaN'),
+)
+
+// ============================================================
+//  7.9 Curva S / Valor ganado (EVM): PV, AC y EV
+// ============================================================
+
+console.log('\n[ curva S ]')
+
+// Corte de control: la obra del servicio 6 va de jun a dic 2026.
+const CURVA_HOY = '2026-10-15'
+const curva6 = curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY })
+comprobar('curva S: presupuesto (BAC) = 335000', curva6.presupuesto === 335000, String(curva6.presupuesto))
+comprobar('curva S: avance actual = 47', curva6.avance === 47, String(curva6.avance))
+comprobar('curva S: PV a hoy = 170741.94', curva6.pv === 170741.94, String(curva6.pv))
+comprobar('curva S: AC a hoy = 97345', curva6.ac === 97345, String(curva6.ac))
+comprobar('curva S: EV a hoy = 157450', curva6.ev === 157450, String(curva6.ev))
+comprobar('curva S: SV = EV − PV = -13291.94', curva6.sv === -13291.94, String(curva6.sv))
+comprobar('curva S: CV = EV − AC = 60105', curva6.cv === 60105, String(curva6.cv))
+comprobar('curva S: SPI = 0.92 (en plazo)', curva6.spi === 0.92, String(curva6.spi))
+comprobar('curva S: CPI = 1.62 (eficiente)', curva6.cpi === 1.62, String(curva6.cpi))
+comprobar('curva S: EAC = 207117.02', curva6.eac === 207117.02, String(curva6.eac))
+comprobar('curva S: ETC = 109772.02', curva6.etc === 109772.02, String(curva6.etc))
+comprobar('curva S: VAC = 127882.98', curva6.vac === 127882.98, String(curva6.vac))
+comprobar('curva S: semáforo verde (obra bajo control)', curva6.semaforo === 'verde', String(curva6.semaforo))
+comprobar(
+  'curva S: la serie mensual cubre jun→dic 2026',
+  curva6.periodos.length === 7 &&
+    curva6.periodos[0].clave === '2026-06' &&
+    curva6.periodos[6].clave === '2026-12',
+  JSON.stringify(curva6.periodos.map((m) => m.clave)),
+)
+comprobar(
+  'curva S: granularidad por defecto = mensual e índice de hoy en oct',
+  curva6.granularidad === 'mensual' && curva6.periodos[curva6.indiceHoy].clave === '2026-10',
+  String(curva6.granularidad),
+)
+// El plan acumulado crece mes a mes y cierra exactamente en el presupuesto.
+comprobar('curva S: PV jun = 36000', curva6.periodos[0].pv === 36000, String(curva6.periodos[0].pv))
+comprobar('curva S: PV jul = 74032.26', curva6.periodos[1].pv === 74032.26, String(curva6.periodos[1].pv))
+comprobar('curva S: PV ago = 110173.91', curva6.periodos[2].pv === 110173.91, String(curva6.periodos[2].pv))
+comprobar('curva S: PV sep = 148000', curva6.periodos[3].pv === 148000, String(curva6.periodos[3].pv))
+comprobar('curva S: PV del mes actual = el mismo de "PV a hoy"', curva6.periodos[4].pv === 170741.94, String(curva6.periodos[4].pv))
+comprobar('curva S: PV cierra en el presupuesto al fin del plazo', curva6.periodos[6].pv === 335000, String(curva6.periodos[6].pv))
+comprobar('curva S: el mes actual trae EV de hoy', curva6.periodos[4].ev === 157450 && curva6.periodos[4].ac === 97345)
+comprobar(
+  'curva S: los meses futuros no tienen costo real ni ganado medido',
+  curva6.periodos[5].ac === null && curva6.periodos[5].ev === null && curva6.periodos[6].ac === null,
+)
+comprobar(
+  'curva S: la proyección cierra en el presupuesto (EV) y en el EAC (AC)',
+  curva6.periodos[6].evProy === 335000 && curva6.periodos[6].acProy === 207117.02,
+  JSON.stringify([curva6.periodos[6].evProy, curva6.periodos[6].acProy]),
+)
+comprobar(
+  'curva S: sin servicio no hay datos (todo vacío, nunca NaN)',
+  curvaServicio({ servicio: null }).hayDatos === false && curvaServicio({ servicio: null }).periodos.length === 0,
+)
+
+// --- Granularidad de la serie: semanal (7 d), 4 días, 2 días y diario. ---
+// El rango del servicio 6 va del 01-jun al 20-dic 2026 (203 días calendario),
+// por lo que el número de puntos depende de cada paso.
+const curvaSemanal = curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY, granularidad: 'semanal' })
+const curva4d = curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY, granularidad: '4d' })
+const curva2d = curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY, granularidad: '2d' })
+const curvaDiaria = curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY, granularidad: 'diario' })
+comprobar(
+  'curva S: el rango jun→dic 2026 tiene 203 días (fechaMin/fechaMax)',
+  curvaDiaria.periodos.length === 203,
+  String(curvaDiaria.periodos.length),
+)
+comprobar('curva S: granularidad semanal = 29 tramos de 7 días', curvaSemanal.periodos.length === 29, String(curvaSemanal.periodos.length))
+comprobar('curva S: granularidad 4 días = 51 tramos', curva4d.periodos.length === 51, String(curva4d.periodos.length))
+comprobar('curva S: granularidad 2 días = 102 tramos', curva2d.periodos.length === 102, String(curva2d.periodos.length))
+comprobar(
+  'curva S: los valores a hoy no cambian con la granularidad',
+  curvaSemanal.pv === 170741.94 &&
+    curva4d.pv === 170741.94 &&
+    curva2d.pv === 170741.94 &&
+    curvaDiaria.pv === 170741.94 &&
+    curvaDiaria.ev === 157450 &&
+    curvaDiaria.ac === 97345,
+)
+comprobar(
+  'curva S: en diario el punto de hoy cae exactamente en 2026-10-15',
+  curvaDiaria.periodos[curvaDiaria.indiceHoy].clave === '2026-10-15',
+  curvaDiaria.periodos[curvaDiaria.indiceHoy].clave,
+)
+comprobar(
+  'curva S: la serie diaria arranca el 01-jun y cierra el 20-dic',
+  curvaDiaria.periodos[0].clave === '2026-06-01' &&
+    curvaDiaria.periodos[202].clave === '2026-12-20' &&
+    curvaDiaria.periodos[202].pv === 335000,
+  JSON.stringify([curvaDiaria.periodos[0].clave, curvaDiaria.periodos[202].clave, curvaDiaria.periodos[202].pv]),
+)
+comprobar(
+  'curva S: una granularidad inválida cae a mensual',
+  curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY, granularidad: 'raro' }).granularidad === 'mensual',
+)
+comprobar(
+  'curva S: la serie fina trae etiqueta de rango y del día',
+  curvaSemanal.periodos[0].etiqueta === '01/06/2026 – 07/06/2026' && curvaDiaria.periodos[136].corta === '15/10',
+  JSON.stringify([curvaSemanal.periodos[0].etiqueta, curvaDiaria.periodos[136].corta]),
+)
+
+// Sin cronograma, el plan se reparte lineal sobre el plazo del servicio.
+const servSinTareas = {
+  id: 999,
+  presupuesto_asignado: 100000,
+  fecha_inicio: '2026-01-01',
+  fecha_fin_estimada: '2026-12-31',
+}
+const curvaLineal = curvaServicio({ servicio: servSinTareas, tareas: [], registros: [], hoy: '2026-07-01' })
+comprobar(
+  'curva S: sin tareas el plan cae al trazo lineal del plazo',
+  curvaLineal.pv != null && curvaLineal.pv > 40000 && curvaLineal.pv < 60000,
+  String(curvaLineal.pv),
+)
+
+// ============================================================
+//  7.10 Coherencia del avance (F1): una sola definición de "avance"
+// ============================================================
+
+console.log('\n[ control de avance ]')
+
+// El avance global solo cuenta HOJAS y pondera por monto (valorizado): un
+// padre de resumen no vuelve a sumar su valor.
+const hojaA = {
+  id: 1,
+  servicio_id: 1,
+  padre_id: 10,
+  nombre: 'A',
+  fecha_inicio: '2026-01-01',
+  fecha_fin: '2026-01-31',
+  monto: 30000,
+  avance: 100,
+}
+const hojaB = {
+  id: 2,
+  servicio_id: 1,
+  padre_id: 10,
+  nombre: 'B',
+  fecha_inicio: '2026-01-01',
+  fecha_fin: '2026-01-31',
+  monto: 70000,
+  avance: 50,
+}
+const padreResumen = {
+  id: 10,
+  servicio_id: 1,
+  padre_id: null,
+  nombre: 'P',
+  fecha_inicio: '2026-01-01',
+  fecha_fin: '2026-01-31',
+  monto: 0,
+  avance: 100,
+}
+comprobar(
+  'avance global ponderado por monto = 65 (ignora al padre)',
+  avanceGlobalTareas([hojaA, hojaB, padreResumen]) === 65,
+  String(avanceGlobalTareas([hojaA, hojaB, padreResumen])),
+)
+// Sin montos, el peso cae a la duración (fin − inicio + 1).
+const sinMontoA = { id: 3, servicio_id: 2, nombre: 'A', fecha_inicio: '2026-01-01', fecha_fin: '2026-01-09', avance: 100 }
+const sinMontoB = { id: 4, servicio_id: 2, nombre: 'B', fecha_inicio: '2026-01-01', fecha_fin: '2026-01-19', avance: 0 }
+comprobar(
+  'avance global sin montos usa la duración = 32',
+  avanceGlobalTareas([sinMontoA, sinMontoB]) === 32,
+  String(avanceGlobalTareas([sinMontoA, sinMontoB])),
+)
+comprobar('avance global sin tareas = 0', avanceGlobalTareas([]) === 0 && avanceGlobalTareas(null) === 0)
+
+// ============================================================
+//  7.11 Línea base y lecturas de avance (F2)
+// ============================================================
+
+console.log('\n[ línea base ]')
+
+const tareasPlan9 = [
+  {
+    id: 1,
+    servicio_id: 9,
+    padre_id: null,
+    nombre: 'A',
+    fecha_inicio: '2026-01-01',
+    fecha_fin: '2026-01-31',
+    monto: 50000,
+    avance: 100,
+  },
+  {
+    id: 2,
+    servicio_id: 9,
+    padre_id: null,
+    nombre: 'B',
+    fecha_inicio: '2026-02-01',
+    fecha_fin: '2026-02-28',
+    monto: 50000,
+    avance: 0,
+  },
+]
+const serv9 = {
+  id: 9,
+  presupuesto_asignado: 100000,
+  fecha_inicio: '2026-01-01',
+  fecha_fin_estimada: '2026-02-28',
+}
+const linea9 = armarLineaBase({
+  servicio: serv9,
+  tareas: tareasPlan9,
+  lineasBase: [],
+  fecha: '2026-01-01',
+  nota: 'Plan original',
+})
+comprobar(
+  'línea base: versión 1 y presupuesto = suma de raíces',
+  linea9.version === 1 && linea9.presupuesto === 100000 && linea9.tareas.length === 2,
+  JSON.stringify([linea9.version, linea9.presupuesto, linea9.tareas.length]),
+)
+comprobar('línea base: sin base, la siguiente versión es 1', siguienteVersionLineaBase(9, []) === 1)
+const linea9v2 = armarLineaBase({ servicio: serv9, tareas: tareasPlan9, lineasBase: [linea9] })
+comprobar('línea base: la siguiente versión es 2', linea9v2.version === 2, String(linea9v2.version))
+comprobar(
+  'línea base vigente = la de mayor versión',
+  lineaBaseVigente(9, [linea9, linea9v2])?.version === 2,
+)
+comprobar(
+  'instantánea de tareas solo trae campos de plan',
+  instantaneaTareas(tareasPlan9).every((t) => t.servicio_id === 9 && t.monto != null),
+)
+
+// Comparación cronograma vivo vs. línea base.
+const tareasReprog = [
+  { id: 1, servicio_id: 9, nombre: 'A', fecha_inicio: '2026-01-03', fecha_fin: '2026-02-02', monto: 55000, avance: 100 },
+  { id: 2, servicio_id: 9, nombre: 'B', fecha_inicio: '2026-02-01', fecha_fin: '2026-02-28', monto: 45000, avance: 0 },
+  { id: 3, servicio_id: 9, nombre: 'C', fecha_inicio: '2026-03-01', fecha_fin: '2026-03-10', monto: 10000, avance: 0 },
+]
+const comp9 = compararConLineaBase({ tareas: tareasReprog, lineaBase: linea9 })
+comprobar('comparación: desvío de inicio +2 días', comp9.filas[0].desvio_inicio === 2, String(comp9.filas[0].desvio_inicio))
+comprobar('comparación: desvío de fin +2 días', comp9.filas[0].desvio_fin === 2, String(comp9.filas[0].desvio_fin))
+comprobar('comparación: desvío de monto +5000', comp9.filas[0].desvio_monto === 5000, String(comp9.filas[0].desvio_monto))
+comprobar('comparación: desvío de monto −5000', comp9.filas[1].desvio_monto === -5000, String(comp9.filas[1].desvio_monto))
+comprobar('comparación: nueva tarea C fuera del plan', comp9.nuevasTareas === 1 && comp9.nuevas[0].id === 3)
+comprobar('comparación: 2 tareas del plan presentes', comp9.realTareas === 2, String(comp9.realTareas))
+
+const lect9 = armarLectura({ servicio: serv9, tareas: tareasPlan9, fecha: '2026-01-31', avance: 50, nota: 'Corte' })
+comprobar(
+  'lectura: guarda fecha, avance y avance por tarea',
+  lect9.fecha === '2026-01-31' && lect9.avance === 50 && lect9.tareas.length === 2 && lect9.tareas[0].avance === 100,
+  JSON.stringify([lect9.fecha, lect9.avance, lect9.tareas.length]),
+)
+
+// La línea base sembrada del servicio 6 existe y su PV coincide con el vivo.
+const base6 = lineaBaseVigente(6, ESTADO_INICIAL.lineas_base)
+comprobar('línea base: el servicio 6 trae una versión sembrada', base6?.version === 1, String(base6?.version))
+comprobar('línea base: presupuesto de la línea base del servicio 6 = 335000', presupuestoLineaBase(base6) === 335000)
+const curvaBase6 = curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY, lineaBase: base6 })
+comprobar(
+  'línea base: el PV sale de la línea base (v1)',
+  curvaBase6.usaLineaBase === true && curvaBase6.versionLineaBase === 1 && curvaBase6.pv === 170741.94,
+  JSON.stringify([curvaBase6.usaLineaBase, curvaBase6.versionLineaBase, curvaBase6.pv]),
+)
+
+// Con lecturas, el EV histórico sale del corte firmado.
+const lecturas6 = [armarLectura({ servicio: servicio6, tareas: tareas6, fecha: '2026-08-31', avance: 30, nota: 'Corte ago' })]
+const curvaLect6 = curvaServicio({ servicio: servicio6, tareas: tareas6, registros, hoy: CURVA_HOY, lecturas: lecturas6 })
+comprobar('lecturas: la curva reporta 1 lectura', curvaLect6.lecturas === 1, String(curvaLect6.lecturas))
+comprobar(
+  'lecturas: el EV de agosto sale del snapshot (30 % = 100500)',
+  curvaLect6.periodos[2].ev === 100500,
+  String(curvaLect6.periodos[2].ev),
+)
+
+// ============================================================
+//  7.12 Valorizaciones de obra (F3)
+// ============================================================
+
+console.log('\n[ valorizaciones ]')
+
+comprobar(
+  'valorizaciones: IGV por defecto 18 %, detracción y fondo en 0',
+  configValorizacion({}).igv_pct === 18 &&
+    configValorizacion({}).detraccion_pct === 0 &&
+    configValorizacion({}).fondo_garantia_pct === 0,
+)
+
+const servV1 = { id: 100, presupuesto_asignado: 100000, igv_pct: 18, detraccion_pct: 12, fondo_garantia_pct: 0 }
+const tareasV1 = [
+  { id: 101, servicio_id: 100, nombre: 'A', monto: 60000, avance: 100 },
+  { id: 102, servicio_id: 100, nombre: 'B', monto: 40000, avance: 50 },
+]
+comprobar(
+  'valorizaciones: partidas valorizables = hojas del servicio',
+  partidasValorizables(tareasV1, 100).length === 2,
+)
+const val1 = calcularValorizacion({ servicio: servV1, tareas: tareasV1, valorizaciones: [], adelantos: [] })
+comprobar('valorización 1: número correlativo = 1', val1.numero === 1, String(val1.numero))
+comprobar('valorización 1: bruto = 80000', val1.bruta === 80000, String(val1.bruta))
+comprobar('valorización 1: IGV 18 % = 14400', val1.igv === 14400, String(val1.igv))
+comprobar('valorización 1: total = 94400', val1.total === 94400, String(val1.total))
+comprobar('valorización 1: detracción 12 % = 11328', val1.detraccion === 11328, String(val1.detraccion))
+comprobar('valorización 1: neto = 83072', val1.neto === 83072, String(val1.neto))
+
+// Segunda valorización: solo el metrado nuevo del periodo.
+const tareasV2 = [
+  { id: 101, servicio_id: 100, nombre: 'A', monto: 60000, avance: 100 },
+  { id: 102, servicio_id: 100, nombre: 'B', monto: 40000, avance: 100 },
+]
+comprobar(
+  'valorización: siguiente número = 2',
+  siguienteNumero([val1], 100) === 2,
+  String(siguienteNumero([val1], 100)),
+)
+const val2 = calcularValorizacion({ servicio: servV1, tareas: tareasV2, valorizaciones: [val1], adelantos: [] })
+comprobar('valorización 2: bruto del periodo = 20000', val2.bruta === 20000, String(val2.bruta))
+comprobar('valorización 2: neto = 20768', val2.neto === 20768, String(val2.neto))
+
+// Partidas con metrado × precio unitario.
+const servV2 = { id: 200, presupuesto_asignado: 60000, igv_pct: 0, detraccion_pct: 0, fondo_garantia_pct: 0 }
+const tareasMetrado = [{ id: 201, servicio_id: 200, nombre: 'Muro', monto: 60000, metrado: 100, precio_unitario: 600, avance: 50 }]
+const valM = calcularValorizacion({ servicio: servV2, tareas: tareasMetrado, valorizaciones: [], adelantos: [] })
+comprobar('valorización: metrado × PU gobierna el importe = 30000', valM.bruta === 30000, String(valM.bruta))
+comprobar('valorización: ítem mide por metrado', valM.items[0].mide === 'metrado' && valM.items[0].metrado_acumulado === 50)
+
+// Adelanto directo (20 % del contrato) y fondo de garantía 10 %.
+const servV3 = { id: 300, presupuesto_asignado: 100000, igv_pct: 18, detraccion_pct: 0, fondo_garantia_pct: 10 }
+const adelantosV3 = [{ id: 1, servicio_id: 300, tipo: 'directo', monto: 20000, fecha: '2026-01-01' }]
+const tareasV3 = [{ id: 301, servicio_id: 300, nombre: 'A', monto: 100000, avance: 80 }]
+const valA = calcularValorizacion({ servicio: servV3, tareas: tareasV3, valorizaciones: [], adelantos: adelantosV3 })
+comprobar('valorización: amortiza adelanto directo (80 % → 16000)', valA.amort_directo === 16000, String(valA.amort_directo))
+comprobar('valorización: fondo de garantía 10 % = 8000', valA.retencion === 8000, String(valA.retencion))
+comprobar('valorización: subtotal = 56000', valA.subtotal === 56000, String(valA.subtotal))
+comprobar('valorización: total con IGV = 66080', valA.total === 66080, String(valA.total))
+const saldoV3 = saldoAdelantos({ servicio: servV3, valorizaciones: [valA], adelantos: adelantosV3 })
+comprobar(
+  'valorización: saldo del adelanto = 4000',
+  saldoV3.directo.total === 20000 && saldoV3.directo.amortizado === 16000 && saldoV3.directo.saldo === 4000,
+  JSON.stringify(saldoV3.directo),
+)
+const resumenV3 = resumenValorizaciones({ servicio: servV3, valorizaciones: [valA], adelantos: adelantosV3 })
+comprobar(
+  'valorización: resumen acumulado del servicio',
+  resumenV3.cantidad === 1 && resumenV3.bruta === 80000 && resumenV3.neto === 66080,
+  JSON.stringify([resumenV3.cantidad, resumenV3.bruta, resumenV3.neto]),
+)
+
+// ============================================================
+//  7.13 Horas-hombre (HH): planificadas vs reales
+// ============================================================
+
+console.log('\n[ horas-hombre ]')
+
+const servHH6 = ESTADO_INICIAL.servicios.find((s) => s.id === 6)
+const hh6 = resumenHorasServicio({
+  tareas: ESTADO_INICIAL.tareas,
+  asignaciones: ESTADO_INICIAL.asignaciones,
+  registros: ESTADO_INICIAL.registros_servicio,
+  servicio: servHH6,
+})
+comprobar('HH servicio 6: planificadas = 856', hh6.plan === 856, String(hh6.plan))
+comprobar('HH servicio 6: reales = 128', hh6.real === 128, String(hh6.real))
+comprobar(
+  'HH servicio 6: desviación = -728 h',
+  hh6.desviacion.diferencia === -728,
+  String(hh6.desviacion.diferencia),
+)
+comprobar(
+  'HH servicio 6: 14.95% de lo planificado',
+  hh6.desviacion.porcentaje === 14.95,
+  String(hh6.desviacion.porcentaje),
+)
+
+// Horas planificadas = días de solape entre la asignación y la ventana de la
+// tarea × horas por día; reales = registros de personal.
+const tareaHH15 = ESTADO_INICIAL.tareas.find((t) => t.id === 15)
+comprobar(
+  'HH plan de la tarea 15 = 240',
+  horasPlanTarea(tareaHH15, ESTADO_INICIAL.tareas, ESTADO_INICIAL.asignaciones, servHH6) === 240,
+)
+comprobar(
+  'HH reales de la tarea 15 = 40',
+  horasRealesTarea(tareaHH15, ESTADO_INICIAL.tareas, ESTADO_INICIAL.registros_servicio, 6) === 40,
+)
+const padreHH14 = ESTADO_INICIAL.tareas.find((t) => t.id === 14)
+comprobar(
+  'HH del padre 14 = suma de sus hijas (240)',
+  horasPlanTarea(padreHH14, ESTADO_INICIAL.tareas, ESTADO_INICIAL.asignaciones, servHH6) === 240,
+)
+
+comprobar(
+  'desviacionHoras sin plan: porcentaje null',
+  desviacionHoras(0, 10).diferencia === 10 && desviacionHoras(0, 10).porcentaje === null,
+)
+comprobar(
+  'desviacionHoras normal (+20 h, 120%)',
+  desviacionHoras(100, 120).diferencia === 20 && desviacionHoras(100, 120).porcentaje === 120,
+)
+comprobar('productividadHH 50 und / 10 h = 5', productividadHH(50, 10) === 5)
+comprobar('productividadHH sin horas = null', productividadHH(50, 0) === null)
+
+// El domingo no genera mano de obra diaria (2026-10-11 es domingo).
+const regDomingo = {
+  id: 501,
+  servicio_id: 99,
+  tipo_registro: 'personal',
+  fecha: '2026-10-11',
+  cantidad_o_horas: 8,
+  modalidad: 'diaria',
+}
+const regLunes = {
+  id: 502,
+  servicio_id: 99,
+  tipo_registro: 'personal',
+  fecha: '2026-10-12',
+  cantidad_o_horas: 8,
+  modalidad: 'diaria',
+}
+comprobar('HH reales ignoran el domingo', horasRealesMensual([regDomingo, regLunes], 99)[0].horas === 8)
+
+const serieHueco = serieHorasHombre({
+  registros: [regLunes, { ...regLunes, id: 503, fecha: '2026-12-12', cantidad_o_horas: 4 }],
+})
+comprobar(
+  'serie HH rellena los meses intermedios con cero',
+  serieHueco.length === 3 && serieHueco[1].mes === '2026-11' && serieHueco[1].real === 0,
+  JSON.stringify(serieHueco),
+)
+
+const serieHHCartera = serieHorasHombre({
+  asignaciones: ESTADO_INICIAL.asignaciones,
+  servicios: ESTADO_INICIAL.servicios,
+  registros: ESTADO_INICIAL.registros_servicio,
+})
+comprobar('HH cartera: 7 meses', serieHHCartera.length === 7, String(serieHHCartera.length))
+comprobar(
+  'HH cartera: plan total = 2088 h',
+  serieHHCartera.reduce((s, m) => s + m.plan, 0) === 2088,
+  String(serieHHCartera.reduce((s, m) => s + m.plan, 0)),
+)
+comprobar(
+  'HH cartera: real total = 608 h',
+  serieHHCartera.reduce((s, m) => s + m.real, 0) === 608,
+  String(serieHHCartera.reduce((s, m) => s + m.real, 0)),
+)
+
+// ============================================================
+//  7.14 CPM: red de dependencias, holguras y ruta crítica
+// ============================================================
+
+console.log('\n[ cpm ]')
+
+const cpm6 = programar({ tareas: ESTADO_INICIAL.tareas, servicio: servHH6 })
+comprobar('CPM servicio 6: red válida (sin ciclos)', cpm6.valido === true)
+comprobar('CPM servicio 6: inicio = 2026-06-01', cpm6.inicio === '2026-06-01', cpm6.inicio)
+comprobar('CPM servicio 6: fin = 2026-12-11', cpm6.fin === '2026-12-11', cpm6.fin)
+comprobar(
+  'CPM servicio 6: ruta crítica 13→15→16→18→19→21',
+  JSON.stringify(cpm6.rutaCritica) === JSON.stringify([13, 15, 16, 18, 19, 21]),
+  JSON.stringify(cpm6.rutaCritica),
+)
+comprobar(
+  'CPM: duración de la tarea 13 = 13 días laborables',
+  cpm6.porTarea[13].duracion === 13,
+  String(cpm6.porTarea[13].duracion),
+)
+comprobar(
+  'CPM: la tarea 20 tiene 5 días de holgura',
+  cpm6.porTarea[20].holgura === 5,
+  String(cpm6.porTarea[20].holgura),
+)
+comprobar(
+  'CPM: la tarea 19 es crítica y sin holgura',
+  cpm6.porTarea[19].critica === true && cpm6.porTarea[19].holgura === 0,
+)
+comprobar(
+  'CPM: el padre 14 resume el tramo de sus hijas',
+  cpm6.porTarea[14].resumen === true &&
+    cpm6.porTarea[14].inicio === '2026-06-16' &&
+    cpm6.porTarea[14].fin === '2026-08-15',
+  JSON.stringify(cpm6.porTarea[14]),
+)
+
+const servCPM7 = ESTADO_INICIAL.servicios.find((s) => s.id === 7)
+const cpm7 = programar({ tareas: ESTADO_INICIAL.tareas, servicio: servCPM7 })
+comprobar(
+  'CPM servicio 7: cadena crítica 22→23→24→25',
+  JSON.stringify(cpm7.rutaCritica) === JSON.stringify([22, 23, 24, 25]),
+  JSON.stringify(cpm7.rutaCritica),
+)
+comprobar('CPM servicio 7: fin = 2026-10-24', cpm7.fin === '2026-10-24', cpm7.fin)
+
+// FS con holgura (lag) y una tarea sin predecesoras anclada a su fecha manual.
+const cpmP = { id: 1, servicio_id: 5, nombre: 'P', fecha_inicio: '2026-01-05', fecha_fin: '2026-01-09' }
+const cpmS = {
+  id: 2,
+  servicio_id: 5,
+  nombre: 'S',
+  fecha_inicio: '2026-01-20',
+  fecha_fin: '2026-01-23',
+  predecesoras: [{ id: 1, tipo: 'FS', lag: 2 }],
+}
+const cpmHito = {
+  id: 3,
+  servicio_id: 5,
+  nombre: 'H',
+  fecha_inicio: '2026-01-30',
+  fecha_fin: '2026-01-30',
+  hito: true,
+  predecesoras: [{ id: 2, tipo: 'FS', lag: 0 }],
+}
+const cpmFS = programar({ tareas: [cpmP, cpmS, cpmHito], servicio: { id: 5 } })
+comprobar('CPM: sin predecesoras se ancla a su fecha manual', cpmFS.porTarea[1].es === '2026-01-05')
+comprobar(
+  'CPM: FS con holgura arranca el 2026-01-13',
+  cpmFS.porTarea[2].es === '2026-01-13',
+  cpmFS.porTarea[2].es,
+)
+comprobar(
+  'CPM: el hito no tiene duración',
+  cpmFS.porTarea[3].duracion === 0 && cpmFS.porTarea[3].hito === true,
+)
+
+// Detección de ciclos: dos tareas que se preceden mutuamente.
+const cpmA = {
+  id: 1,
+  servicio_id: 1,
+  nombre: 'A',
+  fecha_inicio: '2026-01-01',
+  fecha_fin: '2026-01-05',
+  predecesoras: [{ id: 2, tipo: 'FS', lag: 0 }],
+}
+const cpmB = {
+  id: 2,
+  servicio_id: 1,
+  nombre: 'B',
+  fecha_inicio: '2026-01-06',
+  fecha_fin: '2026-01-10',
+  predecesoras: [{ id: 1, tipo: 'FS', lag: 0 }],
+}
+const cpmCiclo = programar({ tareas: [cpmA, cpmB], servicio: { id: 1 } })
+comprobar(
+  'CPM: detecta ciclos de dependencias',
+  cpmCiclo.valido === false && cpmCiclo.ciclos.length === 2,
+  JSON.stringify(cpmCiclo.ciclos),
+)
+
+// ============================================================
+//  7.15 Cartera: valor ganado y control agregados
+// ============================================================
+
+console.log('\n[ cartera ]')
+
+const evmCart = evmCartera({
+  servicios: ESTADO_INICIAL.servicios,
+  tareas: ESTADO_INICIAL.tareas,
+  registros: ESTADO_INICIAL.registros_servicio.filter(cuentaComoManoDeObra),
+  lineasBase: ESTADO_INICIAL.lineas_base ?? [],
+  lecturas: ESTADO_INICIAL.lecturas_avance ?? [],
+})
+comprobar('cartera EVM: presupuesto = 610000', evmCart.presupuesto === 610000, String(evmCart.presupuesto))
+comprobar('cartera EVM: AC = 304345', evmCart.ac === 304345, String(evmCart.ac))
+comprobar('cartera EVM: EV = 328250', evmCart.ev === 328250, String(evmCart.ev))
+comprobar('cartera EVM: PV = 356179.44', evmCart.pv === 356179.44, String(evmCart.pv))
+comprobar('cartera EVM: SPI = 0.92', evmCart.spi === 0.92, String(evmCart.spi))
+comprobar('cartera EVM: CPI = 1.08', evmCart.cpi === 1.08, String(evmCart.cpi))
+comprobar('cartera EVM: avance valorizado = 53.81%', evmCart.avance === 53.81, String(evmCart.avance))
+comprobar(
+  'cartera EVM: 12 periodos y corte de hoy en el 8.º',
+  evmCart.serie.length === 12 && evmCart.indiceHoy === 7,
+  `${evmCart.serie.length}/${evmCart.indiceHoy}`,
+)
+
+const ctrlCart = controlCPMCartera({
+  servicios: ESTADO_INICIAL.servicios,
+  tareas: ESTADO_INICIAL.tareas,
+  hoy: '2026-10-15',
+})
+comprobar(
+  'control cartera: 13 actividades críticas',
+  ctrlCart.totalCriticas === 13,
+  String(ctrlCart.totalCriticas),
+)
+comprobar(
+  'control cartera: look-ahead de 3 semanas hasta 2026-11-05',
+  ctrlCart.limite === '2026-11-05',
+  ctrlCart.limite,
+)
+comprobar(
+  'control cartera: 2 actividades por iniciar',
+  ctrlCart.totalProximas === 2,
+  String(ctrlCart.totalProximas),
+)
+
+// ============================================================
+//  7.16 Metrado: partidas con unidad de medida
+// ============================================================
+
+console.log('\n[ metrado ]')
+
+// Catálogo fijo (no CRUD): debe incluir las unidades clásicas de metrado.
+const siglasUnidades = UNIDADES.map((u) => u.sigla).join(',')
+comprobar(
+  'unidades: incluye und, pto y Glb',
+  siglasUnidades.includes('und') && siglasUnidades.includes('pto') && siglasUnidades.includes('Glb'),
+  siglasUnidades,
+)
+comprobar('unidades: 23 unidades de medida', UNIDADES.length === 23, String(UNIDADES.length))
+
+// La unidad acompaña al metrado; sin unidad el metrado no dice nada.
+const partidaM3 = {
+  id: 1,
+  servicio_id: 6,
+  nombre: 'Cimentación',
+  monto: 0,
+  unidad: 'm³',
+  metrado: 120,
+  precio_unitario: 180,
+  avance: 100,
+}
+comprobar('metrado: monto = metrado × precio unitario', 120 * 180 === 21600)
+comprobar('basePrecio: con metrado mide por metrado', basePrecio(partidaM3).mide === 'metrado')
+comprobar(
+  'basePrecio: base y precio salen del metrado',
+  basePrecio(partidaM3).base === 120 && basePrecio(partidaM3).precio === 180,
+)
+comprobar(
+  'basePrecio: sin metrado mide por monto',
+  basePrecio({ id: 2, servicio_id: 6, nombre: 'Global', monto: 5000 }).mide === 'monto',
+)
+
+// La valorización trae la unidad de la partida en cada ítem.
+const vz6 = calcularValorizacion({
+  servicio: { id: 6 },
+  tareas: ESTADO_INICIAL.tareas,
+  valorizaciones: [],
+  adelantos: [],
+})
+const item15 = vz6.items.find((i) => i.tarea_id === 15)
+const item13 = vz6.items.find((i) => i.tarea_id === 13)
+comprobar('valorización: ítem 15 con unidad m³', item15?.unidad === 'm³', String(item15?.unidad))
+comprobar(
+  'valorización: ítem 15 mide por metrado (600 m³ × 70)',
+  item15?.mide === 'metrado' && item15?.metrado_base === 600 && item15?.precio_unitario === 70,
+  JSON.stringify(item15),
+)
+comprobar(
+  'valorización: ítem 15 periodo e importe',
+  item15?.metrado_periodo === 600 && item15?.importe === 42000,
+  JSON.stringify({ p: item15?.metrado_periodo, i: item15?.importe }),
+)
+comprobar(
+  'valorización: ítem 13 (Glb) mide por monto',
+  item13?.mide === 'monto' && item13?.metrado_base === 15000,
+  JSON.stringify(item13),
+)
+
 // ============================================================
 
 console.log('\n[ render ]')
@@ -674,12 +1660,17 @@ const rutas = [
   { ruta: '/servicios/6/ingresos', etiqueta: 'Panel ingresos', monto: true },
 
   { ruta: '/servicios/6/cronograma', etiqueta: 'Panel cronograma', monto: false },
+  { ruta: '/servicios/6/curva-s', etiqueta: 'Panel curva S', monto: true },
+  { ruta: '/servicios/6/linea-base', etiqueta: 'Panel línea base', monto: true },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
+  { ruta: '/servicios/6/valorizaciones', etiqueta: 'Panel valorizaciones', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
   { ruta: '/servicios/999', etiqueta: 'Detalle id inexistente', monto: false },
   { ruta: '/personal', etiqueta: 'Personal', monto: true },
+  { ruta: '/cargos', etiqueta: 'Cargos', monto: false },
   { ruta: '/equipos', etiqueta: 'Equipos', monto: false },
   { ruta: '/oficina', etiqueta: 'Oficina', monto: true },
+  { ruta: '/unidades', etiqueta: 'Unidades de medida', monto: false },
   { ruta: '/almacen', etiqueta: 'Almacén redirige', monto: false },
   { ruta: '/materiales', etiqueta: 'Materiales redirige', monto: false },
   { ruta: '/ruta-inexistente', etiqueta: 'Fallback 404', monto: false },
@@ -711,6 +1702,137 @@ for (const { ruta, etiqueta, monto } of rutas) {
   }
 }
 
+// Sin barra superior: el módulo lo indica el sidebar y el control de menú
+// vive dentro del propio sidebar (riel de 64px en móvil, cajón al abrirlo).
+const htmlInicioSeguro = htmlsRuta['/'] ?? ''
+const htmlPersonalSeguro = htmlsRuta['/personal'] ?? ''
+const htmlPanelSeguro = htmlsRuta['/servicios/6'] ?? ''
+const htmlServiciosSeguro = htmlsRuta['/servicios'] ?? ''
+comprobar(
+  'layout: no queda header superior',
+  !htmlInicioSeguro.includes('Control Maestro de Servicios') &&
+    !htmlInicioSeguro.includes('Sistema de control interno') &&
+    !htmlPersonalSeguro.includes('Control Maestro de Servicios') &&
+    !htmlPanelSeguro.includes('PROMCOSER · Panel del servicio'),
+)
+comprobar(
+  'layout: el control de menú está dentro del sidebar',
+  htmlPersonalSeguro.includes('aria-label="Alternar menú lateral"') &&
+    htmlPersonalSeguro.includes('w-16') &&
+    htmlPersonalSeguro.includes('pl-16'),
+)
+comprobar(
+  'layout: el panel del servicio conserva la marca en su sidebar',
+  htmlPanelSeguro.includes('aria-label="Alternar menú lateral"') &&
+    htmlPanelSeguro.includes('Volver'),
+)
+
+// Configuración: botón siempre presente al pie del sidebar (panel general y
+// de servicio); abre un modal para elegir el tema claro u oscuro.
+comprobar(
+  'configuración: botón al pie del sidebar en ambos paneles',
+  htmlInicioSeguro.includes('aria-label="Abrir configuración"') &&
+    htmlPersonalSeguro.includes('Configuración') &&
+    htmlPanelSeguro.includes('aria-label="Abrir configuración"'),
+)
+
+// El listado de Servicios se muestra como cuadrícula de tarjetas (cada una
+// abre el servicio), no como tabla.
+comprobar(
+  'servicios: listado en tarjetas (sin tabla, con consumo y enlace a cada servicio)',
+  htmlServiciosSeguro.includes('Abrir servicio') &&
+    htmlServiciosSeguro.includes('Consumo') &&
+    htmlServiciosSeguro.includes('/servicios/6') &&
+    !htmlServiciosSeguro.includes('<table'),
+)
+
+// Módulo Curva S: en el sidebar del servicio y con las tres variables del
+// valor ganado (PV, AC, EV) más el gráfico acumulado.
+const htmlCurvaS = htmlsRuta['/servicios/6/curva-s'] ?? ''
+comprobar(
+  'curva S: el módulo aparece en el sidebar del servicio',
+  htmlPanelSeguro.includes('href="/servicios/6/curva-s"') && htmlPanelSeguro.includes('Curva S'),
+)
+comprobar(
+  'curva S: muestra PV, AC, EV y el gráfico de la curva',
+  htmlCurvaS.includes('Costo planificado') &&
+    htmlCurvaS.includes('Costo real') &&
+    htmlCurvaS.includes('Valor ganado') &&
+    htmlCurvaS.includes('aria-label="Curva S') &&
+    htmlCurvaS.includes('SPI') &&
+    htmlCurvaS.includes('CPI'),
+)
+comprobar(
+  'curva S: trae el selector de granularidad (mensual, semanal, diario)',
+  htmlCurvaS.includes('aria-label="Granularidad de la curva"') &&
+    htmlCurvaS.includes('Mensual') &&
+    htmlCurvaS.includes('Semanal') &&
+    htmlCurvaS.includes('4 días') &&
+    htmlCurvaS.includes('2 días') &&
+    htmlCurvaS.includes('Diario'),
+)
+
+// Módulo Línea base: línea base vigente del servicio 6 (sembrada), su
+// comparación contra el cronograma vivo y las lecturas de avance.
+const htmlLineaBase = htmlsRuta['/servicios/6/linea-base'] ?? ''
+comprobar(
+  'línea base: aparece en el sidebar del servicio',
+  htmlPanelSeguro.includes('href="/servicios/6/linea-base"') &&
+    htmlPanelSeguro.includes('Línea base'),
+)
+comprobar(
+  'línea base: muestra la versión vigente, la comparación y las lecturas',
+  htmlLineaBase.includes('Línea base') &&
+    htmlLineaBase.includes('Versión vigente') &&
+    htmlLineaBase.includes('v1') &&
+    htmlLineaBase.includes('Comparación cronograma vs. línea base') &&
+    htmlLineaBase.includes('Lecturas de avance'),
+)
+comprobar(
+  'línea base: las listas traen buscador',
+  htmlLineaBase.includes('Buscar versión…') && htmlLineaBase.includes('Buscar partida…'),
+)
+
+// Módulo Valorizaciones: resumen del cobro, amortización de adelantos,
+// condiciones del contrato (IGV, detracción, fondo de garantía).
+const htmlValorizaciones = htmlsRuta['/servicios/6/valorizaciones'] ?? ''
+comprobar(
+  'valorizaciones: aparece en el sidebar del servicio',
+  htmlPanelSeguro.includes('href="/servicios/6/valorizaciones"') &&
+    htmlPanelSeguro.includes('Valorizaciones'),
+)
+comprobar(
+  'valorizaciones: resumen, adelantos y condiciones del contrato',
+  htmlValorizaciones.includes('Valorizaciones') &&
+    htmlValorizaciones.includes('Bruto acumulado') &&
+    htmlValorizaciones.includes('Neto acumulado') &&
+    htmlValorizaciones.includes('Adelantos y amortización') &&
+    htmlValorizaciones.includes('Condiciones del contrato') &&
+    htmlValorizaciones.includes('IGV') &&
+    htmlValorizaciones.includes('Detracción') &&
+    htmlValorizaciones.includes('Fondo de garantía'),
+)
+
+// Módulo Unidades: catálogo estático + mockup ilustrativo de Materiales con UM.
+// Es solo visual (demo): no usa DataContext ni escribe en localStorage.
+const htmlUnidades = htmlsRuta['/unidades'] ?? ''
+comprobar(
+  'unidades: catálogo de unidades de medida (siglas m², m³, ml, gl)',
+  htmlUnidades.includes('Unidades de medida') &&
+    htmlUnidades.includes('Metro cuadrado') &&
+    htmlUnidades.includes('Metro cúbico') &&
+    htmlUnidades.includes('Metro lineal') &&
+    htmlUnidades.includes('Galón') &&
+    htmlUnidades.includes('Hora-hombre'),
+)
+comprobar(
+  'unidades: mockup de Materiales con UM marcado como demo visual',
+  htmlUnidades.includes('demo visual') &&
+    htmlUnidades.includes('Mockup: Materiales con UM') &&
+    htmlUnidades.includes('No guarda cambios') &&
+    htmlUnidades.includes('Agregar material'),
+)
+
 // Filtros de las listas: cada lista con datos debe mostrar su buscador.
 // Los módulos globales (Servicios, Personal, Equipos) ya lo traen en el
 // catálogo; aquí se cubren los paneles por servicio y Oficina.
@@ -738,6 +1860,36 @@ for (const { ruta, etiqueta, textos } of filtrosEsperados) {
   comprobar(`filtro en ${etiqueta}`, faltan.length === 0, `falta: ${faltan.join(', ')}`)
 }
 
+// Cronograma: motor CPM a la vista (reprogramar, calendario, ruta crítica) y
+// columnas de horas-hombre en Partidas.
+const htmlCronograma = htmlsRuta['/servicios/6/cronograma'] ?? ''
+comprobar(
+  'cronograma: reprogramar (CPM), calendario y leyenda de ruta crítica',
+  htmlCronograma.includes('Reprogramar (CPM)') &&
+    htmlCronograma.includes('Calendario') &&
+    htmlCronograma.includes('Ruta crítica') &&
+    htmlCronograma.includes('Hito'),
+)
+const htmlPartidas = htmlsRuta['/servicios/6/partidas'] ?? ''
+comprobar(
+  'partidas: columnas de horas-hombre (HH est., HH real, HH/und)',
+  htmlPartidas.includes('HH est.') && htmlPartidas.includes('HH real') && htmlPartidas.includes('HH/und'),
+)
+
+// Metrado de la partida: columnas UM y Metrado ej., y unidades sembradas.
+comprobar(
+  'partidas: columnas UM y Metrado ej. con unidades sembradas',
+  htmlPartidas.includes('>UM<') &&
+    htmlPartidas.includes('Metrado ej.') &&
+    htmlPartidas.includes('m³') &&
+    htmlPartidas.includes('>Glb<'),
+)
+comprobar(
+  'cronograma: muestra el metrado de la partida',
+  htmlCronograma.includes('Metrado de la partida (m³)') &&
+    htmlCronograma.includes('>600<!-- --> <!-- -->m³<!-- --> · <!-- -->100<!-- -->%'),
+)
+
 // Asignar personal con botón + modal (como "Registrar ingreso"): el panel
 // muestra el botón y ya no un formulario fijo incrustado.
 const htmlPersonalPanel = htmlsRuta['/servicios/6/personal'] ?? ''
@@ -745,6 +1897,85 @@ comprobar(
   'personal: botón "Asignar personal" (modal, no formulario fijo)',
   htmlPersonalPanel.includes('Asignar personal') &&
     !htmlPersonalPanel.includes('asi-persona'),
+)
+
+// Materiales: el gasto se registra con botón + modal (como Personal) y cada
+// línea se mide con su unidad (UM) y su metrado, igual que las partidas.
+const htmlMateriales = htmlsRuta['/servicios/6/materiales'] ?? ''
+comprobar(
+  'materiales: botón "Agregar material" (modal, no formulario fijo)',
+  htmlMateriales.includes('Agregar material') && !htmlMateriales.includes('mat-nombre'),
+)
+comprobar(
+  'materiales: tabla con columnas UM y Metrado y las unidades sembradas',
+  htmlMateriales.includes('>UM<') &&
+    htmlMateriales.includes('Metrado') &&
+    htmlMateriales.includes('bls') &&
+    htmlMateriales.includes('m³'),
+)
+
+// Equipos: igual que Materiales, el uso se registra con botón + modal y cada
+// línea se mide con su unidad (UM) y su metrado.
+const htmlEquipos = htmlsRuta['/servicios/6/equipos'] ?? ''
+comprobar(
+  'equipos: botón "Agregar uso de equipo" (modal, no formulario fijo)',
+  htmlEquipos.includes('Agregar uso de equipo') && !htmlEquipos.includes('eq-busqueda'),
+)
+comprobar(
+  'equipos: tabla con columnas UM y Metrado y la unidad hm sembrada',
+  htmlEquipos.includes('>UM<') &&
+    htmlEquipos.includes('Metrado') &&
+    htmlEquipos.includes('hm'),
+)
+
+// Catálogo de cargos: buscador, columnas propias y acciones del CRUD.
+const htmlCargos = htmlsRuta['/cargos'] ?? ''
+comprobar(
+  'cargos: catálogo con buscador, columnas y alta',
+  htmlCargos.includes('Buscar por cargo, unidad o categoría…') &&
+    htmlCargos.includes('Personas') &&
+    htmlCargos.includes('Oficial') &&
+    htmlCargos.includes('HH') &&
+    htmlCargos.includes('Nuevo registro'),
+)
+comprobar(
+  'cargos: aparece en el sidebar con su enlace',
+  htmlCargos.includes('href="/cargos"') && htmlCargos.includes('Cargos'),
+)
+// El borrado vive dentro del modal de edición, no en la fila.
+comprobar('cargos: eliminar vive en el modal de edición, no en la fila', !htmlCargos.includes('Eliminar'))
+// Activar/Desactivar es un ícono con tooltip, no un botón de texto.
+comprobar(
+  'cargos: activar/desactivar es un ícono',
+  htmlCargos.includes('title="Desactivar"') && !htmlCargos.includes('Desactivar</button>'),
+)
+
+// Catálogo de personal: buscador, columna de Estado y acciones con íconos.
+const htmlPersonal = htmlsRuta['/personal'] ?? ''
+comprobar(
+  'personal: catálogo con buscador, Estado y alta',
+  htmlPersonal.includes('Buscar por nombre, apellido, cargo, DNI, ámbito o estado…') &&
+    htmlPersonal.includes('Estado') &&
+    htmlPersonal.includes('Activo') &&
+    htmlPersonal.includes('Nuevo registro'),
+)
+comprobar(
+  'personal: editar y activar/desactivar son íconos',
+  htmlPersonal.includes('title="Editar"') &&
+    htmlPersonal.includes('title="Desactivar"') &&
+    !htmlPersonal.includes('Desactivar</button>'),
+)
+comprobar(
+  'personal: el contador distingue activos',
+  htmlPersonal.includes('personas') && htmlPersonal.includes('activos'),
+)
+comprobar(
+  'personal: el Eliminar vive en el modal, no en la fila',
+  !htmlPersonal.includes('Eliminar'),
+)
+comprobar(
+  'personal: la columna de acciones reserva su ancho (tabla fija)',
+  htmlPersonal.includes('w-28'),
 )
 
 // Chequeo específico del gráfico combinado de doble eje en el panel principal.
@@ -767,6 +1998,17 @@ comprobar(
     htmlDash.includes('Desfase de costo') &&
     !htmlDash.includes('NaN') &&
     !htmlDash.includes('>null<'),
+)
+
+// Control de proyecto (P6): valor ganado de cartera, curva S consolidada,
+// histograma de horas-hombre, look-ahead y ruta crítica.
+comprobar(
+  'dashboard: sección "Control de proyecto (P6)" con HH y ruta crítica',
+  htmlDash.includes('Control de proyecto (P6)') &&
+    htmlDash.includes('Curva S consolidada de la cartera') &&
+    htmlDash.includes('Histograma de horas-hombre') &&
+    htmlDash.includes('Look-ahead') &&
+    htmlDash.includes('Ruta crítica'),
 )
 
 // ============================================================

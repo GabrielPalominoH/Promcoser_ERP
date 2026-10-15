@@ -4,9 +4,11 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { InputMonto } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
+import { UNIDADES } from '../../data/unidades'
 import {
   Table,
   TableBody,
@@ -16,7 +18,7 @@ import {
   Td,
   Th,
 } from '../../components/ui/Table'
-import { formatearMoneda } from '../../utils/formatters'
+import { formatearCantidad, formatearMoneda } from '../../utils/formatters'
 import { normalizar } from '../../components/ui/ComboBox'
 import { Buscador, BarraFiltros, textoCoincide } from '../../components/ui/FiltroBusqueda'
 import {
@@ -32,6 +34,13 @@ import {
   tieneHijas,
   valorizadoTarea,
 } from '../../utils/calculadora'
+import {
+  desviacionHoras,
+  horasPlanTarea,
+  horasRealesTarea,
+} from '../../utils/horasHombre'
+
+
 
 // Monto en texto: las hojas se editan con el botón Editar de la fila;
 // los padres con hijas muestran la suma automática (solo lectura).
@@ -49,19 +58,42 @@ function CeldaMonto({ tarea, tareas }) {
   )
 }
 
+// Horas-hombre por unidad ejecutada: horas reales ÷ metrado avanzado.
+function hhPorUnidad(horas, metrado, avance) {
+  const m = Number(metrado)
+  if (!m) return null
+  const ejecutado = m * ((Number(avance) || 0) / 100)
+  if (ejecutado <= 0) return null
+  return Math.round((Number(horas) / ejecutado) * 10000) / 10000
+}
+
 function ModalMonto({ tarea, onCerrar, onGuardar }) {
-  const [texto, setTexto] = useState(() => Number(tarea?.monto) || 0)
+  const [monto, setMonto] = useState(() => Number(tarea?.monto) || 0)
+  const [metrado, setMetrado] = useState(() => (tarea?.metrado ?? ''))
+  const [unidad, setUnidad] = useState(() => (tarea?.unidad ?? ''))
+  const [pu, setPu] = useState(() => (tarea?.precio_unitario ?? ''))
   const [error, setError] = useState(null)
 
   if (!tarea) return null
-  const valor = Number(texto)
+  const conMetrado = metrado !== '' && pu !== ''
+  const metradoSinUnidad = metrado !== '' && unidad === ''
+  const unidadSinMetrado = unidad !== '' && metrado === ''
+  const derivado = conMetrado
+    ? Math.round((Number(metrado) || 0) * (Number(pu) || 0) * 100) / 100
+    : null
+  const valor = derivado != null ? derivado : Number(monto)
 
   const guardar = () => {
-    if (texto === '' || Number.isNaN(valor) || valor < 0) {
+    if (valor === '' || Number.isNaN(valor) || valor < 0) {
       setError('Ingresa un monto válido mayor o igual a cero')
       return
     }
-    onGuardar(tarea.id, valor)
+    onGuardar(tarea.id, {
+      monto: valor,
+      metrado: metrado === '' ? null : Number(metrado),
+      unidad: unidad || null,
+      precio_unitario: pu === '' ? null : Number(pu),
+    })
     onCerrar()
   }
 
@@ -69,7 +101,7 @@ function ModalMonto({ tarea, onCerrar, onGuardar }) {
     <Modal
       abierto
       ancho="sm"
-      titulo="Monto de la tarea"
+      titulo="Partida: metrado, unidad y precio"
       descripcion={tarea.nombre}
       onCerrar={onCerrar}
       pie={
@@ -77,24 +109,78 @@ function ModalMonto({ tarea, onCerrar, onGuardar }) {
           <Button variante="secundario" onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button onClick={guardar}>Guardar monto</Button>
+          <Button onClick={guardar}>Guardar</Button>
         </>
       }
     >
-      <Campo label="Monto (S/)" error={error} htmlFor="monto-valor">
-        <InputMonto
-          id="monto-valor"
-          autoFocus
-          value={texto}
-          onChange={(valorCampo) => {
-            setTexto(valorCampo)
-            setError(null)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') guardar()
-          }}
-        />
-      </Campo>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Campo
+            label="Metrado"
+            error={error}
+            htmlFor="partida-metrado"
+            hint={metradoSinUnidad ? 'Agrega la unidad de medida (m³, m², und…)' : undefined}
+          >
+            <Input
+              id="partida-metrado"
+              type="number"
+              step="0.0001"
+              min="0"
+              autoFocus
+              value={metrado}
+              onChange={(e) => {
+                setMetrado(e.target.value)
+                setError(null)
+              }}
+            />
+          </Campo>
+          <Campo
+            label="Unidad de medida"
+            htmlFor="partida-unidad"
+            hint={unidadSinMetrado ? 'Sin metrado, la unidad no aplica' : undefined}
+          >
+            <CampoComboBox
+              id="partida-unidad"
+              placeholder="Elige unidad…"
+              opciones={UNIDADES.map((u) => ({ valor: u.sigla, etiqueta: `${u.sigla} — ${u.nombre}` }))}
+              value={unidad}
+              onChange={(v) => setUnidad(v)}
+            />
+          </Campo>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Campo label="Precio unitario (S/)" htmlFor="partida-pu">
+            <InputMonto
+              id="partida-pu"
+              value={pu}
+              onChange={(v) => {
+                setPu(v)
+                setError(null)
+              }}
+            />
+          </Campo>
+          <Campo
+            label="Monto (S/)"
+            error={error}
+            htmlFor="partida-monto"
+            hint={
+              conMetrado
+                ? `Metrado × precio unitario = ${formatearMoneda(valor)}`
+                : 'Sin metrado ni precio unitario, el monto es manual.'
+            }
+          >
+            <InputMonto
+              id="partida-monto"
+              value={conMetrado ? valor : monto}
+              disabled={conMetrado}
+              onChange={(valorCampo) => {
+                setMonto(valorCampo)
+                setError(null)
+              }}
+            />
+          </Campo>
+        </div>
+      </div>
     </Modal>
   )
 }
@@ -122,6 +208,10 @@ export function PartidasServicio() {
   const registros = useMemo(
     () => registrosDeServicio(estado.registros_servicio, servicio.id),
     [estado.registros_servicio, servicio.id],
+  )
+  const asignaciones = useMemo(
+    () => (estado.asignaciones ?? []).filter((a) => a.servicio_id === servicio.id),
+    [estado.asignaciones, servicio.id],
   )
 
   // Filtro de la lista: texto sobre el nombre de la tarea. Al buscar se
@@ -175,11 +265,11 @@ export function PartidasServicio() {
     [tareas],
   )
 
-  const guardarMonto = (id, monto) => {
+  const guardarMonto = (id, cambios) => {
     const tarea = tareas.find((t) => t.id === id)
-    if (!tarea || (Number(tarea.monto) || 0) === monto) return
-    actualizarItem('tareas', { id, monto })
-    setAviso({ tipo: 'exito', mensaje: `Monto de «${tarea.nombre}» actualizado.` })
+    if (!tarea) return
+    actualizarItem('tareas', { id, ...cambios })
+    setAviso({ tipo: 'exito', mensaje: `Partida «${tarea.nombre}» actualizada.` })
   }
 
   const montoTotal = presupuestoTareas(tareas, servicio.id)
@@ -198,6 +288,15 @@ export function PartidasServicio() {
     .filter((t) => t.padre_id == null)
     .reduce((s, t) => s + diasRealesTarea(t, tareas, estado.registros_servicio, servicio.id), 0)
   const desvTotal = desviacionDias(estTotal, realTotal)
+  const hhPlanTotal = tareas
+    .filter((t) => t.padre_id == null)
+    .reduce((s, t) => s + horasPlanTarea(t, tareas, asignaciones, servicio), 0)
+  const hhRealTotal = tareas
+    .filter((t) => t.padre_id == null)
+    .reduce((s, t) => s + horasRealesTarea(t, tareas, estado.registros_servicio, servicio.id), 0)
+  const desvHHTotal = desviacionHoras(hhPlanTotal, hhRealTotal)
+  const presupuesto = Number(servicio.presupuesto_asignado) || 0
+  const desvioPresupuesto = Math.round((montoTotal - presupuesto) * 100) / 100
 
   return (
     <div className="space-y-6">
@@ -252,6 +351,10 @@ export function PartidasServicio() {
           <TableHead>
             <TableRow>
               <Th>Tarea</Th>
+              <Th alinear="right">UM</Th>
+              <Th alinear="right">Metrado</Th>
+              <Th alinear="right">Metrado ej.</Th>
+              <Th alinear="right">P. Unit.</Th>
               <Th alinear="right">Monto</Th>
               <Th alinear="right">Valorizado</Th>
               <Th alinear="right">Avance</Th>
@@ -260,13 +363,16 @@ export function PartidasServicio() {
               <Th alinear="right">Días est.</Th>
               <Th alinear="right">Días reales</Th>
               <Th alinear="right">Desv. d</Th>
+              <Th alinear="right">HH est.</Th>
+              <Th alinear="right">HH real</Th>
+              <Th alinear="right" className="whitespace-nowrap">HH/und</Th>
             </TableRow>
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={9} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
+              <TableEmpty colSpan={16} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
             ) : filasFiltradas.length === 0 ? (
-              <TableEmpty colSpan={9} mensaje="Ninguna tarea coincide con el filtro." />
+              <TableEmpty colSpan={16} mensaje="Ninguna tarea coincide con el filtro." />
             ) : (
               filasFiltradas.map(({ tarea, nivel, numero, hijas }) => {
                 const monto = montoTarea(tarea, tareas)
@@ -324,10 +430,32 @@ export function PartidasServicio() {
                             tamano="sm"
                             onClick={() => setMontoEditando(tarea)}
                           >
-                            Editar
+                            Editar partida
                           </Button>
                         )}
                       </span>
+                    </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-600">
+                      {esPadre ? '—' : (tarea.unidad ?? '—')}
+                    </Td>
+                    <Td
+                      alinear="right"
+                      className="tabular-nums text-slate-600"
+                      title={
+                        esPadre || tarea.metrado == null
+                          ? undefined
+                          : `${formatearCantidad(tarea.metrado)} ${tarea.unidad ?? 'sin unidad'}`
+                      }
+                    >
+                      {esPadre ? '—' : (tarea.metrado ?? '—')}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-600">
+                      {esPadre ? '—' : (tarea.metrado == null ? '—' : formatearCantidad(tarea.metrado * ((avance || 0) / 100)))}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-600">
+                      {esPadre || tarea.precio_unitario == null
+                        ? '—'
+                        : formatearMoneda(tarea.precio_unitario)}
                     </Td>
                     <Td alinear="right">
                       <CeldaMonto tarea={tarea} tareas={tareas} />
@@ -363,6 +491,54 @@ export function PartidasServicio() {
                         {desvFila.porcentaje == null ? '—' : `${desvFila.porcentaje}%`}
                       </span>
                     </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-600">
+                      {formatearCantidad(
+                        horasPlanTarea(tarea, tareas, asignaciones, servicio),
+                      )}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {(() => {
+                        const realHH = horasRealesTarea(
+                          tarea,
+                          tareas,
+                          estado.registros_servicio,
+                          servicio.id,
+                        )
+                        const desvHH = desviacionHoras(
+                          horasPlanTarea(tarea, tareas, asignaciones, servicio),
+                          realHH,
+                        )
+                        return (
+                          <span
+                            className={
+                              desvHH.diferencia > 0 ? 'font-semibold text-red-600' : undefined
+                            }
+                            title={
+                              desvHH.porcentaje == null
+                                ? 'Sin horas planificadas'
+                                : `${desvHH.diferencia > 0 ? '+' : ''}${formatearCantidad(
+                                    desvHH.diferencia,
+                                  )} h (${desvHH.porcentaje}% de lo planificado)`
+                            }
+                          >
+                            {formatearCantidad(realHH)}
+                          </span>
+                        )
+                      })()}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-600">
+                      {(() => {
+                        if (esPadre) return '—'
+                        const realHH = horasRealesTarea(
+                          tarea,
+                          tareas,
+                          estado.registros_servicio,
+                          servicio.id,
+                        )
+                        const hhUnd = hhPorUnidad(realHH, tarea.metrado, avance)
+                        return hhUnd == null ? '—' : formatearCantidad(hhUnd)
+                      })()}
+                    </Td>
                   </TableRow>
                 )
               })
@@ -377,6 +553,18 @@ export function PartidasServicio() {
                       + {formatearMoneda(sinTarea)} sin tarea asignada
                     </span>
                   )}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   {formatearMoneda(montoTotal)}
@@ -405,10 +593,32 @@ export function PartidasServicio() {
                     {desvTotal.porcentaje == null ? '—' : `${desvTotal.porcentaje}%`}
                   </span>
                 </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {formatearCantidad(hhPlanTotal)}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  {formatearCantidad(hhRealTotal)}
+                  {desvHHTotal.porcentaje != null && (
+                    <span className="block text-[11px] font-normal">
+                      {desvHHTotal.porcentaje}%
+                    </span>
+                  )}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
+                </Td>
               </TableRow>
             )}
           </TableBody>
         </Table>
+        {desvioPresupuesto !== 0 && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            Las partidas suman {formatearMoneda(montoTotal)} y el presupuesto del servicio es{' '}
+            {formatearMoneda(presupuesto)} ({desvioPresupuesto > 0 ? '+' : ''}
+            {formatearMoneda(desvioPresupuesto)}). Ajusta para que el valor ganado cuadre con el
+            contrato.
+          </p>
+        )}
       </Card>
 
       {montoEditando && (

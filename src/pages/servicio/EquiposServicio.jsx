@@ -7,6 +7,7 @@ import { Campo, Input } from '../../components/ui/Field'
 import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
+import { UNIDADES } from '../../data/unidades'
 import { formatearCantidad, formatearMoneda, redondearMonto } from '../../utils/formatters'
 import {
   SeccionRegistros,
@@ -14,7 +15,23 @@ import {
   reglasNumeroMayorACero,
 } from './compartido'
 
-function FormularioEquipo({ servicio, equipos, registrar }) {
+// Unidades de medida para el metrado de un equipo (hora-máquina por defecto).
+const OPCIONES_UNIDAD = UNIDADES.map((unidad) => ({
+  valor: unidad.sigla,
+  etiqueta: `${unidad.sigla} — ${unidad.nombre}`,
+}))
+
+const VALORES_INICIALES = {
+  unidad: 'hm',
+  metrado: '',
+  costo: '',
+  fecha: fechaHoyISO(),
+  tarea_id: '',
+}
+
+// Uso de un equipo en el servicio: se elige el equipo, su unidad de medida y su
+// metrado (por defecto horas máquina). Suma al gastado.
+function FormularioEquipo({ servicio, equipos, registrar, enModal = false }) {
   const ordenados = useMemo(
     () => [...equipos].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
     [equipos],
@@ -33,9 +50,7 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
     setValue,
     control,
     formState: { errors },
-  } = useForm({
-    defaultValues: { horas: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' },
-  })
+  } = useForm({ defaultValues: VALORES_INICIALES })
   const {
     estado: { tareas: todasTareas },
   } = useData()
@@ -85,25 +100,25 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
   }
 
   const limpiar = () => {
-    reset({ horas: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' })
+    reset(VALORES_INICIALES)
     setBusqueda('')
     setSeleccionadoId(null)
     setAbierto(false)
     setErrorEquipo(null)
   }
 
-  const enviar = ({ horas, costo, fecha, tarea_id }) => {
+  const enviar = ({ unidad, metrado, costo, fecha, tarea_id }) => {
     if (!seleccionadoId) {
       setErrorEquipo('Selecciona un equipo de la lista')
       setAbierto(true)
       return
     }
-    const horasNum = Number(horas)
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'equipo',
       referencia_id: Number(seleccionadoId),
-      cantidad_o_horas: horasNum,
+      unidad,
+      cantidad_o_horas: Number(metrado),
       monto_calculado: redondearMonto(costo),
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
@@ -124,7 +139,7 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+    <form id="form-registro" onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Campo
           label="Equipo"
@@ -177,13 +192,28 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
             )}
           </div>
         </Campo>
-        <Campo label="Horas de uso" error={errors.horas?.message} htmlFor="eq-horas">
+        <Campo
+          label="Unidad de medida"
+          error={errors.unidad?.message}
+          htmlFor="eq-unidad"
+          hint="En qué se mide el metrado"
+        >
+          <CampoComboBox
+            id="eq-unidad"
+            control={control}
+            name="unidad"
+            placeholder="Elige unidad…"
+            opciones={OPCIONES_UNIDAD}
+            rules={{ required: 'Elige la unidad de medida' }}
+          />
+        </Campo>
+        <Campo label="Metrado" error={errors.metrado?.message} htmlFor="eq-metrado">
           <Input
-            id="eq-horas"
+            id="eq-metrado"
             type="number"
             step="0.25"
             placeholder="0"
-            {...register('horas', reglasNumeroMayorACero('Ingresa las horas'))}
+            {...register('metrado', reglasNumeroMayorACero('Ingresa el metrado'))}
           />
         </Campo>
         <Campo
@@ -225,9 +255,11 @@ function FormularioEquipo({ servicio, equipos, registrar }) {
           </Campo>
         )}
       </div>
-      <div className="flex justify-end">
-        <Button type="submit">Agregar uso de equipo</Button>
-      </div>
+      {!enModal && (
+        <div className="flex justify-end">
+          <Button type="submit">Agregar uso de equipo</Button>
+        </div>
+      )}
     </form>
   )
 }
@@ -240,39 +272,51 @@ export function EquiposServicio() {
       servicio={servicio}
       tipo="equipo"
       titulo="Equipos"
-      descripcion="Uso de equipos en el servicio: horas por costo. Suma al gastado."
+      descripcion="Uso de equipos en el servicio, con su unidad de medida y metrado. Suma al gastado."
       columnaCantidad
-      etiquetaCantidad="Horas"
+      etiquetaCantidad="Metrado"
+      columnaUnidad
       mensajeVacio="Este servicio todavía no tiene uso de equipos registrado."
-      mensajeExito={(datos) => `Uso de equipo registrado por ${formatearMoneda(datos.monto_calculado)} (${formatearCantidad(datos.cantidad_o_horas)} h).`}
-      tarjetas={({ totalMonto, totalCantidad, registros }) => (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card>
-            <p className="text-sm text-slate-500">Gastado en equipos</p>
-            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-              {formatearMoneda(totalMonto)}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">Uso registrado: suma al gastado</p>
-          </Card>
-          <Card>
-            <p className="text-sm text-slate-500">Horas totales</p>
-            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-              {formatearCantidad(totalCantidad)} h
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">Horas acumuladas en este servicio</p>
-          </Card>
-          <Card>
-            <p className="text-sm text-slate-500">Equipos en obra</p>
-            <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
-              {new Set(registros.map((r) => r.referencia_id)).size}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">Con uso registrado aquí</p>
-          </Card>
-        </div>
-      )}
+      mensajeExito={(datos) => `Uso de equipo registrado por ${formatearMoneda(datos.monto_calculado)} (${formatearCantidad(datos.cantidad_o_horas)}${datos.unidad ? ` ${datos.unidad}` : ''}).`}
+      tarjetas={({ totalMonto, totalCantidad, registros }) => {
+        const unidades = new Set(registros.map((r) => r.unidad).filter(Boolean))
+        const unidad = unidades.size === 1 ? [...unidades][0] : null
+        return (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Card>
+              <p className="text-sm text-slate-500">Gastado en equipos</p>
+              <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+                {formatearMoneda(totalMonto)}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">Uso registrado: suma al gastado</p>
+            </Card>
+            <Card>
+              <p className="text-sm text-slate-500">Metrado total</p>
+              <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+                {unidad ? `${formatearCantidad(totalCantidad)} ${unidad}` : formatearCantidad(totalCantidad)}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {unidad ? 'Metrado acumulado en este servicio' : 'Unidades mezcladas en este servicio'}
+              </p>
+            </Card>
+            <Card>
+              <p className="text-sm text-slate-500">Equipos en obra</p>
+              <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
+                {new Set(registros.map((r) => r.referencia_id)).size}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">Con uso registrado aquí</p>
+            </Card>
+          </div>
+        )
+      }}
+      modalRegistro={{
+        boton: 'Agregar uso de equipo',
+        titulo: 'Registrar uso de equipo',
+        descripcion: 'Uso de un equipo en el servicio. Suma al gastado.',
+      }}
     >
       {({ servicio, equipos, registrar }) => (
-        <FormularioEquipo servicio={servicio} equipos={equipos} registrar={registrar} />
+        <FormularioEquipo servicio={servicio} equipos={equipos} registrar={registrar} enModal />
       )}
     </SeccionRegistros>
   )

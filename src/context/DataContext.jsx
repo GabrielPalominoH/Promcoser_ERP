@@ -75,6 +75,18 @@ export function dataReducer(estado, accion) {
           cobros: (estado.cobros ?? []).filter(
             (cobro) => cobro.servicio_id !== payload.id,
           ),
+          lineas_base: (estado.lineas_base ?? []).filter(
+            (linea) => linea.servicio_id !== payload.id,
+          ),
+          lecturas_avance: (estado.lecturas_avance ?? []).filter(
+            (lectura) => lectura.servicio_id !== payload.id,
+          ),
+          valorizaciones: (estado.valorizaciones ?? []).filter(
+            (valorizacion) => valorizacion.servicio_id !== payload.id,
+          ),
+          adelantos: (estado.adelantos ?? []).filter(
+            (adelanto) => adelanto.servicio_id !== payload.id,
+          ),
         }
       }
 
@@ -97,7 +109,21 @@ export function dataReducer(estado, accion) {
         }
         return {
           ...estado,
-          tareas: estado.tareas.filter((tarea) => !porBorrar.has(tarea.id)),
+          tareas: estado.tareas
+            .filter((tarea) => !porBorrar.has(tarea.id))
+            // Limpia referencias a la tarea borrada en las predecesoras
+            // (dependencias) de las tareas que quedan.
+            .map((tarea) =>
+              Array.isArray(tarea.predecesoras) &&
+              tarea.predecesoras.some((p) => porBorrar.has(p?.id))
+                ? {
+                    ...tarea,
+                    predecesoras: tarea.predecesoras.filter(
+                      (p) => !porBorrar.has(p?.id),
+                    ),
+                  }
+                : tarea,
+            ),
           // Los costos no se borran: quedan sin tarea.
           registros_servicio: estado.registros_servicio.map((registro) =>
             porBorrar.has(registro.tarea_id)
@@ -122,9 +148,11 @@ export function dataReducer(estado, accion) {
     }
 
     case 'ALTERNAR_ACTIVO':
+      // `activo` ausente cuenta como activo, así que el primer clic desactiva
+      // (evita que una ficha antigua sin el campo solo se "reactive").
       return reemplazarEnColeccion(estado, payload.coleccion, (items) =>
         items.map((item) =>
-          item.id === payload.id ? { ...item, activo: !item.activo } : item,
+          item.id === payload.id ? { ...item, activo: item.activo === false } : item,
         ),
       )
 

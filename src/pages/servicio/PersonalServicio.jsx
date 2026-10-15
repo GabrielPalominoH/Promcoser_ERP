@@ -36,6 +36,7 @@ import {
   mesHoy,
   proyeccionAsignaciones,
 } from '../../utils/calculadora'
+import { personalAsignable } from '../../utils/personal'
 
 function nombreCompleto(item) {
   return `${item.nombre} ${item.apellido ?? ''}`.trim()
@@ -223,9 +224,15 @@ export function PersonalServicio() {
   const notificar = (tipo, mensaje) => setAviso({ tipo, mensaje })
 
   const personal = estado.personal
-  // No se asigna personal de Oficina a una obra.
+  // Personal de Obra disponible para asignar: se excluye el de Oficina (no va a
+  // obra) y el desactivado (no se ofrece para asignaciones nuevas; lo ya
+  // devengado se conserva).
+  const personalDeObra = useMemo(
+    () => personal.filter((p) => (p.ambito ?? 'Obra') === 'Obra'),
+    [personal],
+  )
   const personalElegible = useMemo(
-    () => personal.filter((p) => (p.ambito ?? 'Obra') !== 'Oficina'),
+    () => personalAsignable(personal, 'Obra'),
     [personal],
   )
   const tareas = useMemo(
@@ -369,11 +376,24 @@ export function PersonalServicio() {
       >
         {personalElegible.length === 0 && (
           <p className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Todavía no hay personal registrado.{' '}
-            <Link to="/personal" className="font-medium underline">
-              Registra personal
-            </Link>{' '}
-            para poder asignarlo a este servicio.
+            {personalDeObra.length > 0 ? (
+              <>
+                Todo el personal de obra está{' '}
+                <span className="font-medium">desactivado</span>.{' '}
+                <Link to="/personal" className="font-medium underline">
+                  Actívalo en Personal
+                </Link>{' '}
+                para poder asignarlo a este servicio.
+              </>
+            ) : (
+              <>
+                Todavía no hay personal registrado.{' '}
+                <Link to="/personal" className="font-medium underline">
+                  Registra personal
+                </Link>{' '}
+                para poder asignarlo a este servicio.
+              </>
+            )}
           </p>
         )}
         {asignaciones.length > 0 && (

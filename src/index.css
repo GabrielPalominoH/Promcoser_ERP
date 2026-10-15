@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
-  --color-primary-950: #172554;
+  --color-primary-50: #f1f5ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #1e40af;
+  --color-primary-700: #1e3a8a;
+  --color-primary-800: #172554;
+  --color-primary-900: #0f172a;
+  --color-primary-950: #0b122b;
 
-  --color-primary: #2563eb;
+  --color-primary: #1e3a8a;
 
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
@@ -40,6 +40,115 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-primary-600;
   }
+}
+
+/* ------------------------------------------------------------
+   Tema oscuro (preferencia visual del usuario, en localStorage)
+   ------------------------------------------------------------
+   Tailwind v4 compila cada utilidad a `var(--color-*)`, así que el modo
+   oscuro se implementa REDEFINIENDO esas variables bajo
+   `:root[data-tema='oscuro']`. Al hacerlo, todas las utilidades —incluidas
+   las variantes `hover:`, `active:`, `disabled:` y `placeholder:` que
+   también leen la variable— cambian solas, sin tocar ningún componente ni
+   añadir clases `dark:`.
+
+   La rampa `slate` se invierte: los números bajos (50–300) pasan a ser
+   superficies y bordes oscuros, y los altos (400–900) texto claro.
+
+   Excepciones: algunas variables son ambiguas y se corrigen con reglas
+   explícitas debajo (sin capa, por lo que ganan a las utilidades):
+     • `--color-white` alimenta tanto los fondos `bg-white` (superficies)
+       como el texto `text-white` de los botones; no se toca la variable y
+       se recolorean solo los fondos `.bg-white`.
+     • `bg-slate-200` es a la vez el fondo de página y bordes/pistas: la
+       variable vale para bordes y la clase de fondo se fuerza a oscuro.
+     • Los botones de color sólido con texto blanco (`bg-red-600`,
+       `bg-emerald-700`) conservan su tono saturado.
+
+   El HTML renderizado en servidor no lleva `data-tema`, así que el
+   aspecto por defecto sigue siendo el claro.
+   ------------------------------------------------------------ */
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+
+  /* Rampa slate invertida: superficies/bordes (50–300) y texto (400–900).
+     El fondo de página es bastante más oscuro que las tarjetas para que los
+     componentes se despeguen del fondo. */
+  --color-slate-50: #121a33; /* relleno sutil (inputs deshabilitados, pies) */
+  --color-slate-100: #1f2a4c; /* relleno secundario y hover; borde tenue */
+  --color-slate-200: #2d3963; /* borde y anillo de tarjetas */
+  --color-slate-300: #3f4c7c; /* borde principal */
+  --color-slate-400: #6e7a9c; /* texto tenue, pistas de progreso */
+  --color-slate-500: #9aa5c2; /* texto secundario y placeholders */
+  --color-slate-600: #b6c0da; /* texto */
+  --color-slate-700: #cdd5e8; /* texto */
+  --color-slate-800: #e3e9f5; /* texto del cuerpo */
+  --color-slate-900: #f1f5fc; /* texto principal */
+
+  /* Rampa primaria (azul corporativo) solo en los tonos que son texto o
+     relleno tenue; los sólidos de botón (600/800) se mantienen. */
+  --color-primary-50: #1c2b61; /* navegación activa e hovers tenues */
+  --color-primary-700: #9db8ff; /* enlaces y etiquetas sobre fondo oscuro */
+
+  /* Estados: tintes de fondo y texto de las insignias/avisos. */
+  --color-red-50: #2c1420;
+  --color-red-100: #3a1a28;
+  --color-red-200: #63213a;
+  --color-red-300: #7f3246;
+  --color-red-400: #b0455c;
+  --color-red-600: #ff9aa8;
+  --color-red-700: #ffb0bc;
+  --color-red-800: #ffc2cb;
+
+  --color-emerald-50: #0d2a1e;
+  --color-emerald-200: #1c5138;
+  --color-emerald-700: #79e0ac;
+  --color-emerald-800: #a7f3d0;
+
+  --color-amber-50: #2a2110;
+  --color-amber-200: #5a4718;
+  --color-amber-700: #f5cd6a;
+  --color-amber-800: #fde68a;
+
+  --color-green-50: #0d2a1e;
+}
+
+/* Superficie de las tarjetas, inputs, tablas y modales (`bg-white`), que no
+   puede salir de la variable compartida `--color-white`. Es el tono más
+   claro del tema: así las tarjetas resaltan sobre el fondo de página. */
+:root[data-tema='oscuro'] .bg-white {
+  background-color: #192340;
+}
+/* Fondo de página: en el `body` (por `@apply`) y en el contenedor raíz.
+   Notablemente más oscuro que las superficies para dar profundidad. */
+:root[data-tema='oscuro'] body {
+  background-color: #070b19;
+  color: var(--color-slate-800);
+}
+:root[data-tema='oscuro'] .bg-slate-200 {
+  background-color: #070b19;
+}
+/* Fondo de modales y cajón móvil: se queda oscuro (slate-900 ya es texto). */
+:root[data-tema='oscuro'] .bg-slate-900\/50 {
+  background-color: rgb(3 7 22 / 0.6);
+}
+
+/* Botones de color sólido con texto blanco: conservan el tono saturado. */
+:root[data-tema='oscuro'] .bg-red-600 {
+  background-color: #dc2626;
+}
+:root[data-tema='oscuro'] .bg-emerald-700 {
+  background-color: #059669;
+}
+/* Hover del botón primario: `--color-primary-700` ahora es texto claro, así
+   que el hover del botón (que debe oscurecerse) se fija aquí. */
+:root[data-tema='oscuro'] .hover\:bg-primary-700:hover {
+  background-color: #1e3a8a;
+}
+
+/* Barra de desplazamiento a tono con el tema. */
+:root[data-tema='oscuro'] * {
+  scrollbar-color: #3f4c7c transparent;
 }
 
 @layer base {

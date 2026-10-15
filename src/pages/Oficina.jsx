@@ -21,6 +21,7 @@ import {
 } from '../components/ui/Table'
 import { formatearMoneda, redondearMonto } from '../utils/formatters'
 import { cobradoServicio, registrosDeServicio, sumarMontos, utilidadReal } from '../utils/calculadora'
+import { personalAsignable } from '../utils/personal'
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
@@ -42,8 +43,8 @@ function nombreCompleto(item) {
 function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
   const elegibles = useMemo(
     () =>
-      [...personal]
-        .filter((p) => (p.ambito ?? 'Obra') === 'Oficina')
+      personalAsignable(personal, 'Oficina')
+        .slice()
         .sort((a, b) => nombreCompleto(a).localeCompare(nombreCompleto(b), 'es')),
     [personal],
   )
@@ -68,9 +69,13 @@ function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
   }
 
   if (elegibles.length === 0) {
+    const hayDeOficina = personal.some((p) => (p.ambito ?? 'Obra') === 'Oficina')
+
     return (
       <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        No hay personal de Oficina registrado. Marca el ámbito en el módulo Personal.
+        {hayDeOficina
+          ? 'Todo el personal de Oficina está desactivado. Actívalo en el módulo Personal.'
+          : 'No hay personal de Oficina registrado. Marca el ámbito en el módulo Personal.'}
       </p>
     )
   }

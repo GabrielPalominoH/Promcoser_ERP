@@ -5,7 +5,7 @@ import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
 import { Campo, Input, Select } from '../ui/Field'
 import { Buscador, textoCoincide } from '../ui/FiltroBusqueda'
-import { normalizar } from '../ui/ComboBox'
+import { CampoComboBox, normalizar } from '../ui/ComboBox'
 import { CampoMonto } from '../ui/Monto'
 import { Toggle } from '../ui/Toggle'
 import { Modal } from '../ui/Modal'
@@ -24,7 +24,7 @@ import {
 //  Formulario de alta / edición, genérico y dirigido por config
 // ============================================================
 
-function FormularioCatalogo({ config, item, onCancelar, onGuardar }) {
+export function FormularioCatalogo({ config, item, estado, onCancelar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(item)
 
   const valoresBase = useMemo(() => {
@@ -108,6 +108,38 @@ function FormularioCatalogo({ config, item, onCancelar, onGuardar }) {
             )
           }
 
+          if (campo.tipo === 'combo') {
+            // Selector con búsqueda. `campo.opciones` puede ser un arreglo fijo
+            // o una función (estado, item) => [{ valor, etiqueta }] para
+            // catálogos que dependen de otra colección (ej. el cargo del
+            // personal, tomado de /cargos).
+            const opciones =
+              typeof campo.opciones === 'function'
+                ? campo.opciones(estado, item)
+                : campo.opciones
+
+            return (
+              <Campo
+                key={campo.name}
+                label={campo.etiqueta}
+                error={error?.message}
+                hint={campo.hint}
+                htmlFor={id}
+                className={ancho}
+              >
+                <CampoComboBox
+                  id={id}
+                  control={control}
+                  name={campo.name}
+                  rules={reglasBase(campo)}
+                  placeholder={campo.placeholder}
+                  opciones={opciones}
+                  error={error?.message}
+                />
+              </Campo>
+            )
+          }
+
           if (campo.tipo === 'numero') {
             return (
               <Campo
@@ -151,7 +183,12 @@ function FormularioCatalogo({ config, item, onCancelar, onGuardar }) {
         })}
       </div>
 
-      <div className="mt-6 flex justify-end gap-2">
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
+        {onEliminar && (
+          <Button variante="peligro" className="mr-auto" onClick={onEliminar}>
+            Eliminar {config.nombreSingular}
+          </Button>
+        )}
         <Button variante="secundario" onClick={onCancelar}>
           Cancelar
         </Button>
@@ -188,7 +225,9 @@ export function CatalogoCRUD({ config }) {
     return filtrados
   }, [items, termino, config])
 
-  const activos = config.tieneActivo ? items.filter((item) => item.activo).length : null
+  const activos = config.tieneActivo
+    ? items.filter((item) => item.activo !== false).length
+    : null
 
   const cerrar = () => {
     setModal(null)
@@ -206,7 +245,16 @@ export function CatalogoCRUD({ config }) {
     setModal('editar')
   }
 
-  const abrirEliminar = (item) => {
+  // Abre la confirmación de borrado. Si el catálogo define `bloquearEliminar`
+  // y devuelve un motivo, no se abre el modal: se explica en el aviso.
+  // Se usa desde el botón de la fila y (si `eliminarEnEdicion`) desde el modal
+  // de edición.
+  const solicitarEliminar = (item) => {
+    const motivo = config.bloquearEliminar?.(item, estado)
+    if (motivo) {
+      setAviso({ tipo: 'error', mensaje: motivo })
+      return
+    }
     setPorEliminar(item)
     setModal('eliminar')
   }
@@ -214,16 +262,23 @@ export function CatalogoCRUD({ config }) {
   const guardar = (valores) => {
     if (modal === 'editar') {
       actualizarItem(config.coleccion, { ...valores, id: editando.id })
+      // Efectos en otras colecciones al editar (ej. renombrar un cargo
+      // arrastra el nombre a las fichas de personal vinculadas).
+      config.alActualizar?.(editando, valores, { estado, actualizarItem })
       setAviso({ tipo: 'exito', mensaje: `Registro actualizado en ${config.titulo}.` })
     } else {
-      agregarItem(config.coleccion, valores)
+      // Los catálogos con estado nacen activos (no dependen del formulario).
+      agregarItem(config.coleccion, {
+        ...valores,
+        ...(config.tieneActivo ? { activo: true } : {}),
+      })
       setAviso({ tipo: 'exito', mensaje: `Registro agregado a ${config.titulo}.` })
     }
     cerrar()
   }
 
   const confirmarEliminar = () => {
-    const etiqueta = config.columnas[0].render(porEliminar)
+    const etiqueta = config.etiquetaItem?.(porEliminar) ?? `#${porEliminar.id}`
     eliminarItem(config.coleccion, porEliminar.id)
     setAviso({
       tipo: 'info',
@@ -236,13 +291,18 @@ export function CatalogoCRUD({ config }) {
 
   const cambiarActivo = (item) => {
     alternarActivo(config.coleccion, item.id)
+    const etiqueta = config.etiquetaItem?.(item) ?? `#${item.id}`
     setAviso({
       tipo: 'info',
-      mensaje: `${item.nombre} quedó como ${item.activo ? 'inactivo' : 'activo'}.`,
+      mensaje: `«${etiqueta}» quedó como ${item.activo !== false ? 'inactivo' : 'activo'}.`,
     })
   }
 
   const contextoColumnas = { estado }
+  // Vistas soportadas por el listado: tabla (por defecto) o cuadrícula de
+  // tarjetas, cuando el catálogo define `vista: 'tarjetas'` y un
+  // `renderTarjeta`. El buscador y el contador son comunes a ambas.
+  const esTarjetas = config.vista === 'tarjetas'
 
   return (
     <div className="space-y-6">
@@ -294,66 +354,162 @@ export function CatalogoCRUD({ config }) {
           </p>
         </div>
 
-        <Table className={config.claseTabla ?? ''}>
-          <TableHead>
-            <TableRow>
-              {config.columnas.map((columna) => (
-                <Th key={columna.etiqueta} alinear={columna.alinear}>
-                  {columna.etiqueta}
+        {esTarjetas && visibles.length === 0 && (
+          <p className="rounded-lg border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-400">
+            {termino ? config.mensajeVacio : config.mensajeSinRegistros}
+          </p>
+        )}
+
+        {!esTarjetas && (
+          <Table className={config.claseTabla ?? ''}>
+            <TableHead>
+              <TableRow>
+                {config.columnas.map((columna) => (
+                  <Th key={columna.etiqueta} alinear={columna.alinear}>
+                    {columna.etiqueta}
+                  </Th>
+                ))}
+                <Th alinear="right" className={config.claseAcciones ?? ''}>
+                  Acciones
                 </Th>
-              ))}
-              <Th alinear="right">Acciones</Th>
-            </TableRow>
-          </TableHead>
+              </TableRow>
+            </TableHead>
 
-          <TableBody>
-            {visibles.length === 0 ? (
-              <TableEmpty
-                colSpan={config.columnas.length + 1}
-                mensaje={termino ? config.mensajeVacio : config.mensajeSinRegistros}
-              />
-            ) : (
-              visibles.map((item) => (
-                <TableRow key={item.id}>
-                  {config.columnas.map((columna) => (
-                    <Td key={columna.etiqueta} alinear={columna.alinear} className={columna.clase}>
-                      {columna.render(item, contextoColumnas)}
+            <TableBody>
+              {visibles.length === 0 ? (
+                <TableEmpty
+                  colSpan={config.columnas.length + 1}
+                  mensaje={termino ? config.mensajeVacio : config.mensajeSinRegistros}
+                />
+              ) : (
+                visibles.map((item) => (
+                  <TableRow key={item.id}>
+                    {config.columnas.map((columna) => (
+                      <Td
+                        key={columna.etiqueta}
+                        alinear={columna.alinear}
+                        className={columna.clase}
+                      >
+                        {columna.render(item, contextoColumnas)}
+                      </Td>
+                    ))}
+
+                    <Td alinear="right" className={config.claseAcciones ?? ''}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {config.accionesExtra?.(item, contextoColumnas)}
+
+                        {config.tieneActivo &&
+                          (config.activoIcono ? (
+                            <button
+                              type="button"
+                              onClick={() => cambiarActivo(item)}
+                              title={item.activo !== false ? 'Desactivar' : 'Activar'}
+                              aria-label={`${item.activo !== false ? 'Desactivar' : 'Activar'} ${config.etiquetaItem?.(item) ?? item.id}`}
+                              className={`rounded-lg border border-slate-300 bg-white p-1.5 text-slate-600 transition-colors hover:bg-slate-100 ${
+                                item.activo !== false
+                                  ? 'hover:text-red-600'
+                                  : 'hover:text-emerald-700'
+                              }`}
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="size-4"
+                                aria-hidden="true"
+                              >
+                                {item.activo !== false ? (
+                                  <>
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                    <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <path d="M17.94 17.94A10.1 10.1 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94" />
+                                    <path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                    <path d="M1 1l22 22" />
+                                  </>
+                                )}
+                              </svg>
+                            </button>
+                          ) : (
+                            <Button
+                              variante="secundario"
+                              tamano="sm"
+                              onClick={() => cambiarActivo(item)}
+                            >
+                              {item.activo !== false ? 'Desactivar' : 'Activar'}
+                            </Button>
+                          ))}
+
+                        {!config.soloDetalle && (
+                          <>
+                            {config.editarIcono ? (
+                              <button
+                                type="button"
+                                onClick={() => abrirEditar(item)}
+                                title="Editar"
+                                aria-label={`Editar ${config.etiquetaItem?.(item) ?? item.id}`}
+                                className="rounded-lg border border-slate-300 bg-white p-1.5 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                              >
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  className="size-4"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                                </svg>
+                              </button>
+                            ) : (
+                              <Button
+                                variante="secundario"
+                                tamano="sm"
+                                onClick={() => abrirEditar(item)}
+                              >
+                                Editar
+                              </Button>
+                            )}
+
+                            {!config.eliminarEnEdicion && (
+                              <Button
+                                variante="peligro"
+                                tamano="sm"
+                                onClick={() => solicitarEliminar(item)}
+                              >
+                                Eliminar
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </Td>
-                  ))}
-
-                  <Td alinear="right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {config.accionesExtra?.(item, contextoColumnas)}
-
-                      {config.tieneActivo && (
-                        <Button
-                          variante="secundario"
-                          tamano="sm"
-                          onClick={() => cambiarActivo(item)}
-                        >
-                          {item.activo ? 'Desactivar' : 'Activar'}
-                        </Button>
-                      )}
-
-                      {!config.soloDetalle && (
-                        <>
-                          <Button variante="secundario" tamano="sm" onClick={() => abrirEditar(item)}>
-                            Editar
-                          </Button>
-
-                          <Button variante="peligro" tamano="sm" onClick={() => abrirEliminar(item)}>
-                            Eliminar
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </Td>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Card>
+
+      {/* Vista en tarjetas: fuera del panel del buscador, para que cada
+          tarjeta resalte sobre el fondo de la página. */}
+      {esTarjetas && visibles.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {visibles.map((item) => (
+            <div key={item.id} className="h-full">
+              {config.renderTarjeta(item, contextoColumnas)}
+            </div>
+          ))}
+        </div>
+      )}
 
       {(modal === 'crear' || (modal === 'editar' && !config.soloDetalle)) && (
         <Modal
@@ -374,8 +530,14 @@ export function CatalogoCRUD({ config }) {
           <FormularioCatalogo
             config={config}
             item={modal === 'editar' ? editando : null}
+            estado={estado}
             onCancelar={cerrar}
             onGuardar={guardar}
+            onEliminar={
+              modal === 'editar' && config.eliminarEnEdicion
+                ? () => solicitarEliminar(editando)
+                : undefined
+            }
           />
         </Modal>
       )}

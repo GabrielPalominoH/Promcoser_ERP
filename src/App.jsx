@@ -10,11 +10,16 @@ import { EquiposServicio } from './pages/servicio/EquiposServicio'
 import { GastosServicio } from './pages/servicio/GastosServicio'
 import { IngresosServicio } from './pages/servicio/IngresosServicio'
 import { CronogramaServicio } from './pages/servicio/CronogramaServicio'
+import { CurvaSServicio } from './pages/servicio/CurvaSServicio'
+import { LineaBaseServicio } from './pages/servicio/LineaBaseServicio'
+import { ValorizacionesServicio } from './pages/servicio/ValorizacionesServicio'
 import { PartidasServicio } from './pages/servicio/PartidasServicio'
 import { OpcionesServicio } from './pages/servicio/OpcionesServicio'
 import { Personal } from './pages/Personal'
+import { Cargos } from './pages/Cargos'
 import { Equipos } from './pages/Equipos'
 import { Oficina } from './pages/Oficina'
+import { Unidades } from './pages/Unidades'
 
 export default function App() {
   return (
@@ -32,12 +37,17 @@ export default function App() {
           <Route path="cobros" element={<Navigate to="../ingresos" replace />} />
           <Route path="facturacion" element={<Navigate to="../ingresos" replace />} />
           <Route path="cronograma" element={<CronogramaServicio />} />
+          <Route path="curva-s" element={<CurvaSServicio />} />
+          <Route path="linea-base" element={<LineaBaseServicio />} />
           <Route path="partidas" element={<PartidasServicio />} />
+          <Route path="valorizaciones" element={<ValorizacionesServicio />} />
           <Route path="opciones" element={<OpcionesServicio />} />
         </Route>
         <Route path="personal" element={<Personal />} />
+        <Route path="cargos" element={<Cargos />} />
         <Route path="equipos" element={<Equipos />} />
         <Route path="oficina" element={<Oficina />} />
+        <Route path="unidades" element={<Unidades />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

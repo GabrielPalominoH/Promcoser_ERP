@@ -1,7 +1,9 @@
 import { ESTATUS_SERVICIO, TIPOS_SERVICIO } from '../data/mockData'
-import { BadgeEstatus } from '../components/ui/Badge'
+import { Badge, BadgeEstatus } from '../components/ui/Badge'
 import { formatearFecha, formatearMoneda } from '../utils/formatters'
 import { cobradoServicio, estadoPresupuesto, registrosDeServicio, sumarMontos, utilidadReal } from '../utils/calculadora'
+import { mismoCargo, opcionesCargo, personasConCargo, puedeEliminarCargo } from '../utils/cargos'
+import { puedeEliminarPersonal } from '../utils/personal'
 import { Link } from 'react-router-dom'
 
 // Cada catálogo se describe con datos, no con componentes a medida.
@@ -19,15 +21,34 @@ export const CATALOGO_PERSONAL = {
   descripcion: 'Registro del personal con su nombre, cargo y tarifa por hora.',
   nombreSingular: 'personal',
   etiquetaContador: 'personas',
-  claveBusqueda: (item) => `${item.nombre} ${item.apellido} ${item.cargo} ${item.dni} ${item.ambito ?? 'Obra'}`,
-  placeholderBusqueda: 'Buscar por nombre, apellido, cargo, DNI o ámbito…',
+  claveBusqueda: (item) =>
+    `${item.nombre} ${item.apellido} ${item.cargo} ${item.dni} ${item.ambito ?? 'Obra'} ${
+      item.activo !== false ? 'Activo' : 'Inactivo'
+    }`,
+  placeholderBusqueda: 'Buscar por nombre, apellido, cargo, DNI, ámbito o estado…',
   ordenar: (a, b) =>
     `${a.nombre} ${a.apellido}`.localeCompare(`${b.nombre} ${b.apellido}`, 'es'),
   mensajeVacio: 'No hay personal que coincida con la búsqueda.',
   mensajeSinRegistros: 'Aún no hay personal registrado.',
-  tieneActivo: false,
+  etiquetaItem: (item) => `${item.nombre} ${item.apellido ?? ''}`.trim(),
+  // Estado Activo/Inactivo con íconos, igual que Cargos. Un personal
+  // desactivado deja de ofrecerse para nuevas asignaciones (sus registros y
+  // costos ya guardados siguen contando).
+  tieneActivo: true,
+  editarIcono: true,
+  activoIcono: true,
+  // El Eliminar vive dentro del modal de edición (misma regla que Cargos) y
+  // solo sale si la ficha no está ligada a nada (ver `bloquearEliminar`).
+  eliminarEnEdicion: true,
+  bloquearEliminar: (item, estado) => {
+    const { ok, motivo } = puedeEliminarPersonal(estado, item)
+    return ok ? null : motivo
+  },
   // Layout fijo: las columnas no cambian de ancho al filtrar/buscar.
   claseTabla: '[&>table]:table-fixed',
+  // Con layout fijo el ancho de columna lo manda la cabecera: se reserva el
+  // espacio de [ojo][lápiz] para que las acciones no se desborden.
+  claseAcciones: 'w-28',
 
   columnas: [
     {
@@ -71,6 +92,19 @@ export const CATALOGO_PERSONAL = {
         </span>
       ),
     },
+    {
+      etiqueta: 'Estado',
+      // Ancho fijo: al alternar Activo/Inactivo el texto cambia de largo y, sin
+      // esto, la columna se redistribuiría.
+      render: (item) => (
+        <Badge
+          variante={item.activo !== false ? 'success' : 'neutral'}
+          className="w-20 justify-center"
+        >
+          {item.activo !== false ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    },
   ],
 
   campos: [
@@ -91,10 +125,14 @@ export const CATALOGO_PERSONAL = {
     {
       name: 'cargo',
       etiqueta: 'Cargo',
-      tipo: 'texto',
+      // Selector con búsqueda alimentado por el módulo Cargos: solo cargos
+      // activos. El vínculo es por nombre (ver src/utils/cargos.js).
+      tipo: 'combo',
       requerido: true,
       ancho: 'completo',
-      placeholder: 'Ej. Jefe de obra',
+      placeholder: 'Escribe para buscar en Cargos…',
+      hint: 'Se elige del módulo Cargos (solo cargos activos).',
+      opciones: (estado, item) => opcionesCargo(estado.cargos, item?.cargo),
     },
     {
       name: 'dni',
@@ -142,6 +180,137 @@ export const CATALOGO_PERSONAL = {
 }
 
 // ------------------------------------------------------------
+//  Cargos
+// ------------------------------------------------------------
+
+export const CATALOGO_CARGOS = {
+  coleccion: 'cargos',
+  titulo: 'Cargos',
+  descripcion:
+    'Catálogo de cargos: nombre, unidad de medida (HH = horas hombre por defecto) y categoría opcional. Cada ficha de personal se vincula por el nombre del cargo.',
+  nombreSingular: 'cargo',
+  etiquetaContador: 'cargos',
+  claveBusqueda: (item) => `${item.nombre} ${item.unidad ?? ''} ${item.categoria ?? ''}`,
+  placeholderBusqueda: 'Buscar por cargo, unidad o categoría…',
+  mensajeVacio: 'No hay cargos que coincidan con la búsqueda.',
+  mensajeSinRegistros: 'Aún no hay cargos registrados.',
+  tieneActivo: true,
+  editarIcono: true,
+  activoIcono: true,
+  eliminarEnEdicion: true,
+  etiquetaItem: (item) => item.nombre,
+  ordenar: (a, b) => a.nombre.localeCompare(b.nombre, 'es'),
+
+  columnas: [
+    {
+      etiqueta: 'Cargo',
+      render: (item) => (
+        <span className="font-medium break-words text-slate-900">{item.nombre}</span>
+      ),
+    },
+    {
+      etiqueta: 'Unidad',
+      render: (item) => <span className="whitespace-nowrap text-slate-500">{item.unidad}</span>,
+    },
+    {
+      etiqueta: 'Categoría',
+      render: (item) =>
+        item.categoria ? (
+          <span className="text-slate-600">{item.categoria}</span>
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
+    },
+    {
+      etiqueta: 'Personas',
+      alinear: 'right',
+      render: (item, ctx) => {
+        const total = personasConCargo(ctx.estado.personal, item.nombre).length
+
+        return (
+          <span
+            className={`tabular-nums ${total > 0 ? 'font-medium text-slate-900' : 'text-slate-400'}`}
+            title={`${total} ficha(s) de personal con este cargo`}
+          >
+            {total}
+          </span>
+        )
+      },
+    },
+    {
+      etiqueta: 'Estado',
+      // El badge tiene ancho fijo: al alternar Activo/Inactivo el texto cambia
+      // de largo y, sin esto, la columna (y con ella toda la fila) se
+      // redistribuiría. `activo` ausente cuenta como activo.
+      render: (item) => (
+        <Badge
+          variante={item.activo !== false ? 'success' : 'neutral'}
+          className="w-20 justify-center"
+        >
+          {item.activo !== false ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    },
+  ],
+
+  campos: [
+    {
+      name: 'nombre',
+      etiqueta: 'Nombre del cargo',
+      tipo: 'texto',
+      requerido: true,
+      ancho: 'completo',
+      placeholder: 'Ej. Jefe de obra',
+    },
+    {
+      name: 'unidad',
+      etiqueta: 'Unidad',
+      tipo: 'texto',
+      requerido: true,
+      placeholder: 'HH',
+      hint: 'HH = horas hombre (por defecto). Cambia la sigla si el cargo se mide en otra unidad.',
+    },
+    {
+      name: 'categoria',
+      etiqueta: 'Categoría (opcional)',
+      tipo: 'texto',
+      requerido: false,
+      ancho: 'completo',
+      placeholder: 'Ej. Supervisión',
+      hint: 'Agrupación libre para reportes: Operativo, Supervisión, Administrativo…',
+    },
+  ],
+
+  valoresIniciales: {
+    nombre: '',
+    unidad: 'HH',
+    categoria: '',
+  },
+
+  normalizar: (valores) => ({
+    nombre: valores.nombre.trim(),
+    unidad: valores.unidad.trim() || 'HH',
+    categoria: valores.categoria.trim(),
+  }),
+
+  // Renombrar un cargo arrastra el nuevo nombre a las fichas de personal
+  // vinculadas (el vínculo es por nombre; ver src/utils/cargos.js).
+  alActualizar: (anterior, nuevo, { estado, actualizarItem }) => {
+    if (mismoCargo(anterior.nombre, nuevo.nombre)) return
+
+    for (const persona of personasConCargo(estado.personal, anterior.nombre)) {
+      actualizarItem('personal', { ...persona, cargo: nuevo.nombre })
+    }
+  },
+
+  // Solo se puede borrar si no hay personal ligado.
+  bloquearEliminar: (item, estado) => {
+    const { ok, motivo } = puedeEliminarCargo(estado.personal, item.nombre)
+    return ok ? null : motivo
+  },
+}
+
+// ------------------------------------------------------------
 //  Equipos
 // ------------------------------------------------------------
 
@@ -155,6 +324,7 @@ export const CATALOGO_EQUIPOS = {
   placeholderBusqueda: 'Buscar por nombre…',
   mensajeVacio: 'No hay equipos que coincidan con la búsqueda.',
   mensajeSinRegistros: 'Aún no hay equipos registrados.',
+  etiquetaItem: (item) => item.nombre,
   tieneActivo: false,
   ordenar: (a, b) => a.nombre.localeCompare(b.nombre, 'es'),
 
@@ -224,6 +394,36 @@ export const CATALOGO_EQUIPOS = {
 //  Servicios (módulo central)
 // ------------------------------------------------------------
 
+// Resumen económico de un servicio. Es la única fuente para cobrado,
+// gastado, saldo y utilidad: lo comparten las columnas de la tabla y la
+// vista en tarjetas, para que ambos formatos muestren siempre lo mismo.
+const resumenServicio = (item, ctx) => {
+  const cobrado = cobradoServicio(ctx.estado.cobros, item.id)
+  const gastado = sumarMontos(registrosDeServicio(ctx.estado.registros_servicio, item.id))
+
+  return {
+    cobrado,
+    gastado,
+    estado: estadoPresupuesto(item, ctx.estado.registros_servicio, ctx.estado.cobros),
+    utilidad: utilidadReal(cobrado, gastado),
+  }
+}
+
+// Dato rotulado dentro de una tarjeta de servicio. El valor nunca se corta:
+// si no cabe, salta de línea de forma natural.
+const DatoServicio = ({ etiqueta, valor, destacado = false }) => (
+  <div className="min-w-0">
+    <dt className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">{etiqueta}</dt>
+    <dd
+      className={`mt-0.5 text-sm font-medium break-words tabular-nums ${
+        destacado ? 'text-red-600' : 'text-slate-900'
+      }`}
+    >
+      {valor}
+    </dd>
+  </div>
+)
+
 export const CATALOGO_SERVICIOS = {
   coleccion: 'servicios',
   titulo: 'Servicios',
@@ -232,12 +432,16 @@ export const CATALOGO_SERVICIOS = {
   nombreSingular: 'servicio',
   etiquetaContador: 'servicios',
   // La edición y eliminación viven solo en la página del servicio,
-  // no en la tabla del listado.
+  // no en el listado.
   soloDetalle: true,
+  // El listado se muestra como cuadrícula de tarjetas (cada tarjeta abre
+  // el servicio) en lugar de como tabla.
+  vista: 'tarjetas',
   claveBusqueda: (item) => `${item.nombre_servicio} ${item.cliente} ${item.tipo ?? ''} ${item.estatus}`,
   placeholderBusqueda: 'Buscar por servicio, cliente, tipo o estatus…',
   mensajeVacio: 'No hay servicios que coincidan con la búsqueda.',
   mensajeSinRegistros: 'Aún no hay servicios registrados.',
+  etiquetaItem: (item) => item.nombre_servicio,
   tieneActivo: false,
 
   columnas: [
@@ -271,27 +475,23 @@ export const CATALOGO_SERVICIOS = {
       etiqueta: 'Cobrado',
       alinear: 'right',
       render: (item, ctx) => (
-        <span className="whitespace-nowrap tabular-nums">{formatearMoneda(cobradoServicio(ctx.estado.cobros, item.id))}</span>
+        <span className="whitespace-nowrap tabular-nums">{formatearMoneda(resumenServicio(item, ctx).cobrado)}</span>
       ),
     },
     {
       etiqueta: 'Gastado',
       alinear: 'right',
-      render: (item, ctx) => {
-        const gastado = sumarMontos(registrosDeServicio(ctx.estado.registros_servicio, item.id))
-
-        return (
-          <span className="whitespace-nowrap tabular-nums">
-            {formatearMoneda(gastado)}
-          </span>
-        )
-      },
+      render: (item, ctx) => (
+        <span className="whitespace-nowrap tabular-nums">
+          {formatearMoneda(resumenServicio(item, ctx).gastado)}
+        </span>
+      ),
     },
     {
       etiqueta: 'Saldo',
       alinear: 'right',
       render: (item, ctx) => {
-        const estado = estadoPresupuesto(item, ctx.estado.registros_servicio, ctx.estado.cobros)
+        const estado = resumenServicio(item, ctx).estado
 
         return (
           <span
@@ -306,7 +506,7 @@ export const CATALOGO_SERVICIOS = {
     {
       etiqueta: 'Consumo',
       render: (item, ctx) => {
-        const estado = estadoPresupuesto(item, ctx.estado.registros_servicio, ctx.estado.cobros)
+        const estado = resumenServicio(item, ctx).estado
 
         return (
           <div className="w-28">
@@ -333,9 +533,7 @@ export const CATALOGO_SERVICIOS = {
       etiqueta: 'Utilidad',
       alinear: 'right',
       render: (item, ctx) => {
-        const cobrado = cobradoServicio(ctx.estado.cobros, item.id)
-        const gastado = sumarMontos(registrosDeServicio(ctx.estado.registros_servicio, item.id))
-        const utilidad = utilidadReal(cobrado, gastado)
+        const utilidad = resumenServicio(item, ctx).utilidad
 
         return (
           <span
@@ -442,4 +640,83 @@ export const CATALOGO_SERVICIOS = {
       Ver
     </Link>
   ),
+
+  // Cada tarjeta es, en sí, el enlace al servicio: reúne cliente, estatus,
+  // fechas y el resumen económico del mismo `resumenServicio` que usa la
+  // tabla. El listado no tiene botones (soloDetalle), así que no hay
+  // controles anidados dentro del enlace.
+  renderTarjeta: (item, ctx) => {
+    const { estado, cobrado, gastado, utilidad } = resumenServicio(item, ctx)
+
+    return (
+      <Link
+        to={`/servicios/${item.id}`}
+        className="group flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-primary-300 hover:bg-slate-50"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {/* Sin truncado: el nombre completo, con salto de línea natural. */}
+            <h3 className="text-lg font-semibold break-words text-slate-900 transition-colors group-hover:text-primary-700">
+              {item.nombre_servicio}
+            </h3>
+            <p className="mt-0.5 text-xs break-words text-slate-500">
+              {item.cliente} · {item.tipo ?? 'Obra'}
+            </p>
+          </div>
+          <span className="shrink-0">
+            <BadgeEstatus estatus={item.estatus} />
+          </span>
+        </div>
+
+        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+          <DatoServicio etiqueta="Presupuesto" valor={formatearMoneda(item.presupuesto_asignado)} />
+          <DatoServicio etiqueta="Cobrado" valor={formatearMoneda(cobrado)} />
+          <DatoServicio etiqueta="Gastado" valor={formatearMoneda(gastado)} />
+          <DatoServicio
+            etiqueta="Saldo"
+            valor={formatearMoneda(estado.disponible)}
+            destacado={estado.disponible < 0}
+          />
+          <DatoServicio
+            etiqueta="Utilidad"
+            valor={formatearMoneda(utilidad)}
+            destacado={utilidad < 0}
+          />
+          <DatoServicio etiqueta="Inicio" valor={formatearFecha(item.fecha_inicio)} />
+        </dl>
+
+        <div className="mt-auto pt-4">
+          <div className="flex items-center justify-between text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+            <span>Consumo</span>
+            <span
+              className={`tabular-nums ${estado.excedido ? 'font-semibold text-red-600' : 'text-slate-700'}`}
+            >
+              {estado.porcentaje.toFixed(1)}%
+            </span>
+          </div>
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className={`h-full rounded-full ${estado.excedido ? 'bg-red-500' : 'bg-primary-600'}`}
+              style={{ width: `${Math.min(100, estado.porcentaje)}%` }}
+            />
+          </div>
+          <span className="mt-2 flex items-center gap-1 text-xs font-medium text-primary-700">
+            Abrir servicio
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-3.5 transition-transform group-hover:translate-x-0.5"
+              aria-hidden="true"
+            >
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </span>
+        </div>
+      </Link>
+    )
+  },
 }

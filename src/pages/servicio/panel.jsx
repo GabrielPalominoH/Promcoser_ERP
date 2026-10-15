@@ -37,6 +37,9 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       fecha_inicio: servicio.fecha_inicio,
       fecha_fin_estimada: servicio.fecha_fin_estimada ?? '',
       estatus: servicio.estatus,
+      igv_pct: servicio.igv_pct ?? 18,
+      detraccion_pct: servicio.detraccion_pct ?? 0,
+      fondo_garantia_pct: servicio.fondo_garantia_pct ?? 0,
     },
     mode: 'onBlur',
   })
@@ -50,6 +53,9 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       fecha_inicio: servicio.fecha_inicio,
       fecha_fin_estimada: servicio.fecha_fin_estimada ?? '',
       estatus: servicio.estatus,
+      igv_pct: servicio.igv_pct ?? 18,
+      detraccion_pct: servicio.detraccion_pct ?? 0,
+      fondo_garantia_pct: servicio.fondo_garantia_pct ?? 0,
     })
   }, [servicio, reset])
 
@@ -120,6 +126,42 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
             ))}
           </Select>
         </Campo>
+        <Campo
+          label="IGV (%)"
+          error={errors.igv_pct?.message}
+          htmlFor="igv_pct"
+          hint="Impuesto aplicado a cada valorización (18 % en Perú)."
+        >
+          <Input id="igv_pct" type="number" step="0.01" min="0" {...register('igv_pct')} />
+        </Campo>
+        <Campo
+          label="Detracción (%)"
+          error={errors.detraccion_pct?.message}
+          htmlFor="detraccion_pct"
+          hint="Retención del cliente por detracción (según contrato)."
+        >
+          <Input
+            id="detraccion_pct"
+            type="number"
+            step="0.01"
+            min="0"
+            {...register('detraccion_pct')}
+          />
+        </Campo>
+        <Campo
+          label="Fondo de garantía (%)"
+          error={errors.fondo_garantia_pct?.message}
+          htmlFor="fondo_garantia_pct"
+          hint="Retención sobre el bruto de cada valorización."
+        >
+          <Input
+            id="fondo_garantia_pct"
+            type="number"
+            step="0.01"
+            min="0"
+            {...register('fondo_garantia_pct')}
+          />
+        </Campo>
       </div>
     </form>
   )
@@ -159,6 +201,9 @@ export function PanelProveedor({ servicio, children }) {
       fecha_inicio: valores.fecha_inicio,
       fecha_fin_estimada: valores.fecha_fin_estimada || '',
       estatus: valores.estatus,
+      igv_pct: Number(valores.igv_pct) || 0,
+      detraccion_pct: Number(valores.detraccion_pct) || 0,
+      fondo_garantia_pct: Number(valores.fondo_garantia_pct) || 0,
     })
     setAviso({ tipo: 'exito', mensaje: 'Servicio actualizado correctamente.' })
     setMostrarEditar(false)

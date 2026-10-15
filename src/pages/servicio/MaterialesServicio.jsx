@@ -5,6 +5,7 @@ import { Campo, Input } from '../../components/ui/Field'
 import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { CampoComboBox } from '../../components/ui/ComboBox'
 import { useData } from '../../context/useData'
+import { UNIDADES } from '../../data/unidades'
 import { formatearMoneda, redondearMonto } from '../../utils/formatters'
 import {
   SeccionRegistros,
@@ -12,18 +13,31 @@ import {
   reglasNumeroMayorACero,
 } from './compartido'
 
-// Costo de materiales del servicio: se registra el gasto con texto libre,
-// sin almacén ni stock.
-function FormularioMaterial({ servicio, registrar }) {
+// Unidades de medida disponibles para el metrado de un material.
+const OPCIONES_UNIDAD = UNIDADES.map((unidad) => ({
+  valor: unidad.sigla,
+  etiqueta: `${unidad.sigla} — ${unidad.nombre}`,
+}))
+
+const VALORES_INICIALES = {
+  nombre_material: '',
+  unidad: '',
+  metrado: '',
+  costo: '',
+  fecha: fechaHoyISO(),
+  tarea_id: '',
+}
+
+// Costo de materiales del servicio: cada línea se mide con su unidad (UM) y su
+// metrado, igual que las partidas. Se registra el gasto, sin almacén ni stock.
+function FormularioMaterial({ servicio, registrar, enModal = false }) {
   const {
     register,
     handleSubmit,
     reset,
     control,
     formState: { errors },
-  } = useForm({
-    defaultValues: { nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' },
-  })
+  } = useForm({ defaultValues: VALORES_INICIALES })
   const {
     estado: { tareas: todasTareas },
   } = useData()
@@ -31,22 +45,23 @@ function FormularioMaterial({ servicio, registrar }) {
     .filter((t) => t.servicio_id === servicio.id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
-  const enviar = ({ nombre_material, cantidad, costo, fecha, tarea_id }) => {
+  const enviar = ({ nombre_material, unidad, metrado, costo, fecha, tarea_id }) => {
     registrar({
       servicio_id: servicio.id,
       tipo_registro: 'material',
       referencia_id: null,
       nombre_material: nombre_material.trim(),
-      cantidad_o_horas: Number(cantidad),
+      unidad,
+      cantidad_o_horas: Number(metrado),
       monto_calculado: redondearMonto(costo),
       fecha,
       tarea_id: tarea_id ? Number(tarea_id) : null,
     })
-    reset({ nombre_material: '', cantidad: '', costo: '', fecha: fechaHoyISO(), tarea_id: '' })
+    reset(VALORES_INICIALES)
   }
 
   return (
-    <form onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
+    <form id="form-registro" onSubmit={handleSubmit(enviar)} noValidate className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Campo
           label="Nombre del material"
@@ -60,16 +75,31 @@ function FormularioMaterial({ servicio, registrar }) {
             {...register('nombre_material', { required: 'Ingresa el nombre del material' })}
           />
         </Campo>
-        <Campo label="Cantidad" error={errors.cantidad?.message} htmlFor="mat-cantidad">
+        <Campo
+          label="Unidad de medida"
+          error={errors.unidad?.message}
+          htmlFor="mat-unidad"
+          hint="En qué se mide el metrado"
+        >
+          <CampoComboBox
+            id="mat-unidad"
+            control={control}
+            name="unidad"
+            placeholder="Elige unidad…"
+            opciones={OPCIONES_UNIDAD}
+            rules={{ required: 'Elige la unidad de medida' }}
+          />
+        </Campo>
+        <Campo label="Metrado" error={errors.metrado?.message} htmlFor="mat-metrado">
           <Input
-            id="mat-cantidad"
+            id="mat-metrado"
             type="number"
             step="0.01"
             placeholder="0"
-            {...register('cantidad', reglasNumeroMayorACero('Ingresa la cantidad'))}
+            {...register('metrado', reglasNumeroMayorACero('Ingresa el metrado'))}
           />
         </Campo>
-        <Campo label="Costo (S/)" error={errors.costo?.message} htmlFor="mat-costo" hint="Monto total">
+        <Campo label="Costo total (S/)" error={errors.costo?.message} htmlFor="mat-costo" hint="Monto total">
           <CampoMonto
             id="mat-costo"
             control={control}
@@ -91,7 +121,7 @@ function FormularioMaterial({ servicio, registrar }) {
             error={errors.tarea_id?.message}
             htmlFor="mat-tarea"
             hint="A qué trabajo corresponde este costo"
-            className="sm:col-span-3"
+            className="sm:col-span-2"
           >
             <CampoComboBox
               id="mat-tarea"
@@ -103,9 +133,11 @@ function FormularioMaterial({ servicio, registrar }) {
           </Campo>
         )}
       </div>
-      <div className="flex justify-end">
-        <Button type="submit">Agregar material</Button>
-      </div>
+      {!enModal && (
+        <div className="flex justify-end">
+          <Button type="submit">Agregar material</Button>
+        </div>
+      )}
     </form>
   )
 }
@@ -118,14 +150,20 @@ export function MaterialesServicio() {
       servicio={servicio}
       tipo="material"
       titulo="Materiales"
-      descripcion="Materiales comprados para el servicio. Suman al gastado."
+      descripcion="Materiales comprados para el servicio, con su unidad de medida y metrado. Suman al gastado."
       columnaCantidad
-      etiquetaCantidad="Cantidad"
+      etiquetaCantidad="Metrado"
+      columnaUnidad
       mensajeVacio="Este servicio todavía no tiene materiales registrados."
       mensajeExito={(datos) => `Material agregado por ${formatearMoneda(datos.monto_calculado)}.`}
+      modalRegistro={{
+        boton: 'Agregar material',
+        titulo: 'Registrar material',
+        descripcion: 'Material comprado para el servicio. Suma al gastado.',
+      }}
     >
       {({ servicio, registrar }) => (
-        <FormularioMaterial servicio={servicio} registrar={registrar} />
+        <FormularioMaterial servicio={servicio} registrar={registrar} enModal />
       )}
     </SeccionRegistros>
   )

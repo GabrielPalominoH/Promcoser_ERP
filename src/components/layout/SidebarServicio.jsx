@@ -1,6 +1,15 @@
 import { Link, NavLink } from 'react-router-dom'
-import { useData } from '../../context/useData'
-import { Icono } from './Sidebar'
+import {
+  BotonConfiguracion,
+  BotonMenu,
+  ETIQUETA,
+  FILA_ACCION,
+  FILA_ENLACE,
+  FILA_MARCA,
+  FILA_NAV,
+  Icono,
+  claseVariante,
+} from './Sidebar'
 import { BadgeEstatus } from '../ui/Badge'
 import { usePanelServicio } from '../../pages/servicio/panel'
 
@@ -25,8 +34,14 @@ const SECCIONES = [
     titulo: 'Planificación',
     opciones: [
       { id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' },
+      { id: 'curva-s', etiqueta: 'Curva S', icono: 'barras' },
+      { id: 'linea-base', etiqueta: 'Línea base', icono: 'bandera' },
       { id: 'partidas', etiqueta: 'Partidas', icono: 'layers' },
     ],
+  },
+  {
+    titulo: 'Cobro',
+    opciones: [{ id: 'valorizaciones', etiqueta: 'Valorizaciones', icono: 'factura' }],
   },
   {
     titulo: 'Ajustes',
@@ -34,39 +49,10 @@ const SECCIONES = [
   },
 ]
 
-function Contador({ valor }) {
-  if (!valor) return null
-  return (
-    <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 tabular-nums">
-      {valor}
-    </span>
-  )
-}
-
-export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
+export function SidebarServicio({ abierto, onCerrar, onAlternar, colapsado = false, onAbrirConfiguracion }) {
   const { servicio } = usePanelServicio()
-  const {
-    estado: { registros_servicio: todos, tareas, cobros: todosCobros, asignaciones: todasAsignaciones },
-  } = useData()
 
-  const conteo = (tipo) =>
-    todos.filter((r) => r.servicio_id === servicio.id && r.tipo_registro === tipo).length
-
-  // Personal cuenta personas distintas asignadas (costo directo automático).
-  const personasAsignadas = new Set(
-    (todasAsignaciones ?? [])
-      .filter((a) => a.servicio_id === servicio.id)
-      .map((a) => a.personal_id),
-  ).size
-
-  const conteos = {
-    materiales: conteo('material'),
-    personal: personasAsignadas,
-    equipos: conteo('equipo'),
-    gastos: conteo('gasto'),
-    cronograma: tareas.filter((t) => t.servicio_id === servicio.id && t.padre_id == null).length,
-    ingresos: (todosCobros ?? []).filter((c) => c.servicio_id === servicio.id).length,
-  }
+  const v = (tabla) => claseVariante(tabla, { abierto, colapsado })
 
   const base = `/servicios/${servicio.id}`
   const destino = (id) => (id === 'resumen' ? base : `${base}/${id}`)
@@ -82,34 +68,20 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-300 bg-white transition-all duration-200 md:translate-x-0 ${
-          abierto ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-slate-300 bg-white transition-all duration-200 ${
+          abierto ? 'w-64' : 'w-16'
         } ${colapsado ? 'md:w-20' : 'md:w-64'}`}
       >
         <div className="border-b border-slate-200">
-          <div className={`flex h-16 items-center px-4 ${colapsado ? 'md:justify-center md:px-2' : ''}`}>
-            <Link
-              to="/servicios"
-              onClick={onCerrar}
-              title="Volver a servicios"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="size-4 shrink-0"
-                aria-hidden="true"
-              >
-                <path d="M19 12H5m7-7-7 7 7 7" />
-              </svg>
-              <span className={colapsado ? 'md:hidden' : ''}>Volver</span>
-            </Link>
+          <div className={`flex h-16 shrink-0 items-center gap-2 ${v(FILA_MARCA)}`}>
+            <div className={`min-w-0 ${v(ETIQUETA)}`}>
+              <p className="truncate text-sm font-semibold text-slate-900">PROMCOSER</p>
+              <p className="truncate text-xs text-slate-500">Panel del servicio</p>
+            </div>
+            <BotonMenu abierto={abierto} colapsado={colapsado} onAlternar={onAlternar} clase={v(FILA_ACCION)} />
           </div>
-          <div className={`px-4 pt-1 pb-4 ${colapsado ? 'md:hidden' : ''}`}>
+
+          <div className={`px-4 pt-1 pb-4 ${v(ETIQUETA)}`}>
             <p className="truncate px-2 text-sm font-semibold text-slate-900">
               {servicio.nombre_servicio}
             </p>
@@ -119,10 +91,35 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
           </div>
         </div>
 
-        <nav className={`flex-1 space-y-5 overflow-y-auto p-4 ${colapsado ? 'md:p-2' : ''}`}>
+        <nav className={`flex-1 space-y-5 overflow-y-auto ${v(FILA_NAV)}`}>
+          <ul>
+            <li>
+              <Link
+                to="/servicios"
+                onClick={onCerrar}
+                title="Volver a servicios"
+                className={`flex items-center gap-3 rounded-lg py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 ${v(FILA_ENLACE)}`}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-5 shrink-0"
+                  aria-hidden="true"
+                >
+                  <path d="M19 12H5m7-7-7 7 7 7" />
+                </svg>
+                <span className={v(ETIQUETA)}>Volver</span>
+              </Link>
+            </li>
+          </ul>
+
           {SECCIONES.map((seccion) => (
             <div key={seccion.titulo}>
-              <p className={`mb-1.5 px-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase ${colapsado ? 'md:hidden' : ''}`}>
+              <p className={`mb-1.5 px-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase ${v(ETIQUETA)}`}>
                 {seccion.titulo}
               </p>
               <ul className="space-y-0.5">
@@ -134,9 +131,7 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
                       onClick={onCerrar}
                       title={opcion.etiqueta}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                          colapsado ? 'md:justify-center md:px-2' : ''
-                        } ${
+                        `flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors ${v(FILA_ENLACE)} ${
                           isActive
                             ? 'bg-primary-50 text-primary-700'
                             : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -144,8 +139,7 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
                       }
                     >
                       <Icono nombre={opcion.icono} className="size-5 shrink-0" />
-                      <span className={colapsado ? 'md:hidden' : ''}>{opcion.etiqueta}</span>
-                      {!colapsado && <Contador valor={conteos[opcion.id]} />}
+                      <span className={v(ETIQUETA)}>{opcion.etiqueta}</span>
                     </NavLink>
                   </li>
                 ))}
@@ -153,6 +147,15 @@ export function SidebarServicio({ abierto, onCerrar, colapsado = false }) {
             </div>
           ))}
         </nav>
+
+        {/* Configuración: siempre visible al pie del sidebar. */}
+        <div className={`shrink-0 border-t border-slate-200 ${v(FILA_NAV)}`}>
+          <BotonConfiguracion
+            onAbrir={onAbrirConfiguracion}
+            variante={v(FILA_ENLACE)}
+            etiqueta={v(ETIQUETA)}
+          />
+        </div>
       </aside>
     </>
   )

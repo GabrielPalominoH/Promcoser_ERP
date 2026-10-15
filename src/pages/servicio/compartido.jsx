@@ -58,7 +58,7 @@ function conceptoRegistro(registro, refs) {
   )
 }
 
-function FilaRegistro({ registro, refs, conCantidad, onEliminar, onEditar }) {
+function FilaRegistro({ registro, refs, conCantidad, conUnidad, onEliminar, onEditar }) {
   return (
     <TableRow>
       <Td className="whitespace-nowrap text-slate-500">
@@ -83,7 +83,7 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar, onEditar }) {
             </span>
           )}
         {registro.tipo_registro === 'gasto' && registro.documento && (
-          <span className="block text-xs text-slate-500">🧾 {registro.documento}</span>
+          <span className="block text-xs text-slate-500">Doc. {registro.documento}</span>
         )}
         {registro.tarea_id != null &&
           (() => {
@@ -95,6 +95,11 @@ function FilaRegistro({ registro, refs, conCantidad, onEliminar, onEditar }) {
 
 
       </Td>
+      {conUnidad && (
+        <Td className="whitespace-nowrap text-slate-500">
+          {registro.unidad || '—'}
+        </Td>
+      )}
       {conCantidad && (
         <Td alinear="right" className="tabular-nums">
           {formatearCantidad(registro.cantidad_o_horas)}
@@ -215,6 +220,7 @@ export function SeccionRegistros({
   descripcion,
   columnaCantidad,
   etiquetaCantidad,
+  columnaUnidad = false,
   mensajeVacio,
   mensajeExito,
   tablaAgrupada,
@@ -286,6 +292,12 @@ export function SeccionRegistros({
     (total, r) => total + (Number(r.cantidad_o_horas) || 0),
     0,
   )
+  // El metrado solo se puede sumar si todos los registros comparten unidad;
+  // si hay unidades mezcladas (o ninguna), el total de la columna no aplica.
+  const unidadesDistintas = new Set(
+    filtradosQueSuman.map((r) => r.unidad).filter(Boolean),
+  )
+  const unidadUnica = unidadesDistintas.size === 1 ? [...unidadesDistintas][0] : null
   const hayFiltro = termino !== '' || filtroTarea !== 'todas'
 
   const registrar = (datos) => {
@@ -318,7 +330,7 @@ export function SeccionRegistros({
     setAviso({ tipo: 'exito', mensaje: 'Gasto actualizado.' })
   }
 
-  const columnas = columnaCantidad ? 5 : 4
+  const columnas = 4 + (columnaCantidad ? 1 : 0) + (columnaUnidad ? 1 : 0)
 
   return (
     <div className="space-y-6">
@@ -372,6 +384,7 @@ export function SeccionRegistros({
             <TableRow>
               <Th>Fecha</Th>
               <Th>{titulo === 'Equipos' ? 'Equipo' : 'Concepto'}</Th>
+              {columnaUnidad && <Th>UM</Th>}
               {columnaCantidad && <Th alinear="right">{etiquetaCantidad}</Th>}
               <Th alinear="right">Monto</Th>
               <Th alinear="right">Acción</Th>
@@ -389,6 +402,7 @@ export function SeccionRegistros({
                   registro={registro}
                   refs={refs}
                   conCantidad={columnaCantidad}
+                  conUnidad={columnaUnidad}
                   onEliminar={setPorEliminar}
                   onEditar={editable ? setPorEditar : null}
                 />
@@ -400,10 +414,13 @@ export function SeccionRegistros({
                 <Td className="text-slate-600" colSpan={2}>
                   Total
                 </Td>
+                {columnaUnidad && (
+                  <Td className="text-slate-600">{unidadUnica ?? '—'}</Td>
+                )}
                 {columnaCantidad && (
                   <Td alinear="right" className="text-slate-900 tabular-nums">
-                    {formatearCantidad(cantidadFiltrada)}
-                    {tipo === 'equipo' ? ' h' : ''}
+                    {columnaUnidad && !unidadUnica ? '—' : formatearCantidad(cantidadFiltrada)}
+                    {tipo === 'equipo' && !columnaUnidad ? ' h' : ''}
                   </Td>
                 )}
                 <Td alinear="right" className="text-slate-900 tabular-nums">

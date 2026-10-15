@@ -4,13 +4,20 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input } from '../../components/ui/Field'
+import { Campo, Input, Select } from '../../components/ui/Field'
 
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
 import { Badge } from '../../components/ui/Badge'
-import { formatearFecha, formatearMoneda } from '../../utils/formatters'
-import { avanceEfectivo, estadoTarea, hoyISO, nombreReferencia, sumarMontos } from '../../utils/calculadora'
+import { formatearCantidad, formatearFecha, formatearMoneda } from '../../utils/formatters'
+import { avanceEfectivo, estadoTarea, hoyISO, metricasCronograma, nombreReferencia, sumarMontos } from '../../utils/calculadora'
+import { programar, TIPOS_DEPENDENCIA } from '../../utils/cpm'
+import {
+  CALENDARIO_POR_DEFECTO,
+  DIAS_SEMANA,
+  calendarioDe,
+  normalizarCalendario,
+} from '../../utils/calendario'
 import { normalizar } from '../../components/ui/ComboBox'
 import { Buscador, textoCoincide } from '../../components/ui/FiltroBusqueda'
 
@@ -63,10 +70,14 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, onCerrar, onGuardar, onEliminar }) {
+function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, candidatas = [], onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
   const esGrupo = enEdicion && tieneHijos
+  const [predecesoras, setPredecesoras] = useState(() =>
+    (tarea?.predecesoras ?? []).filter(Boolean).map((p) => ({ ...p })),
+  )
+  const [hito, setHito] = useState(() => tarea?.hito === true)
 
   const {
     register,
@@ -95,13 +106,33 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
       monto: tarea?.monto ?? 0,
       nombre: nombreTarea,
       fecha_inicio: valores.fecha_inicio,
-      fecha_fin: valores.fecha_fin,
+      fecha_fin: hito ? valores.fecha_inicio : valores.fecha_fin,
+      hito,
+      predecesoras: esGrupo
+        ? []
+        : predecesoras
+            .filter((p) => p.id != null && p.id !== '')
+            .map((p) => ({
+              id: Number(p.id),
+              tipo: p.tipo ?? 'FS',
+              lag: Number(p.lag) || 0,
+            })),
       // Con hijas, el avance se calcula solo desde las subtareas.
       avance: esGrupo
         ? Number(tarea.avance) || 0
         : Math.min(100, Math.max(0, Number(valores.avance) || 0)),
     })
   }
+
+  const agregarPredecesora = () =>
+    setPredecesoras((lista) => [...lista, { id: '', tipo: 'FS', lag: 0 }])
+  const quitarPredecesora = (i) =>
+    setPredecesoras((lista) => lista.filter((_, j) => j !== i))
+  const cambiarPredecesora = (i, cambios) =>
+    setPredecesoras((lista) => lista.map((p, j) => (j === i ? { ...p, ...cambios } : p)))
+
+  const nombreCandidata = (id) =>
+    candidatas.find((c) => c.id === Number(id))?.nombre ?? `Tarea ${id}`
 
   return (
     <Modal
@@ -182,15 +213,17 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                 })}
               />
             </Campo>
-            <Campo label="Fin" error={errors.fecha_fin?.message} htmlFor="tarea-fin">
+            <Campo label="Fin" error={errors.fecha_fin?.message} htmlFor="tarea-fin" className={hito ? 'hidden' : undefined}>
               <Input
                 id="tarea-fin"
                 type="date"
                 min={padre?.fecha_inicio}
                 max={padre?.fecha_fin}
+                disabled={hito}
                 {...register('fecha_fin', {
-                  required: 'Indica el fin',
+                  required: hito ? false : 'Indica el fin',
                   validate: (valor) => {
+                    if (hito) return true
                     if (valor < getValues('fecha_inicio')) {
                       return 'El fin no puede ser anterior al inicio'
                     }
@@ -236,6 +269,91 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
               </Campo>
             )}
           </div>
+          {!esGrupo && (
+            <div className="mt-4 rounded-lg border border-slate-200 px-4 py-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={hito}
+                  onChange={(e) => setHito(e.target.checked)}
+                  className="size-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
+                />
+                Hito (sin duración, sin recursos)
+              </label>
+              <div className="mt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-700">Predecesoras</p>
+                  <button
+                    type="button"
+                    onClick={agregarPredecesora}
+                    disabled={candidatas.length === 0}
+                    className="rounded-md px-2 py-1 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    + Agregar
+                  </button>
+                </div>
+                {predecesoras.length === 0 ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Sin dependencias: la tarea arranca en su fecha de inicio.
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {predecesoras.map((p, i) => (
+                      <li key={i} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+                        <Select
+                          value={p.id ?? ''}
+                          onChange={(e) => cambiarPredecesora(i, { id: e.target.value })}
+                          aria-label="Tarea predecesora"
+                        >
+                          <option value="">Elegir tarea…</option>
+                          {candidatas.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.nombre}
+                            </option>
+                          ))}
+                        </Select>
+                        <Select
+                          value={p.tipo ?? 'FS'}
+                          onChange={(e) => cambiarPredecesora(i, { tipo: e.target.value })}
+                          aria-label="Tipo de dependencia"
+                          className="sm:w-40"
+                        >
+                          {TIPOS_DEPENDENCIA.map((tp) => (
+                            <option key={tp.valor} value={tp.valor}>
+                              {tp.etiqueta}
+                            </option>
+                          ))}
+                        </Select>
+                        <Input
+                          type="number"
+                          step="1"
+                          value={p.lag ?? 0}
+                          onChange={(e) => cambiarPredecesora(i, { lag: e.target.value })}
+                          aria-label="Holgura en días laborables"
+                          title="Holgura (lag) en días laborables"
+                          className="sm:w-20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => quitarPredecesora(i)}
+                          className="justify-self-end rounded-md px-2 py-1.5 text-sm font-bold text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          aria-label="Quitar predecesora"
+                          title="Quitar"
+                        >
+                          ×
+                        </button>
+                        {p.id !== '' && p.id != null && (
+                          <span className="text-[11px] text-slate-400 sm:col-span-4">
+                            Después de «{nombreCandidata(p.id)}»
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
           {enEdicion && !confirmando && (
             <div className="mt-4 rounded-lg bg-slate-50 px-4 py-3">
               <p className="text-sm font-medium text-slate-700">
@@ -265,6 +383,199 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
   )
 }
 
+// Calendario laboral de la obra: qué días de la semana se trabaja y cuáles son
+// feriados. Define la duración en días laborables y, con ella, el cálculo CPM.
+function ModalCalendario({ servicio, calendario, onCerrar, onGuardar }) {
+  const base = normalizarCalendario(calendario)
+  const [dias, setDias] = useState(base.dias_laborables)
+  const [feriados, setFeriados] = useState(base.feriados)
+  const [nuevo, setNuevo] = useState('')
+
+  const alternarDia = (valor) =>
+    setDias((previo) =>
+      previo.includes(valor) ? previo.filter((d) => d !== valor) : [...previo, valor],
+    )
+  const añadirFeriado = () => {
+    if (!nuevo || feriados.includes(nuevo)) return
+    setFeriados((previo) => [...previo, nuevo].sort())
+    setNuevo('')
+  }
+  const quitarFeriado = (fecha) =>
+    setFeriados((previo) => previo.filter((f) => f !== fecha))
+
+  const guardar = () => {
+    if (dias.length === 0) return
+    onGuardar({ dias_laborables: [...dias].sort(), feriados })
+  }
+
+  return (
+    <Modal
+      abierto
+      ancho="md"
+      titulo="Calendario laboral"
+      descripcion={`Días trabajados de «${servicio.nombre_servicio}».`}
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button onClick={guardar} disabled={dias.length === 0}>
+            Guardar
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700">Días laborables</p>
+          <div className="flex flex-wrap gap-2">
+            {DIAS_SEMANA.map((dia) => (
+              <label
+                key={dia.valor}
+                className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                  dias.includes(dia.valor)
+                    ? 'border-primary-600 bg-primary-50 text-primary-800'
+                    : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={dias.includes(dia.valor)}
+                  onChange={() => alternarDia(dia.valor)}
+                  className="size-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
+                />
+                {dia.etiqueta}
+              </label>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Por defecto lunes a sábado. La duración de tareas y dependencias se mide en días
+            laborables de este calendario.
+          </p>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-slate-700">Feriados</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="date"
+              value={nuevo}
+              onChange={(e) => setNuevo(e.target.value)}
+              aria-label="Fecha de feriado"
+              className="w-auto"
+            />
+            <Button variante="secundario" tamano="sm" onClick={añadirFeriado} disabled={!nuevo}>
+              Agregar
+            </Button>
+            <Button
+              variante="secundario"
+              tamano="sm"
+              onClick={() => setFeriados([])}
+              disabled={feriados.length === 0}
+            >
+              Limpiar
+            </Button>
+          </div>
+          {feriados.length > 0 ? (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {feriados.map((f) => (
+                <li
+                  key={f}
+                  className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 tabular-nums"
+                >
+                  {formatearFecha(f)}
+                  <button
+                    type="button"
+                    onClick={() => quitarFeriado(f)}
+                    className="font-bold text-slate-400 hover:text-red-600"
+                    aria-label={`Quitar feriado ${f}`}
+                    title="Quitar"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">Sin feriados cargados.</p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setDias(CALENDARIO_POR_DEFECTO.dias_laborables)}
+          className="text-xs font-semibold text-primary-700 hover:underline"
+        >
+          Restaurar lunes a sábado
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+// Flechas de dependencia (lógica del cronograma): unen el fin de la
+// predecesora con el inicio de la sucesora con un codo y punta de flecha.
+// Se apoyan en la geometría medida de las filas, así que no alteran el layout.
+function FlechasDependencia({ filas, geometria, rango, diaVista, criticas }) {
+  if (!rango || !filas?.length) return null
+
+  const xFecha = (iso) =>
+    ANCHO_ETIQUETA + ((parsearFecha(iso).getTime() - rango.inicioMs) / DIA_MS) * diaVista
+  const xInicio = (t) => xFecha(t.fecha_inicio)
+  const xFin = (t) => xFecha(t.fecha_fin) + (diasEntre(t.fecha_inicio, t.fecha_fin) + 1) * diaVista
+
+  const porId = new Map(filas.map((f) => [f.tarea.id, f.tarea]))
+  const rutas = []
+  for (const suc of porId.values()) {
+    const preds = suc.predecesoras ?? []
+    if (preds.length === 0) continue
+    const geoS = geometria[suc.id]
+    if (!geoS) continue
+    for (const p of preds) {
+      const pred = porId.get(p.id)
+      const geoP = geometria[p.id]
+      if (!pred || !geoP) continue
+      const tipo = p.tipo ?? 'FS'
+      const origen = tipo === 'SS' || tipo === 'SF' ? xInicio(pred) : xFin(pred)
+      const destino = tipo === 'FF' || tipo === 'SF' ? xFin(suc) : xInicio(suc)
+      const codo = origen + 8
+      const y1 = geoP.y
+      const y2 = geoS.y
+      rutas.push({
+        clave: `${p.id}-${tipo}-${suc.id}`,
+        d: `M ${origen} ${y1} L ${codo} ${y1} L ${codo} ${y2} L ${destino} ${y2}`,
+        critica: criticas.has(p.id) && criticas.has(suc.id),
+      })
+    }
+  }
+  if (rutas.length === 0) return null
+
+  return (
+    <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full" aria-hidden="true">
+      <defs>
+        <marker id="crono-flecha" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0 0 L8 4 L0 8 z" fill="#94a3b8" />
+        </marker>
+        <marker id="crono-flecha-critica" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0 0 L8 4 L0 8 z" fill="#ef4444" />
+        </marker>
+      </defs>
+      {rutas.map((r) => (
+        <path
+          key={r.clave}
+          d={r.d}
+          fill="none"
+          strokeWidth="1.3"
+          stroke={r.critica ? '#ef4444' : '#94a3b8'}
+          strokeDasharray={r.critica ? undefined : '4 3'}
+          markerEnd={`url(#${r.critica ? 'crono-flecha-critica' : 'crono-flecha'})`}
+        />
+      ))}
+    </svg>
+  )
+}
+
 export function CronogramaServicio() {
   const { servicio } = useOutletContext()
   const { estado, agregarItem, actualizarItem, eliminarItem, reemplazarColeccion } = useData()
@@ -272,6 +583,7 @@ export function CronogramaServicio() {
 
   const [aviso, setAviso] = useState(null)
   const [modal, setModal] = useState(null) // null | { modo: 'crear', padre? } | { modo: 'editar', tarea }
+  const [calendarioAbierto, setCalendarioAbierto] = useState(false)
   const [colapsadas, setColapsadas] = useState({})
   const [busqueda, setBusqueda] = useState('')
   const [zoomManual, setZoomManual] = useState(null) // px por día elegido con +/−; null = ajuste automático
@@ -411,6 +723,12 @@ export function CronogramaServicio() {
     eliminarItem('tareas', tarea.id)
     setAviso({ tipo: 'info', mensaje: `Tarea «${tarea.nombre}» eliminada.` })
     setModal(null)
+  }
+
+  const guardarCalendario = (calendario) => {
+    actualizarItem('servicios', { id: servicio.id, calendario })
+    setCalendarioAbierto(false)
+    setAviso({ tipo: 'exito', mensaje: 'Calendario laboral actualizado.' })
   }
 
   const rango = useMemo(() => {
@@ -649,18 +967,104 @@ export function CronogramaServicio() {
     rafZoom.current = requestAnimationFrame(paso)
   }, [zoomManual])
 
-  const conEstado = tareas.map((t) => ({ ...t, estado: estadoTarea(t, hoy) }))
-  const completadas = conEstado.filter((t) => t.estado === 'completada').length
-  const atrasadas = conEstado.filter((t) => t.estado === 'atrasada').length
-  const duracionTotal = conEstado.reduce((s, t) => s + diasEntre(t.fecha_inicio, t.fecha_fin) + 1, 0)
-  const avanceGlobal = duracionTotal
-    ? Math.round(
-        conEstado.reduce(
-          (s, t) => s + (Number(t.avance) || 0) * (diasEntre(t.fecha_inicio, t.fecha_fin) + 1),
-          0,
-        ) / duracionTotal,
-      )
-    : 0
+  // Mismas métricas que Resumen, Dashboard y Curva S (avance valorizado, solo
+  // hojas): el encabezado del cronograma nunca contradice al resto.
+  const { completadas, atrasadas, avanceGlobal } = metricasCronograma(tareas, hoy)
+
+  // Calendario laboral de la obra (días laborables y feriados) y red CPM.
+  const calendario = useMemo(() => calendarioDe(servicio), [servicio])
+  const cpm = useMemo(
+    () => programar({ tareas, servicio, calendario }),
+    [tareas, servicio, calendario],
+  )
+  const rutaCritica = useMemo(() => new Set(cpm.rutaCritica), [cpm])
+
+  // Tareas que pueden ser predecesoras de la que se está editando: las hojas
+  // del servicio, sin la propia ni sus descendientes.
+  const candidatas = useMemo(() => {
+    const conHijas = new Set(
+      tareas.filter((t) => tareas.some((x) => x.padre_id === t.id)).map((t) => t.id),
+    )
+    const editar = modal?.modo === 'editar' ? modal.tarea : null
+    const excluir = new Set(editar ? [editar.id] : [])
+    if (editar) {
+      let cambio = true
+      while (cambio) {
+        cambio = false
+        for (const t of tareas) {
+          if (!excluir.has(t.id) && t.padre_id != null && excluir.has(t.padre_id)) {
+            excluir.add(t.id)
+            cambio = true
+          }
+        }
+      }
+    }
+    return tareas
+      .filter((t) => !conHijas.has(t.id) && !excluir.has(t.id))
+      .map((t) => ({ id: t.id, nombre: t.nombre }))
+  }, [tareas, modal])
+
+  // Línea base vigente: se dibuja como fantasma contra las fechas reales.
+  const baseVigente = useMemo(
+    () =>
+      (estado.lineas_base ?? [])
+        .filter((l) => l.servicio_id === servicio.id)
+        .sort((a, b) => (Number(b.version) || 0) - (Number(a.version) || 0))[0] ?? null,
+    [estado.lineas_base, servicio.id],
+  )
+  const basePorId = useMemo(
+    () => new Map((baseVigente?.tareas ?? []).map((t) => [t.id, t])),
+    [baseVigente],
+  )
+
+  // Reprogramar con CPM: solo se aplica cuando el usuario lo pide (asesor).
+  const reprogramar = () => {
+    if (!cpm.valido) {
+      setAviso({
+        tipo: 'error',
+        mensaje: 'Hay ciclos entre dependencias; corrige las predecesoras antes de reprogramar.',
+      })
+      return
+    }
+    const cambios = []
+    for (const t of tareas) {
+      const v = cpm.porTarea[t.id]
+      if (!v) continue
+      if (t.fecha_inicio !== v.inicio || t.fecha_fin !== v.fin) {
+        cambios.push({ id: t.id, fecha_inicio: v.inicio, fecha_fin: v.fin })
+      }
+    }
+    if (cambios.length === 0) {
+      setAviso({ tipo: 'info', mensaje: 'El cronograma ya coincide con el cálculo CPM.' })
+      return
+    }
+    registrarPaso()
+    cambios.forEach((c) => actualizarItem('tareas', c))
+    setAviso({
+      tipo: 'exito',
+      mensaje: `Se reprogramaron ${cambios.length} tarea(s) con el motor CPM (puedes deshacerlo).`,
+    })
+  }
+
+  // --- Geometría de las filas para dibujar las flechas de dependencia -----
+  const filaRefs = useRef(new Map())
+  const [alturaFila, setAlturaFila] = useState({})
+  const registrarFila = (id, el) => {
+    if (el) filaRefs.current.set(id, el)
+    else filaRefs.current.delete(id)
+  }
+  usarLayoutEffect(() => {
+    const mapa = {}
+    filaRefs.current.forEach((el, id) => {
+      if (el) mapa[id] = { y: el.offsetTop + el.offsetHeight / 2 }
+    })
+    setAlturaFila((previo) =>
+      Object.keys(previo).length === Object.keys(mapa).length &&
+      Object.keys(mapa).every((k) => previo[k]?.y === mapa[k]?.y)
+        ? previo
+        : mapa,
+    )
+  }, [filasFiltradas, diaVista, baseVigente])
 
   return (
     <div className="space-y-6">
@@ -692,6 +1096,12 @@ export function CronogramaServicio() {
               )}
             </div>
           )}
+          <Button variante="secundario" onClick={() => setCalendarioAbierto(true)}>
+            Calendario
+          </Button>
+          <Button variante="secundario" onClick={reprogramar}>
+            Reprogramar (CPM)
+          </Button>
           <Button onClick={() => setModal({ modo: 'crear' })}>Nueva tarea</Button>
         </div>
       </div>
@@ -928,6 +1338,14 @@ export function CronogramaServicio() {
                   Ninguna tarea coincide con el filtro.
                 </div>
               )}
+              <div className="relative">
+                <FlechasDependencia
+                  filas={filasFiltradas}
+                  geometria={alturaFila}
+                  rango={rango}
+                  diaVista={diaVista}
+                  criticas={rutaCritica}
+                />
               {filasFiltradas.map(({ tarea: t, nivel, numero, hijas }) => {
                 const pct = avanceEfectivo(t, tareas)
                 const estado = estadoTarea({ ...t, avance: pct }, hoy)
@@ -935,9 +1353,17 @@ export function CronogramaServicio() {
                 const colapsada = esPadre && colapsadas[t.id]
                 const tonoBarra = nivel === 0 ? COLORES_BARRA[estado] : nivel === 1 ? 'bg-violet-500' : 'bg-teal-500'
                 const altoBarra = nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'
+                const v = cpm.porTarea[t.id]
+                const esCritica = rutaCritica.has(t.id)
+                const preds = t.predecesoras ?? []
+                const base = basePorId.get(t.id)
+                const desvioBase = Boolean(
+                  base && (base.fecha_inicio !== t.fecha_inicio || base.fecha_fin !== t.fecha_fin),
+                )
                 return (
                   <div
                     key={t.id}
+                    ref={(el) => registrarFila(t.id, el)}
                     className={`flex items-stretch border-b border-slate-100 last:border-0 ${nivel >= 1 ? 'bg-slate-50/70' : ''} ${esPadre ? 'border-t-2 border-t-slate-200 first:border-t-0' : ''}`}
                   >
                     <div
@@ -980,6 +1406,14 @@ export function CronogramaServicio() {
                       <span className="block text-sm leading-snug font-medium text-slate-800 [display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden">
                         {t.nombre}
                       </span>
+                      {!esPadre && t.metrado != null && (
+                        <span
+                          className="mt-0.5 block text-[11px] leading-tight text-slate-400 tabular-nums"
+                          title={`Metrado de la partida${t.unidad ? ` (${t.unidad})` : ''} al ${Number(t.avance) || 0} % de avance`}
+                        >
+                          {formatearCantidad(t.metrado)} {t.unidad ?? 'sin unidad'} · {Number(t.avance) || 0}%
+                        </span>
+                      )}
                         <span className="mt-0.5 inline-flex items-center gap-1.5">
                           <Badge variante={COLORES_ETIQUETA[estado]}>{estado}</Badge>
                           {esPadre && (
@@ -988,6 +1422,33 @@ export function CronogramaServicio() {
                             </span>
                           )}
                         </span>
+                        {v && (
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] leading-tight text-slate-400 tabular-nums">
+                            <span>{v.duracion} d</span>
+                            {!esPadre && v.holgura !== 0 && (
+                              <span title="Holgura total en días laborables">
+                                · {v.holgura > 0 ? `holg. ${v.holgura} d` : `holg. -${Math.abs(v.holgura)} d`}
+                              </span>
+                            )}
+                            {!esPadre && preds.length > 0 && (
+                              <span
+                                title={preds
+                                  .map(
+                                    (p) =>
+                                      `Tarea ${p.id} · ${p.tipo ?? 'FS'}${
+                                        Number(p.lag) ? ` +${p.lag} d` : ''
+                                      }`,
+                                  )
+                                  .join('\n')}
+                              >
+                                · {preds.length} pred.
+                              </span>
+                            )}
+                            {esCritica && (
+                              <span className="font-semibold text-red-600">· Crítica</span>
+                            )}
+                          </span>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -1026,27 +1487,54 @@ export function CronogramaServicio() {
                             style={{ left: `${izq}%` }}
                           />
                         ))}
-                      <span className={`relative block w-full overflow-hidden rounded-full bg-slate-200 ring-1 ring-inset ring-slate-300 ${nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'}`}>
-                        {/* Rango planificado */}
+                      {t.hito ? (
                         <span
-                          className={`absolute inset-y-0 rounded-full transition-[left,width] duration-300 ease-out ${nivel === 0 ? 'bg-slate-400' : 'bg-violet-300'}`}
-                          style={{ left: `${pos(t.fecha_inicio)}%`, width: `${ancho(t.fecha_inicio, t.fecha_fin)}%` }}
+                          className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-amber-500 shadow-sm ring-1 ring-black/20"
+                          style={{ left: `${pos(t.fecha_inicio)}%` }}
+                          title={`Hito · ${formatearFecha(t.fecha_inicio)}`}
                         />
-                        {/* Avance real */}
-                        <span
-                          className={`absolute inset-y-0 flex items-center justify-end overflow-hidden rounded-full shadow-sm ring-1 ring-inset ring-black/20 transition-[left,width] duration-300 ease-out ${tonoBarra}`}
-                          style={{
-                            left: `${pos(t.fecha_inicio)}%`,
-                            width: `${(ancho(t.fecha_inicio, t.fecha_fin) * pct) / 100}%`,
-                          }}
-                        >
-                          {pct > 0 && (
-                            <span className="pr-1.5 text-[10px] font-bold whitespace-nowrap text-white tabular-nums">
-                              {pct}%
-                            </span>
+                      ) : (
+                        <span className={`relative block w-full overflow-hidden rounded-full bg-slate-200 ring-1 ring-inset ring-slate-300 ${nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'}`}>
+                          {/* Fantasma de la línea base (plan congelado) */}
+                          {base && (
+                            <span
+                              className={`absolute inset-y-0 rounded-full border border-dashed ${desvioBase ? 'border-amber-500' : 'border-slate-400'}`}
+                              style={{
+                                left: `${pos(base.fecha_inicio)}%`,
+                                width: `${ancho(base.fecha_inicio, base.fecha_fin)}%`,
+                              }}
+                              title={`Línea base v${baseVigente?.version}: ${formatearFecha(base.fecha_inicio)} → ${formatearFecha(base.fecha_fin)}`}
+                            />
+                          )}
+                          {/* Rango planificado */}
+                          <span
+                            className={`absolute inset-y-0 rounded-full transition-[left,width] duration-300 ease-out ${nivel === 0 ? 'bg-slate-400' : 'bg-violet-300'}`}
+                            style={{ left: `${pos(t.fecha_inicio)}%`, width: `${ancho(t.fecha_inicio, t.fecha_fin)}%` }}
+                          />
+                          {/* Avance real */}
+                          <span
+                            className={`absolute inset-y-0 flex items-center justify-end overflow-hidden rounded-full shadow-sm ring-1 ring-inset ring-black/20 transition-[left,width] duration-300 ease-out ${tonoBarra}`}
+                            style={{
+                              left: `${pos(t.fecha_inicio)}%`,
+                              width: `${(ancho(t.fecha_inicio, t.fecha_fin) * pct) / 100}%`,
+                            }}
+                          >
+                            {pct > 0 && (
+                              <span className="pr-1.5 text-[10px] font-bold whitespace-nowrap text-white tabular-nums">
+                                {pct}%
+                              </span>
+                            )}
+                          </span>
+                          {/* Ruta crítica: contorno rojo sobre el rango planificado */}
+                          {esCritica && (
+                            <span
+                              className="pointer-events-none absolute inset-y-0 rounded-full ring-2 ring-inset ring-red-600"
+                              style={{ left: `${pos(t.fecha_inicio)}%`, width: `${ancho(t.fecha_inicio, t.fecha_fin)}%` }}
+                              title="Actividad en la ruta crítica"
+                            />
                           )}
                         </span>
-                      </span>
+                      )}
                       {/* Línea de hoy */}
                       {posHoy >= 0 && posHoy <= 100 && (
                         <span
@@ -1059,6 +1547,7 @@ export function CronogramaServicio() {
                   </div>
                 )
               })}
+              </div>
             </div>
           </div>
 
@@ -1080,6 +1569,18 @@ export function CronogramaServicio() {
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-px w-4 bg-red-400" /> Hoy
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full ring-2 ring-red-600 ring-inset" /> Ruta crítica
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rotate-45 bg-amber-500" /> Hito
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-4 rounded border border-dashed border-amber-500" /> Línea base
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-px w-4 border-t border-dashed border-slate-400" /> Dependencia
             </span>
           </div>
           </section>
@@ -1110,9 +1611,19 @@ export function CronogramaServicio() {
           avanceDerivado={
             modal.modo === 'editar' ? avanceEfectivo(modal.tarea, tareas) : null
           }
+          candidatas={candidatas}
           onCerrar={() => setModal(null)}
           onGuardar={guardar}
           onEliminar={eliminar}
+        />
+      )}
+
+      {calendarioAbierto && (
+        <ModalCalendario
+          servicio={servicio}
+          calendario={calendario}
+          onCerrar={() => setCalendarioAbierto(false)}
+          onGuardar={guardarCalendario}
         />
       )}
 

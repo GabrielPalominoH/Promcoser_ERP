@@ -39,9 +39,14 @@ export function costoSubarbol(tarea, tareas, registros, servicioId) {
     )
 }
 
-// Valorizado de una tarea: monto × avance efectivo (lo ya ejecutado).
+// Valorizado de una tarea: lo ya ejecutado en soles. Es aditivo sobre el
+// árbol (suma el valorizado de sus hojas) para que no pierda céntimos al
+// redondear el avance del padre y cuadre exactamente con la valorización de
+// obra (F3). Una hoja vale monto × avance.
 export function valorizadoTarea(tarea, tareas) {
-  return montoTarea(tarea, tareas) * (avanceEfectivo(tarea, tareas) / 100)
+  const hijas = (tareas ?? []).filter((t) => t.padre_id === tarea.id)
+  if (hijas.length === 0) return montoTarea(tarea, tareas) * ((Number(tarea.avance) || 0) / 100)
+  return hijas.reduce((total, h) => total + valorizadoTarea(h, tareas), 0)
 }
 
 // Monto total del servicio: suma de los montos de sus tareas principales.
@@ -354,8 +359,7 @@ export function nombreReferencia(registro, { personal, materiales = [], equipos 
   if (registro.tipo_registro === 'equipo') {
     const equipo = equipos.find((e) => e.id === registro.referencia_id)
     if (!equipo) return 'Equipo eliminado'
-    const horas = Number(registro.cantidad_o_horas) || 0
-    return `${equipo.nombre} · ${horas} h`
+    return equipo.nombre
   }
   return '—'
 }
@@ -385,35 +389,58 @@ function hijasDe(tareas, idPadre) {
   return tareas.filter((t) => t.padre_id === idPadre)
 }
 
-// Avance efectivo (recursivo): si la tarea tiene hijas, es el promedio
-// ponderado por duración de sus subtareas (la padre pasa a ser nombre de
-// grupo); si no, su propio avance.
+// Avance efectivo (recursivo) de una tarea. Una hoja devuelve su propio
+// avance. Un padre resume a sus hijas ponderando por VALOR (monto): es el
+// estándar de obra (avance físico valorizado por partida) y evita que una
+// tarea de cero soles y muchos días desplace el resultado. Si las hijas no
+// traen monto (cronogramas sin presupuesto), se cae a la duración.
 export function avanceEfectivo(tarea, todas) {
   const hijas = hijasDe(todas ?? [], tarea.id)
   if (hijas.length === 0) return Number(tarea.avance) || 0
-  const duracion = hijas.reduce((s, h) => s + duracionTarea(h), 0)
-  if (!duracion) return 0
+
+  const pesos = hijas.map((h) => montoTarea(h, todas))
+  let total = pesos.reduce((s, p) => s + p, 0)
+  let base = pesos
+  if (total <= 0) {
+    base = hijas.map((h) => duracionTarea(h))
+    total = base.reduce((s, p) => s + p, 0)
+  }
+  if (!total) return 0
   return Math.round(
-    hijas.reduce((s, h) => s + avanceEfectivo(h, todas) * duracionTarea(h), 0) / duracion,
+    hijas.reduce((s, h, i) => s + avanceEfectivo(h, todas) * base[i], 0) / total,
   )
 }
 
-// Métricas del cronograma: conteos por estado y avance global
-// ponderado por duración de cada tarea.
+// Avance global de un cronograma: solo cuentan las HOJAS (las tareas padre
+// son resúmenes y duplicarían su valor si entraran) ponderadas por su monto.
+// Es la única definición de "avance" que usan Cronograma, Resumen, Dashboard
+// y Curva S (EV = presupuesto × avance). Sin montos, cae a duración.
+export function avanceGlobalTareas(tareas) {
+  const lista = tareas ?? []
+  const hojasDe = lista.filter((t) => !hijasDe(lista, t.id).length)
+  if (hojasDe.length === 0) return 0
+
+  let pesos = hojasDe.map((t) => Number(t.monto) || 0)
+  if (pesos.reduce((s, p) => s + p, 0) <= 0) {
+    pesos = hojasDe.map((t) => duracionTarea(t))
+  }
+  const total = pesos.reduce((s, p) => s + p, 0)
+  if (!total) return 0
+  return Math.round(
+    hojasDe.reduce((s, t, i) => s + (Number(t.avance) || 0) * pesos[i], 0) / total,
+  )
+}
+
+// Métricas del cronograma: conteos por estado y avance global (valorizado,
+// solo hojas). `total` cuenta todas las tareas (incluye grupos) para el
+// encabezado; `completadas`/`atrasadas` también.
 export function metricasCronograma(tareas, hoy = hoyISO()) {
   const conAvance = tareas.map((t) => ({ ...t, avance: avanceEfectivo(t, tareas) }))
   const total = conAvance.length
   const completadas = conAvance.filter((t) => estadoTarea(t, hoy) === 'completada').length
   const atrasadas = conAvance.filter((t) => estadoTarea(t, hoy) === 'atrasada').length
-  const duracionTotal = conAvance.reduce((s, t) => s + duracionTarea(t), 0)
-  const avanceGlobal = duracionTotal
-    ? Math.round(
-        conAvance.reduce((s, t) => s + (Number(t.avance) || 0) * duracionTarea(t), 0) /
-          duracionTotal,
-      )
-    : 0
 
-  return { total, completadas, atrasadas, avanceGlobal }
+  return { total, completadas, atrasadas, avanceGlobal: avanceGlobalTareas(tareas) }
 }
 
 // Gasto por mes (YYYY-MM) con meses intermedios en cero, ordenado.

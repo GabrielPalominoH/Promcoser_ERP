@@ -209,7 +209,7 @@ function avanceTareaEnFecha(tarea, todas, corte) {
 
 // Avance global del servicio en una fecha (mismo peso por duración que
 // `metricasCronograma`: todas las tareas, padres e hijas).
-function avanceServicioEnFecha(tareasServicio, corte) {
+export function avanceServicioEnFecha(tareasServicio, corte) {
   const durTotal = tareasServicio.reduce((s, t) => s + diasInclusivos(t.fecha_inicio, t.fecha_fin), 0)
   if (!durTotal) return 0
   return (
@@ -222,7 +222,7 @@ function avanceServicioEnFecha(tareasServicio, corte) {
 
 // Avance esperado del servicio por tiempo transcurrido (misma base que el SPI):
 // lineal entre el inicio y el fin estimado, tope 100 %.
-function avancePlanEnFecha(servicio, corte) {
+export function avancePlanEnFecha(servicio, corte) {
   const { fecha_inicio, fecha_fin_estimada } = servicio
   if (!fecha_inicio || !fecha_fin_estimada || fecha_fin_estimada <= fecha_inicio) return null
   if (corte < fecha_inicio) return 0
