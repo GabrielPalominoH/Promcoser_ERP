@@ -10,16 +10,19 @@ const TEMAS = [
   { id: 'oscuro', nombre: 'Oscuro', descripcion: 'Fondos oscuros de alto contraste.' },
 ]
 
-// Vista previa fija (no depende del tema activo): representa cómo se verá
-// la interfaz al elegir cada opción.
+// Vista previa fija e INDEPENDIENTE del tema activo: representa cómo se verá
+// la interfaz al elegir cada opción. Usa valores hexadecimales explícitos en
+// lugar de las utilidades semánticas claras, porque el tema oscuro las
+// redefine a tonos oscuros y la vista previa del tema claro se vería oscura
+// estando en oscuro.
 function VistaPrevia({ tema }) {
   const claro = tema === 'claro'
-  const fondo = claro ? 'bg-slate-200' : 'bg-[#070b19]'
-  const superficie = claro ? 'bg-white' : 'bg-[#192340]'
-  const borde = claro ? 'border-slate-300' : 'border-[#2d3963]'
-  const activo = claro ? 'bg-primary-600' : 'bg-[#9db8ff]'
-  const linea = claro ? 'bg-slate-300' : 'bg-[#3f4c7c]'
-  const lineaSuave = claro ? 'bg-slate-100' : 'bg-[#1f2a4c]'
+  const fondo = claro ? 'bg-[#e2e8f0]' : 'bg-[#070b19]'
+  const superficie = claro ? 'bg-[#ffffff]' : 'bg-[#192340]'
+  const borde = claro ? 'border-[#cbd5e1]' : 'border-[#2d3963]'
+  const activo = claro ? 'bg-[#2563eb]' : 'bg-[#9db8ff]'
+  const linea = claro ? 'bg-[#cbd5e1]' : 'bg-[#3f4c7c]'
+  const lineaSuave = claro ? 'bg-[#f1f5f9]' : 'bg-[#1f2a4c]'
 
   return (
     <div className={`flex h-16 overflow-hidden rounded-lg border ${borde} ${fondo}`}>

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
@@ -1734,6 +1735,19 @@ comprobar(
   htmlInicioSeguro.includes('aria-label="Abrir configuración"') &&
     htmlPersonalSeguro.includes('Configuración') &&
     htmlPanelSeguro.includes('aria-label="Abrir configuración"'),
+)
+
+// La vista previa del tema debe ser independiente del tema activo: usa
+// hexadecimales explícitos y NO las utilidades bg-white / bg-slate-200, que el
+// tema oscuro redefine a tonos oscuros bajo :root[data-tema='oscuro'] (por eso
+// la vista previa del tema claro se veía oscura estando en oscuro).
+const fuenteConfiguracion = readFileSync('src/components/layout/ConfiguracionModal.jsx', 'utf8')
+comprobar(
+  'configuración: la vista previa del tema claro usa colores fijos (hex)',
+  fuenteConfiguracion.includes('bg-[#ffffff]') &&
+    fuenteConfiguracion.includes('bg-[#e2e8f0]') &&
+    !fuenteConfiguracion.includes('bg-white') &&
+    !fuenteConfiguracion.includes('bg-slate-200'),
 )
 
 // El listado de Servicios se muestra como cuadrícula de tarjetas (cada una
