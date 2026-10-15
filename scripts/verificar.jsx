@@ -77,6 +77,8 @@ import { programar } from '../src/utils/cpm'
 import { controlCPMCartera, evmCartera } from '../src/utils/cartera'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
+import { RedPERT } from '../src/pages/servicio/RedPERT'
+import { calendarioDe } from '../src/utils/calendario'
 import App from '../src/App'
 
 let fallos = 0
@@ -1644,6 +1646,48 @@ comprobar(
   'valorización: ítem 13 (Glb) mide por monto',
   item13?.mide === 'monto' && item13?.metrado_base === 15000,
   JSON.stringify(item13),
+)
+
+// ============================================================
+//  7.17 Red PERT / CPM: diagrama de red
+// ============================================================
+
+console.log('\n[ red pert ]')
+
+const servicioRedPERT = ESTADO_INICIAL.servicios.find((s) => s.id === 6)
+const calendarioRedPERT = calendarioDe(servicioRedPERT)
+const cpmRedPERT = programar({
+  tareas: ESTADO_INICIAL.tareas,
+  servicio: servicioRedPERT,
+  calendario: calendarioRedPERT,
+})
+const htmlRedPERT = renderToString(
+  <RedPERT
+    servicio={servicioRedPERT}
+    tareas={ESTADO_INICIAL.tareas}
+    cpm={cpmRedPERT}
+    calendario={calendarioRedPERT}
+  />,
+)
+
+comprobar(
+  'red pert: resumen con ruta crítica y duración total',
+  htmlRedPERT.includes('Ruta crítica') &&
+    htmlRedPERT.includes('Obras preliminares y trazo') &&
+    htmlRedPERT.includes('días laborables') &&
+    htmlRedPERT.includes('Actividades críticas'),
+)
+comprobar(
+  'red pert: nodos con tiempos y holgura (tarea 20 con holg. 5 d)',
+  htmlRedPERT.includes('Holg. 5 d') && htmlRedPERT.includes('Crítica'),
+)
+comprobar(
+  'red pert: flechas etiquetadas y marcadores de dependencia crítica',
+  htmlRedPERT.includes('pert-flecha') && htmlRedPERT.includes('pert-flecha-critica'),
+)
+comprobar(
+  'red pert: sin valores rotos en el SVG',
+  !htmlRedPERT.includes('NaN') && !htmlRedPERT.includes('undefined'),
 )
 
 // ============================================================

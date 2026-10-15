@@ -20,6 +20,7 @@ import {
 } from '../../utils/calendario'
 import { normalizar } from '../../components/ui/ComboBox'
 import { Buscador, textoCoincide } from '../../components/ui/FiltroBusqueda'
+import { RedPERT } from './RedPERT'
 
 // En SSR useLayoutEffect avisa; cae a useEffect en el servidor.
 const usarLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -584,6 +585,7 @@ export function CronogramaServicio() {
   const [aviso, setAviso] = useState(null)
   const [modal, setModal] = useState(null) // null | { modo: 'crear', padre? } | { modo: 'editar', tarea }
   const [calendarioAbierto, setCalendarioAbierto] = useState(false)
+  const [vistaRed, setVistaRed] = useState(false) // false = Gantt, true = red PERT
   const [colapsadas, setColapsadas] = useState({})
   const [busqueda, setBusqueda] = useState('')
   const [zoomManual, setZoomManual] = useState(null) // px por día elegido con +/−; null = ajuste automático
@@ -1102,11 +1104,19 @@ export function CronogramaServicio() {
           <Button variante="secundario" onClick={reprogramar}>
             Reprogramar (CPM)
           </Button>
+          <Button
+            variante={vistaRed ? 'primario' : 'secundario'}
+            onClick={() => setVistaRed((v) => !v)}
+            aria-pressed={vistaRed}
+            title="Alternar entre Gantt y red PERT"
+          >
+            {vistaRed ? 'Gantt' : 'Red PERT'}
+          </Button>
           <Button onClick={() => setModal({ modo: 'crear' })}>Nueva tarea</Button>
         </div>
       </div>
 
-      {tareas.length > 0 && (
+      {tareas.length > 0 && !vistaRed && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
             <button
@@ -1249,6 +1259,8 @@ export function CronogramaServicio() {
             </div>
           </div>
         </Card>
+      ) : vistaRed ? (
+        <RedPERT servicio={servicio} tareas={tareas} cpm={cpm} calendario={calendario} />
       ) : (
         <div>
           <section ref={envolturaRef} className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-4 shadow-sm">
