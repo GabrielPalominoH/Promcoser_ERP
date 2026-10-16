@@ -163,6 +163,7 @@ import {
   avancePorTiempo,
   esHojaTarea,
   migrarAvancePrevio,
+  migrarValorizadoPrevio,
   modoMedicionInicial,
   normalizarModoMedicion,
   pasosQueReproducenAvance,
@@ -799,8 +800,8 @@ comprobar(
   'K respaldo v11 rellena partes vacíos',
   Array.isArray(normV11?.partes_diario) && normV11.partes_diario.length === 0,
 )
-// Un respaldo del esquema actual (v15) incompleto también se rechaza.
-const respaldoV15 = { ...JSON.parse(serial), _v: 15 }
+// Un respaldo del esquema actual (v16) incompleto también se rechaza.
+const respaldoV15 = { ...JSON.parse(serial), _v: 16 }
 delete respaldoV15.cargos
 comprobar('K respaldo del esquema actual incompleto se rechaza', validarRespaldo(respaldoV15).ok === false)
 // Un respaldo v13 completo (parte diario en % y el flag `avance_por_partes`)
@@ -2616,12 +2617,15 @@ comprobar(
 )
 
 // La valorización trae la unidad de la partida en cada ítem. Las tareas van
-// migradas (ejecutado previo fijado) como al cargar el estado real.
-const estadoV6 = migrarAvancePrevio({
-  tareas: ESTADO_INICIAL.tareas,
-  partes_diario: ESTADO_INICIAL.partes_diario,
-  registros_servicio: ESTADO_INICIAL.registros_servicio,
-})
+// migradas (ejecutado previo y lo cobrado fijados) como al cargar el estado
+// real. La tarea 15 declara `valorizado_previo: 0` (ejecutado sin cobrar).
+const estadoV6 = migrarValorizadoPrevio(
+  migrarAvancePrevio({
+    tareas: ESTADO_INICIAL.tareas.map((t) => (t.id === 15 ? { ...t, valorizado_previo: 0 } : t)),
+    partes_diario: ESTADO_INICIAL.partes_diario,
+    registros_servicio: ESTADO_INICIAL.registros_servicio,
+  }),
+)
 const vz6 = calcularValorizacion({
   servicio: { id: 6 },
   tareas: estadoV6.tareas,
@@ -2641,6 +2645,14 @@ comprobar(
   'valorización: ítem 15 periodo e importe',
   item15?.metrado_periodo === 600 && item15?.importe === 42000,
   JSON.stringify({ p: item15?.metrado_periodo, i: item15?.importe }),
+)
+const item18 = vz6.items.find((i) => i.tarea_id === 18)
+comprobar(
+  'valorización: ítem 18 con valorizado por defecto no cobra (previo 680 = reportado)',
+  item18?.metrado_previo === 680 &&
+    item18?.metrado_reportado === 680 &&
+    item18?.metrado_periodo === 0,
+  JSON.stringify({ p: item18?.metrado_previo, r: item18?.metrado_reportado, per: item18?.metrado_periodo }),
 )
 comprobar(
   'valorización: ítem 13 (Glb) mide por monto',
@@ -3757,12 +3769,13 @@ comprobar(
     valorizacionesQueUsanTareas([{ id: 2, numero: 4, items: [{ tarea_id: 31, metrado_periodo: 0 }] }], [31]).length === 0,
 )
 
-// --- Restaurar un respaldo v14 migra a v15 sin perder datos ---
+// --- Restaurar un respaldo v14 migra a v16 sin perder datos ---
 // Un respaldo v14 trae `modo_medicion` (Fase A/B) pero NO `metrado_previo` ni
-// `costo_previo` (Fase C, v15). Al normalizarlo, la migración los fija y el
-// avance ya registrado se conserva.
+// `costo_previo` (Fase C, v15) ni `valorizado_previo` (Fase D, v16). Al
+// normalizarlo, las migraciones los fijan y el avance ya registrado se
+// conserva.
 comprobar(
-  'K respaldo v14 se acepta y migra a v15 sin perder datos ni avance',
+  'K respaldo v14 se acepta y migra a v16 sin perder datos ni avance',
   (() => {
     const respaldoV14 = { ...JSON.parse(serial), _v: 14 }
     if (!validarRespaldo(respaldoV14).ok) return false
@@ -3776,8 +3789,54 @@ comprobar(
       metricasCronograma(normV14.tareas.filter((t) => t.servicio_id === 6)).avanceGlobal === 47 &&
       t18.avance === 85 &&
       t18.metrado_previo === 680 &&
+      t18.valorizado_previo === 680 &&
       t13.avance === 100 &&
-      t13.costo_previo === 3700
+      t13.costo_previo === 3700 &&
+      t13.valorizado_previo === undefined
+    )
+  })(),
+)
+
+// --- Respaldo v15 → v16: lo cobrado por defecto, ningún importe se mueve ---
+// Las valorizaciones guardadas quedan byte a byte iguales y la siguiente parte
+// de lo ya valorizado.
+comprobar(
+  'K respaldo v15 migra a v16 sin cambiar ningún importe',
+  (() => {
+    const valGuardada = {
+      id: 1,
+      servicio_id: 6,
+      numero: 1,
+      fecha: '2026-09-30',
+      estado: 'Emitida',
+      items: [
+        {
+          tarea_id: 18,
+          nombre: 'Excavación e instalación de colectores',
+          unidad: 'm³',
+          mide: 'metrado',
+          metrado_base: 800,
+          precio_unitario: 72.5,
+          metrado_previo: 0,
+          metrado_reportado: 680,
+          metrado_acumulado: 680,
+          metrado_periodo: 680,
+          importe: 49300,
+        },
+      ],
+      bruta: 49300,
+      neto: 58174,
+    }
+    const respaldoV15 = { ...JSON.parse(serial), _v: 15, valorizaciones: [valGuardada] }
+    if (!validarRespaldo(respaldoV15).ok) return false
+    const normV15 = normalizarRespaldo(respaldoV15)
+    if (!normV15) return false
+    const t18 = normV15.tareas.find((t) => t.id === 18)
+    const valNorm = normV15.valorizaciones.find((v) => v.id === 1)
+    return (
+      t18.valorizado_previo === 680 &&
+      JSON.stringify(valNorm) === JSON.stringify(valGuardada) &&
+      metradoPrevio(normV15.valorizaciones, 18) === 680
     )
   })(),
 )
@@ -4075,7 +4134,7 @@ comprobar(
 console.log('\n[ tarea 2: valorización con ajuste ]')
 
 const servA = { id: 400, presupuesto_asignado: 100000, igv_pct: 0, detraccion_pct: 0, fondo_garantia_pct: 0 }
-const tareaA = { id: 401, servicio_id: 400, nombre: 'Excavación', unidad: 'm3', metrado: 100, precio_unitario: 100, monto: 10000, metrado_previo: 20, avance: 70 }
+const tareaA = { id: 401, servicio_id: 400, nombre: 'Excavación', unidad: 'm3', metrado: 100, precio_unitario: 100, monto: 10000, metrado_previo: 20, valorizado_previo: 0, avance: 70 }
 const partesA = [
   { id: 1, servicio_id: 400, fecha: '2026-04-10', partidas: [{ tarea_id: 401, metrado_dia: 30 }] },
   { id: 2, servicio_id: 400, fecha: '2026-05-20', partidas: [{ tarea_id: 401, metrado_dia: 25 }] },
@@ -4194,6 +4253,116 @@ comprobar(
     htmlValAj.includes('Mayor metrado verificado en campo') &&
     !htmlValAj.includes('undefined') &&
     !htmlValAj.includes('NaN'),
+)
+
+// ============================================================
+//  Tarea 2B: valorizado previo separado del ejecutado previo
+// ============================================================
+
+console.log('\n[ tarea 2b: valorizado previo ]')
+
+// Migración v15 → v16: por defecto iguala al ejecutado previo; idempotente y
+// sin tocar padres, hojas sin metrado ni valores ya fijados.
+const estadoMigB = migrarValorizadoPrevio({
+  tareas: [
+    { id: 1, servicio_id: 1, nombre: 'Padre', metrado: 100 },
+    { id: 2, servicio_id: 1, padre_id: 1, nombre: 'Hija', metrado: 100, metrado_previo: 80 },
+    { id: 3, servicio_id: 1, nombre: 'Global', monto: 5000 },
+    { id: 4, servicio_id: 1, nombre: 'Fijada', metrado: 100, metrado_previo: 80, valorizado_previo: 50 },
+  ],
+  partes_diario: [],
+  registros_servicio: [],
+})
+comprobar(
+  'tarea 2b: la migración fija valorizado = ejecutado previo (idempotente)',
+  estadoMigB.tareas.find((t) => t.id === 2).valorizado_previo === 80 &&
+    estadoMigB.tareas.find((t) => t.id === 4).valorizado_previo === 50 &&
+    estadoMigB.tareas.find((t) => t.id === 1).valorizado_previo === undefined &&
+    estadoMigB.tareas.find((t) => t.id === 3).valorizado_previo === undefined &&
+    migrarValorizadoPrevio(estadoMigB) === estadoMigB,
+)
+
+// Obra en curso: ejecutado previo (80) mayor que lo cobrado (50); la primera
+// valorización cobra solo la diferencia.
+const servB = { id: 500, presupuesto_asignado: 100000, igv_pct: 0, detraccion_pct: 0, fondo_garantia_pct: 0 }
+const tareaB = { id: 501, servicio_id: 500, nombre: 'Excavación', unidad: 'm3', metrado: 100, precio_unitario: 100, monto: 10000, metrado_previo: 80, valorizado_previo: 50, avance: 80 }
+const valB1 = calcularValorizacion({
+  servicio: servB,
+  tareas: [tareaB],
+  valorizaciones: [],
+  adelantos: [],
+  partes: [],
+  fecha: '2026-06-30',
+})
+comprobar(
+  'tarea 2b: la primera valorización cobra solo la diferencia (reportado 80, previo 50, periodo 30)',
+  valB1.items[0].metrado_reportado === 80 &&
+    valB1.items[0].metrado_previo === 50 &&
+    valB1.items[0].metrado_periodo === 30 &&
+    valB1.items[0].importe === 3000,
+)
+// Sin el campo (tarea vieja sin migrar): la primera parte del ejecutado previo.
+const valB0 = calcularValorizacion({
+  servicio: servB,
+  tareas: [{ ...tareaB, valorizado_previo: undefined }],
+  valorizaciones: [],
+  adelantos: [],
+  partes: [],
+  fecha: '2026-06-30',
+})
+comprobar(
+  'tarea 2b: sin valorizado previo, la primera parte del ejecutado previo (periodo 0)',
+  valB0.items[0].metrado_previo === 80 && valB0.items[0].metrado_periodo === 0,
+)
+// La siguiente valorización arranca del último acumulado valorizado.
+const partesB = [
+  { id: 1, servicio_id: 500, fecha: '2026-07-10', partidas: [{ tarea_id: 501, metrado_dia: 10 }] },
+]
+const valB2 = calcularValorizacion({
+  servicio: servB,
+  tareas: [tareaB],
+  valorizaciones: [valB1],
+  adelantos: [],
+  partes: partesB,
+  fecha: '2026-07-31',
+})
+comprobar(
+  'tarea 2b: la siguiente arranca del acumulado valorizado (previo 80, periodo 10)',
+  valB2.items[0].metrado_previo === 80 &&
+    valB2.items[0].metrado_reportado === 90 &&
+    valB2.items[0].metrado_periodo === 10 &&
+    valB2.items[0].importe === 1000,
+)
+
+// Importación con la columna: el valorizado explícito manda.
+const filasVal = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Metrado', 'Unidad', 'P. Unit. (S/)', 'Valorizado previo', 'Monto', 'Predecesoras', 'Avance (%)'],
+  ['1', 'Obra', '2026-06-01', '2026-06-30', 'NO', '', '', '', '', '', '', ''],
+  ['1.1', 'Excavación', '2026-06-01', '2026-06-15', 'NO', 200, 'm3', 50, 120, '', '', 40],
+]
+const impVal = tareasImportadas({ filas: filasVal, servicioId: 702, baseId: 0 })
+const hojaVal = impVal.tareas.find((t) => t.nombre === 'Excavación')
+comprobar(
+  'tarea 2b: la columna Valorizado previo se importa explícita (120, con ejecutado 80)',
+  hojaVal.modo_medicion === 'metrado' &&
+    hojaVal.metrado_previo === 80 &&
+    hojaVal.valorizado_previo === 120 &&
+    hojaVal.monto === 10000 &&
+    impVal.tareas.find((t) => t.nombre === 'Obra').valorizado_previo === undefined,
+)
+// Sin la columna: iguala al ejecutado previo sembrado.
+const filasSinVal = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Metrado', 'Unidad', 'P. Unit. (S/)', 'Monto', 'Predecesoras', 'Avance (%)'],
+  ['1', 'Obra', '2026-06-01', '2026-06-30', 'NO', '', '', '', '', '', ''],
+  ['1.1', 'Excavación', '2026-06-01', '2026-06-15', 'NO', 200, 'm3', 50, '', '', 40],
+]
+const impSinVal = tareasImportadas({ filas: filasSinVal, servicioId: 702, baseId: 0 })
+const hojaSinVal = impSinVal.tareas.find((t) => t.nombre === 'Excavación')
+comprobar(
+  'tarea 2b: sin la columna, el valorizado iguala al ejecutado previo sembrado (80)',
+  hojaSinVal.modo_medicion === 'metrado' &&
+    hojaSinVal.metrado_previo === 80 &&
+    hojaSinVal.valorizado_previo === 80,
 )
 
 // ============================================================

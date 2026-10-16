@@ -135,6 +135,8 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           modo_medicion: MODOS_MEDICION.includes(tarea.modo_medicion) ? tarea.modo_medicion : 'metrado',
           nota_justificacion: tarea.nota_justificacion ?? '',
           metrado_previo: tarea.metrado_previo ?? '',
+          valorizado_previo: tarea.valorizado_previo ?? '',
+          nota_valorizado_previo: tarea.nota_valorizado_previo ?? '',
         }
       : {
           nombre: '',
@@ -144,6 +146,8 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           modo_medicion: 'metrado',
           nota_justificacion: '',
           metrado_previo: '',
+          valorizado_previo: '',
+          nota_valorizado_previo: '',
         },
     mode: 'onBlur',
   })
@@ -229,6 +233,14 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           const met = Number(tarea?.metrado) || 0
           cambios.metrado_previo = met > 0 ? Math.round((avance * met) / 100 * 100) / 100 : 0
         }
+        // Lo ya cobrado antes del sistema (por defecto iguala al ejecutado
+        // previo vía migración). No puede superar el metrado contratado; la
+        // regla se valida en el formulario antes de llegar aquí.
+        const crudoVal = valores.valorizado_previo
+        if (crudoVal !== '' && crudoVal != null && Number.isFinite(Number(crudoVal))) {
+          cambios.valorizado_previo = Math.max(0, Number(crudoVal))
+        }
+        cambios.nota_valorizado_previo = String(valores.nota_valorizado_previo ?? '').trim()
       } else if (modo === 'costo' && cambiaModo) {
         const base = Number(tarea?.monto) || 0
         const yaCosto = sumarMontos(costos)
@@ -414,7 +426,7 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
             )}
           </div>
           {!esGrupo && modoActual === 'metrado' && (
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
               <Campo
                 label="Ejecutado previo"
                 error={errors.metrado_previo?.message}
@@ -428,6 +440,47 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                   min="0"
                   placeholder="0"
                   {...register('metrado_previo', { valueAsNumber: true })}
+                />
+              </Campo>
+              <Campo
+                label="Valorizado previo"
+                error={errors.valorizado_previo?.message}
+                hint="Metrado ya cobrado ANTES del sistema (en la unidad de la partida). Por defecto iguala al ejecutado previo; puede ser menor (trabajo ejecutado aún no cobrado) y la primera valorización cobra la diferencia. Nunca supera el metrado contratado."
+                htmlFor="tarea-valorizado-previo"
+              >
+                <Input
+                  id="tarea-valorizado-previo"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Igual al ejecutado previo"
+                  {...register('valorizado_previo', {
+                    valueAsNumber: true,
+                    validate: (v) => {
+                      if (v == null || Number.isNaN(v)) return true
+                      if (v < 0) return 'No puede ser negativo.'
+                      const contratado = Number(tarea?.metrado) || 0
+                      if (contratado > 0 && v > contratado) {
+                        return `No puede superar el metrado contratado (${contratado}).`
+                      }
+                      if (!(contratado > 0) && v > 0) {
+                        return 'La partida no tiene metrado contratado.'
+                      }
+                      return true
+                    },
+                  })}
+                />
+              </Campo>
+              <Campo
+                label="Nota del valorizado previo"
+                error={errors.nota_valorizado_previo?.message}
+                hint="De dónde sale lo ya cobrado (p. ej. valorización anterior fuera del sistema)."
+                htmlFor="tarea-nota-valorizado-previo"
+              >
+                <Input
+                  id="tarea-nota-valorizado-previo"
+                  placeholder="Ej. Cobrado hasta la valorización N° 3 anterior."
+                  {...register('nota_valorizado_previo')}
                 />
               </Campo>
             </div>

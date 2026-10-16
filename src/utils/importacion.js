@@ -5,7 +5,7 @@
 // No toca el DOM ni el estado: el componente lee el archivo y despacha.
 //
 // Formato de la plantilla (también tolera el Excel que exporta el ERP):
-//   N° | Tarea | Inicio | Fin | Hito | Metrado | Unidad | P. Unit. (S/) | Monto | Predecesoras | Avance (%)
+//   N° | Tarea | Inicio | Fin | Hito | Metrado | Unidad | P. Unit. (S/) | Valorizado previo | Monto | Predecesoras | Avance (%)
 // - Inicio/Fin: aaaa-mm-dd (también se aceptan dd/mm/aaaa y fechas de Excel).
 // - Hito: SI/NO (si falta, se deduce de Días = 0 e inicio = fin).
 // - N° jerárquico: 1, 1.1, 1.2, 1.2.1… de ahí sale el padre.
@@ -119,10 +119,12 @@ function mapearColumnas(filas) {
         preds: buscar(['predecesora', 'antecesora']),
         avance: buscar(['avance', 'porcentaje', '%']),
         // Columnas opcionales de metrado/precio (toleran las variantes con las
-        // que las exporta el ERP: "Metrado", "UM"/"Unidad", "P. Unit. (S/)").
+        // que las exporta el ERP: "Metrado", "UM"/"Unidad", "P. Unit. (S/)",
+        // "Valorizado previo").
         metrado: buscar(['metrado', 'cantidad']),
         unidad: buscar(['unidad', 'um', 'und', 'u.m']),
         pu: buscar(['precio unitario', 'precio unit', 'precio', 'p. unit', 'p.u', 'pu', 'valor unitario']),
+        valorizado: buscar(['valorizado previo', 'cobrado previo']),
       }
     }
   }
@@ -141,7 +143,7 @@ function numeroCelda(valor) {
 // Convierte la matriz de celdas de una hoja en tareas "crudas" + errores y
 // avisos (no bloqueantes). Cada tarea: { numero, nombre, fecha_inicio,
 // fecha_fin, hito, metrado, unidad, precio_unitario, monto, avance,
-// padre_numero, preds: [{ ref, tipo, lag }] }.
+// valorizado_previo, padre_numero, preds: [{ ref, tipo, lag }] }.
 export function tareasDesdeFilas(filas = []) {
   const columnas = mapearColumnas(filas)
   if (!columnas) {
@@ -198,6 +200,10 @@ export function tareasDesdeFilas(filas = []) {
     const monto = montoDeclarado != null && montoDeclarado > 0 ? montoDeclarado : montoCalculado ?? 0
 
     const avanceCrudo = columnas.avance >= 0 ? numeroCelda(enFila(fila, columnas.avance)) : null
+    // Lo ya cobrado antes del sistema (opcional; si no viene, la hoja lo
+    // iguala al ejecutado previo sembrado).
+    const valorizadoPrevio =
+      columnas.valorizado >= 0 ? numeroCelda(enFila(fila, columnas.valorizado)) : null
 
     // Avisos (no bloquean la importación) que la vista previa muestra al usuario.
     if (metrado != null && metrado < 0) {
@@ -235,6 +241,7 @@ export function tareasDesdeFilas(filas = []) {
       precio_unitario: precioUnitario,
       monto,
       avance: avanceCrudo,
+      valorizado_previo: valorizadoPrevio,
       padre_numero,
       preds: parsearPredecesoras(enFila(fila, columnas.preds)),
     })
@@ -248,7 +255,8 @@ export function tareasDesdeFilas(filas = []) {
 // vinculados → costo; el resto → manual con su nota) y, si el Excel trae un
 // avance (%), ese avance se guarda como EJECUTADO PREVIO para que conectar la
 // medición no mueva ninguna cifra:
-//   metrado → `metrado_previo = % × metrado ÷ 100`
+//   metrado → `metrado_previo = % × metrado ÷ 100` y `valorizado_previo`
+//            (lo ya cobrado: explícito en el Excel o igual al ejecutado previo)
 //   costo   → `costo_previo = % × presupuesto ÷ 100 − ya registrado`
 //   hitos   → pasos que reproducen exactamente el %
 //   manual  → el % queda como avance a mano, con su nota de migración
@@ -256,10 +264,15 @@ export function tareasDesdeFilas(filas = []) {
 export function prepararHojaImportada(tarea, { avance = null, registros = [] } = {}) {
   const porcentaje = acotarAvance(avance)
   const modo = modoMedicionInicial(tarea, { registros })
-  const salida = { ...tarea, modo_medicion: modo, avance: porcentaje }
+  const { valorizado_previo: valorizadoImportado, ...base } = tarea ?? {}
+  const salida = { ...base, modo_medicion: modo, avance: porcentaje }
   if (modo === 'metrado') {
     const metrado = Number(tarea?.metrado) || 0
     if (metrado > 0) salida.metrado_previo = dosDecimales((porcentaje * metrado) / 100)
+    salida.valorizado_previo =
+      valorizadoImportado != null
+        ? Math.max(0, dosDecimales(valorizadoImportado))
+        : (salida.metrado_previo ?? 0)
   } else if (modo === 'costo') {
     const base = Number(tarea?.monto) || 0
     if (base > 0) {
@@ -313,18 +326,20 @@ export function tareasImportadas({ filas = [], servicioId, baseId = 0 } = {}) {
     if (t.unidad) salida.unidad = t.unidad
     if (t.precio_unitario != null) salida.precio_unitario = t.precio_unitario
     if (predecesoras.length > 0) salida.predecesoras = predecesoras
-    // El avance (%) de la fila se guarda aparte solo para sembrar la hoja: no
-    // forma parte del modelo de tareas y se descarta antes de despachar.
+    // El avance (%) y el valorizado previo de la fila se guardan aparte solo
+    // para sembrar la hoja: no forman parte del modelo de tareas y se
+    // descartan antes de despachar.
     salida.avance_importado = t.avance
+    salida.valorizado_importado = t.valorizado_previo
     return salida
   })
 
   // Un id es padre si alguna otra tarea lo referencia en `padre_id`.
   const idsPadre = new Set(resueltas.filter((t) => t.padre_id != null).map((t) => t.padre_id))
   const finales = resueltas.map((t) => {
-    const { avance_importado: avance, ...resto } = t
+    const { avance_importado: avance, valorizado_importado, ...resto } = t
     if (idsPadre.has(t.id)) return resto
-    return prepararHojaImportada(resto, { avance })
+    return prepararHojaImportada({ ...resto, valorizado_previo: valorizado_importado }, { avance })
   })
 
   return { tareas: finales, errores, avisos, total: finales.length }
@@ -381,6 +396,7 @@ export function plantillaCronograma({ servicio = {}, tareas = [] } = {}) {
       { v: 'Metrado', negrita: true },
       { v: 'Unidad', negrita: true },
       { v: 'P. Unit. (S/)', negrita: true },
+      { v: 'Valorizado previo', negrita: true },
       { v: 'Monto', negrita: true },
       { v: 'Predecesoras', negrita: true },
       { v: 'Avance (%)', negrita: true },
@@ -398,6 +414,7 @@ export function plantillaCronograma({ servicio = {}, tareas = [] } = {}) {
         tarea.metrado ?? '',
         tarea.unidad ?? '',
         tarea.precio_unitario ?? '',
+        tarea.valorizado_previo ?? '',
         Number(tarea.monto) || 0,
         textoPredecesorasPlantilla(tarea, numeroPorId),
         Number(tarea.avance) || 0,
@@ -405,10 +422,10 @@ export function plantillaCronograma({ servicio = {}, tareas = [] } = {}) {
     }
   } else {
     // Ejemplo mínimo para que el formato quede claro.
-    filas.push(['1', 'Obras preliminares', '2026-06-01', '2026-06-15', 'NO', '', '', '', 15000, '', 0])
-    filas.push(['2', 'Redes de agua potable', '2026-06-16', '2026-08-15', 'NO', '', '', '', 0, '1 FS', 0])
-    filas.push(['2.1', 'Excavación y tendido', '2026-06-16', '2026-07-15', 'NO', 350, 'm3', 120, 42000, '1 FS', 25])
-    filas.push(['3', 'Entrega de obra', '2026-08-16', '2026-08-16', 'SI', '', '', '', 0, '2', 0])
+    filas.push(['1', 'Obras preliminares', '2026-06-01', '2026-06-15', 'NO', '', '', '', '', 15000, '', 0])
+    filas.push(['2', 'Redes de agua potable', '2026-06-16', '2026-08-15', 'NO', '', '', '', '', 0, '1 FS', 0])
+    filas.push(['2.1', 'Excavación y tendido', '2026-06-16', '2026-07-15', 'NO', 350, 'm3', 120, '', 42000, '1 FS', 25])
+    filas.push(['3', 'Entrega de obra', '2026-08-16', '2026-08-16', 'SI', '', '', '', '', 0, '2', 0])
   }
 
   const instrucciones = [
@@ -419,6 +436,8 @@ export function plantillaCronograma({ servicio = {}, tareas = [] } = {}) {
     ['Hito: SI o NO. Un hito usa la misma fecha en Inicio y Fin.'],
     ['Metrado / Unidad / P. Unit.: opcionales. Con metrado la partida se mide por'],
     ['metrado; si deja el Monto en 0, el monto sale de metrado × P. Unit.'],
+    ['Valorizado previo: opcional (solo con metrado). Lo ya cobrado antes del'],
+    ['sistema, en la unidad de la partida; si se deja vacío, iguala al ejecutado previo.'],
     ['Monto: número en soles, sin símbolo (puede quedar en 0).'],
     ['Predecesoras: referencias por N° o por nombre, separadas por coma, con tipo'],
     ['FS, SS, FF o SF y desfase opcional, por ejemplo: "1.2 FS, 3 SS+2".'],

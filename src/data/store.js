@@ -32,6 +32,9 @@
 //       se recalcula por modo con `recalcularAvances` al cargar/restaurar y
 //       tras cada cambio. `metrado_previo`/`costo_previo` guardan lo ejecutado
 //       antes del sistema para que ningún avance ya registrado se mueva.
+//  16 = + `valorizado_previo` en cada hoja con metrado (Fase D): lo ya cobrado
+//       antes del sistema, por defecto igual a `metrado_previo`. La primera
+//       valorización parte de lo cobrado y solo cobra la diferencia.
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -42,19 +45,20 @@ import {
 } from './mockData'
 import {
   migrarAvancePrevio,
+  migrarValorizadoPrevio,
   normalizarModoMedicion,
   recalcularAvances,
 } from '../utils/avance'
 import { hoyISO } from '../utils/calculadora'
 import { migrarPartesAMetrado } from '../utils/partesDiario'
 
-export const VERSION_ESQUEMA = 15
+export const VERSION_ESQUEMA = 16
 
 // Normalización al cargar/importar (todo idempotente): modo de medición de
 // cada hoja, migración del parte diario (metrado), fijación del ejecutado
-// previo y recálculo final del avance como caché derivado.
+// previo y de lo ya cobrado, y recálculo final del avance como caché derivado.
 function normalizarEstado(estado) {
-  const migrado = migrarAvancePrevio(migrarPartesAMetrado(normalizarModoMedicion(estado)))
+  const migrado = migrarValorizadoPrevio(migrarAvancePrevio(migrarPartesAMetrado(normalizarModoMedicion(estado))))
   return recalcularAvances(migrado, hoyISO())
 }
 

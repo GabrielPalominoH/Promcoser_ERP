@@ -273,7 +273,15 @@ export function calcularValorizacion({
     if (base <= 0 && precio === 1) continue
     const reportado =
       mide === 'metrado' ? ejecutadoAcumulado(t, partes, fecha) : r4((n(t.avance) / 100) * base)
-    const previo = metradoPrevio(valorizaciones, t.id)
+    const previoVals = metradoPrevio(valorizaciones, t.id)
+    const tienePrevia = (valorizaciones ?? []).some((v) =>
+      (v?.items ?? []).some((i) => i?.tarea_id === t.id),
+    )
+    // Primera valorización de la partida: parte de lo ya cobrado antes del
+    // sistema (`valorizado_previo`, por defecto igual al ejecutado previo) y
+    // solo cobra la diferencia con lo ejecutado. Las siguientes toman el
+    // último acumulado valorizado.
+    const previo = tienePrevia ? previoVals : r4(n(t.valorizado_previo ?? t.metrado_previo))
     const ajuste = porTarea.get(t.id)
     const acumulado = ajuste ? Math.max(0, r4(ajuste.metrado_acumulado)) : reportado
     const periodo = r4(Math.max(0, acumulado - previo))

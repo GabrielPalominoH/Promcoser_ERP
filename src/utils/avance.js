@@ -320,6 +320,29 @@ function normalizarHoja(tarea, tareas, registros) {
   return normalizada
 }
 
+// Migración v15 → v16 (idempotente): fija lo ya cobrado ANTES del sistema
+// (`valorizado_previo`, en la unidad de la tarea). Por defecto iguala a
+// `metrado_previo`, de modo que ningún importe existente se mueve: la primera
+// valorización dentro del sistema parte de lo ya cobrado y solo cobra la
+// diferencia con lo ejecutado. Solo escribe el campo cuando falta (`== null`)
+// en hojas con metrado contratado; devuelve la MISMA referencia si no hay
+// nada que fijar.
+export function migrarValorizadoPrevio(estado) {
+  if (!estado || typeof estado !== 'object' || !Array.isArray(estado.tareas)) return estado
+
+  const tareas = estado.tareas
+  let cambio = false
+  const salida = tareas.map((t) => {
+    if (!esHojaTarea(t, tareas)) return t
+    if (!(Number(t?.metrado) > 0)) return t
+    if (t.valorizado_previo != null) return t
+    cambio = true
+    return { ...t, valorizado_previo: n(t.metrado_previo) }
+  })
+
+  return cambio ? { ...estado, tareas: salida } : estado
+}
+
 // Migración/normalización (idempotente): agrega `modo_medicion` a las hojas
 // que aún no lo traen SIN tocar `tarea.avance`, de modo que ningún avance ya
 // registrado ni ninguna cifra del panel se mueve por cargar datos viejos.

@@ -119,6 +119,7 @@ export function libroCronograma({
     fuerte('Metrado'),
     fuerte('Unidad'),
     fuerte('P. Unit. (S/)'),
+    fuerte('Valorizado previo'),
     fuerte('Avance (%)'),
     fuerte('Monto (S/)'),
     fuerte('Estado'),
@@ -139,6 +140,7 @@ export function libroCronograma({
     tarea.metrado ?? '',
     tarea.unidad ?? '',
     tarea.precio_unitario != null ? moneda(tarea.precio_unitario) : '',
+    tarea.valorizado_previo ?? '',
     avancePct(tarea),
     moneda(montoTarea(tarea, propias)),
     capitalizar(estadoTarea(tarea, hoy)),
@@ -149,6 +151,7 @@ export function libroCronograma({
   if (datos.length > 0) {
     datos.push([
       fuerte('Total'),
+      '',
       '',
       '',
       '',
