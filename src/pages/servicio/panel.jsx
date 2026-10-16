@@ -40,6 +40,7 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       igv_pct: servicio.igv_pct ?? 18,
       detraccion_pct: servicio.detraccion_pct ?? 0,
       fondo_garantia_pct: servicio.fondo_garantia_pct ?? 0,
+      tolerancia_metrado: servicio.tolerancia_metrado ?? 5,
     },
     mode: 'onBlur',
   })
@@ -56,6 +57,7 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       igv_pct: servicio.igv_pct ?? 18,
       detraccion_pct: servicio.detraccion_pct ?? 0,
       fondo_garantia_pct: servicio.fondo_garantia_pct ?? 0,
+      tolerancia_metrado: servicio.tolerancia_metrado ?? 5,
     })
   }, [servicio, reset])
 
@@ -162,6 +164,20 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
             {...register('fondo_garantia_pct')}
           />
         </Campo>
+        <Campo
+          label="Tolerancia de metrado (%)"
+          error={errors.tolerancia_metrado?.message}
+          htmlFor="tolerancia_metrado"
+          hint="Tope del acumulado valorizado por partida (contratado + tolerancia)."
+        >
+          <Input
+            id="tolerancia_metrado"
+            type="number"
+            step="0.01"
+            min="0"
+            {...register('tolerancia_metrado')}
+          />
+        </Campo>
       </div>
     </form>
   )
@@ -204,6 +220,9 @@ export function PanelProveedor({ servicio, children }) {
       igv_pct: Number(valores.igv_pct) || 0,
       detraccion_pct: Number(valores.detraccion_pct) || 0,
       fondo_garantia_pct: Number(valores.fondo_garantia_pct) || 0,
+      tolerancia_metrado: Number.isFinite(Number(valores.tolerancia_metrado))
+        ? Number(valores.tolerancia_metrado)
+        : 5,
     })
     setAviso({ tipo: 'exito', mensaje: 'Servicio actualizado correctamente.' })
     setMostrarEditar(false)

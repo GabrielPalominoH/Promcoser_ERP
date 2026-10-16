@@ -1,20 +1,28 @@
-// Valorizaciones de obra (F3).
+// Valorizaciones de obra (F3; ajuste de metrado en la Fase D).
 //
 // Una valorización es el cobro del avance de un periodo: por cada partida
-// (tarea hoja) se toma el metrado ejecutado acumulado y se le resta lo ya
-// valorizado en periodos anteriores; el diferencial × precio unitario es el
-// importe del periodo. Sobre el bruto se aplican las deducciones de obra:
+// (tarea hoja) se toma el metrado ejecutado acumulado —el total (previo +
+// partes) hasta la fecha de corte— y se le resta lo ya valorizado en periodos
+// anteriores; el diferencial × precio unitario es el importe del periodo.
+// Sobre el bruto se aplican las deducciones de obra:
 //
 //   − amortización del adelanto directo      (proporcional al avance valorizado)
 //   − amortización del adelanto de materiales
 //   − fondo de garantía / retención           (% del bruto)
 //   = subtotal → + IGV → − detracción → NETO a pagar.
 //
+// Antes de cerrarla, el usuario puede AJUSTAR el metrado a valorizar por
+// partida (distinto al reportado), con nota obligatoria y la diferencia
+// visible. El ajuste vive solo en esa valorización: no toca el avance de la
+// tarea, y la siguiente valorización arranca del acumulado ajustado (lo
+// valorizado no se vuelve a cobrar). Una valorización cerrada es inmutable.
+//
 // Si una partida no tiene metrado/precio unitario, se usa su monto como base
 // y precio 1 (equivale a monto × avance/100). Todo es puro y devuelve 0/null
 // (nunca NaN) cuando no hay base.
 
 import { hoyISO, montoTarea } from './calculadora'
+import { metradoDeFila } from './partesDiario'
 import { formatearMoneda } from './formatters'
 
 const n = (v, porDefecto = 0) => {
@@ -67,14 +75,99 @@ export function partidasValorizables(tareas = [], servicioId = null) {
   )
 }
 
-// Metrado ya valorizado de una tarea en las valorizaciones previas.
+// Metrado ya valorizado de una tarea: el acumulado de su ítem en la
+// valorización previa con mayor número (ajustes incluidos). Para
+// valorizaciones guardadas antes de la Fase D coincide con la suma de sus
+// periodos, así que la lectura es sin pérdida y no requiere migración.
 export function metradoPrevio(valorizaciones = [], tareaId) {
-  let total = 0
+  let mejor = null
   for (const v of valorizaciones ?? []) {
-    const item = (v.items ?? []).find((i) => i.tarea_id === tareaId)
-    if (item) total += n(item.metrado_periodo)
+    const item = (v?.items ?? []).find((i) => i?.tarea_id === tareaId)
+    if (!item) continue
+    if (mejor == null || (Number(v?.numero) || 0) > (Number(mejor.numero) || 0)) {
+      mejor = { numero: Number(v?.numero) || 0, item }
+    }
+  }
+  return mejor ? r4(n(mejor.item.metrado_acumulado)) : 0
+}
+
+// Tolerancia de la OBRA para el tope del acumulado valorizado (% sobre el
+// metrado contratado). 5 por defecto, igual que el parte diario.
+export const TOLERANCIA_VALORIZADO_DEFECTO = 5
+
+export function toleranciaMetrado(servicio = {}) {
+  const v = servicio?.tolerancia_metrado
+  if (v == null || v === '') return TOLERANCIA_VALORIZADO_DEFECTO
+  const x = Number(v)
+  return Number.isFinite(x) ? Math.max(0, x) : TOLERANCIA_VALORIZADO_DEFECTO
+}
+
+// Metrado ejecutado de una tarea en los partes hasta una fecha de corte
+// (inclusive). Sin corte suma todo.
+export function metradoEjecutadoHasta(partes = [], tareaId, corte = null) {
+  let total = 0
+  for (const p of partes ?? []) {
+    if (corte != null && corte !== '' && (p?.fecha ?? '') > corte) continue
+    for (const x of p?.partidas ?? []) {
+      if (x?.tarea_id !== tareaId) continue
+      const metrado = metradoDeFila(x)
+      if (metrado != null) total += metrado
+    }
   }
   return r4(total)
+}
+
+// Total acumulado (previo + partes) de una tarea de metrado hasta la fecha de
+// corte: es el metrado ejecutado que toma la valorización. No usa
+// `tarea.avance` (caché derivado) para no depender del momento del recálculo.
+export function ejecutadoAcumulado(tarea = {}, partes = [], corte = null) {
+  return r4(n(tarea?.metrado_previo) + metradoEjecutadoHasta(partes, tarea?.id, corte))
+}
+
+// Tope del acumulado valorizado: contratado × (1 + tolerancia/100). null sin
+// metrado contratado.
+export function topeAcumuladoValorizado(tarea = {}, tolerancia = TOLERANCIA_VALORIZADO_DEFECTO) {
+  const base = Number(tarea?.metrado)
+  if (!Number.isFinite(base) || base <= 0) return null
+  const tol = Number(tolerancia)
+  return r4(base * (1 + (Number.isFinite(tol) ? tol : 0) / 100))
+}
+
+// Evalúa un ajuste del metrado a valorizar (puro, para la UI y la suite):
+// todo ajuste exige nota; por encima del tope además se advierte.
+export function evaluarAjuste({
+  tarea = {},
+  reportado = 0,
+  acumulado = 0,
+  nota = '',
+  tolerancia = TOLERANCIA_VALORIZADO_DEFECTO,
+} = {}) {
+  const rep = r4(reportado)
+  const acum = Math.max(0, r4(acumulado))
+  const diferencia = r4(acum - rep)
+  const tope = topeAcumuladoValorizado(tarea, tolerancia)
+  const excedeTope = tope != null && acum > tope
+  const requiereNota = diferencia !== 0
+  const tieneNota = String(nota ?? '').trim() !== ''
+  const mensajes = []
+  if (excedeTope) {
+    mensajes.push(
+      `El acumulado a valorizar (${acum}) supera el tope contratado + tolerancia (${tope}${tarea?.unidad ? ` ${tarea.unidad}` : ''}).`,
+    )
+  }
+  if (requiereNota && !tieneNota) {
+    mensajes.push('Todo ajuste exige una nota que lo justifique.')
+  }
+  return {
+    reportado: rep,
+    acumulado: acum,
+    diferencia,
+    tope,
+    excedeTope,
+    requiereNota,
+    valido: !requiereNota || tieneNota,
+    mensajes,
+  }
 }
 
 // Valorizaciones que ya usaron el metrado de alguna de estas tareas (su importe
@@ -156,27 +249,35 @@ export function siguienteNumero(valorizaciones = [], servicioId) {
   return numeros.length ? Math.max(...numeros) + 1 : 1
 }
 
-// Calcula la valorización del periodo sin guardarla.
+// Calcula la valorización del periodo sin guardarla. `partes` alimenta el
+// ejecutado (previo + partes hasta `fecha`); `ajustes` es la lista de
+// `{ tarea_id, metrado_acumulado, nota }` que el usuario fijó antes de cerrar.
 export function calcularValorizacion({
   servicio,
   tareas = [],
   valorizaciones = [],
   adelantos = [],
+  partes = [],
+  ajustes = [],
   numero = null,
   fecha = hoyISO(),
 }) {
   const presupuesto = n(servicio?.presupuesto_asignado)
   const cfg = configValorizacion(servicio)
   const partidas = partidasValorizables(tareas, servicio?.id)
+  const porTarea = new Map((ajustes ?? []).map((a) => [a?.tarea_id, a]))
 
   const items = []
   for (const t of partidas) {
     const { base, precio, mide } = basePrecio(t, tareas)
     if (base <= 0 && precio === 1) continue
-    const ejecutado = r4((n(t.avance) / 100) * base)
+    const reportado =
+      mide === 'metrado' ? ejecutadoAcumulado(t, partes, fecha) : r4((n(t.avance) / 100) * base)
     const previo = metradoPrevio(valorizaciones, t.id)
-    const periodo = r4(Math.max(0, ejecutado - previo))
-    items.push({
+    const ajuste = porTarea.get(t.id)
+    const acumulado = ajuste ? Math.max(0, r4(ajuste.metrado_acumulado)) : reportado
+    const periodo = r4(Math.max(0, acumulado - previo))
+    const item = {
       tarea_id: t.id,
       nombre: t.nombre,
       unidad: t.unidad ?? null,
@@ -184,10 +285,17 @@ export function calcularValorizacion({
       metrado_base: r4(base),
       precio_unitario: r4(precio),
       metrado_previo: previo,
-      metrado_acumulado: ejecutado,
+      metrado_reportado: reportado,
+      metrado_acumulado: acumulado,
       metrado_periodo: periodo,
       importe: r2(periodo * precio),
-    })
+    }
+    const diferencia = r4(acumulado - reportado)
+    if (diferencia !== 0) {
+      item.ajuste = diferencia
+      item.nota_ajuste = ajuste?.nota ? String(ajuste.nota) : ''
+    }
+    items.push(item)
   }
 
   const bruta = r2(items.reduce((s, i) => s + i.importe, 0))

@@ -238,7 +238,9 @@ export function htmlValorizacion({
   const items = (valorizacion.items ?? []).filter((i) => Number(i.metrado_periodo) > 0)
 
   const filasItems = items.map((i) => [
-    i.nombre,
+    i.ajuste
+      ? `${i.nombre} (ajuste ${i.ajuste > 0 ? '+' : '−'}${Math.abs(i.ajuste)}: ${i.nota_ajuste || 'sin nota'})`
+      : i.nombre,
     i.unidad ?? '—',
     formatearCantidad(i.metrado_periodo),
     formatearMoneda(i.precio_unitario),

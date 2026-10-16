@@ -25,8 +25,10 @@ import { hoyISO } from '../../utils/calculadora'
 import {
   calcularValorizacion,
   configValorizacion,
+  evaluarAjuste,
   resumenValorizaciones,
   saldoAdelantos,
+  toleranciaMetrado,
 } from '../../utils/valorizaciones'
 import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
 import { libroValorizaciones } from '../../utils/exportaciones'
@@ -98,12 +100,27 @@ function ModalAdelanto({ onCerrar, onGuardar }) {
   )
 }
 
-function ModalNuevaValorizacion({ servicio, tareas, valorizaciones, adelantos, onCerrar, onGuardar }) {
+function ModalNuevaValorizacion({ servicio, tareas, valorizaciones, adelantos, partes, onCerrar, onGuardar }) {
   const [numero, setNumero] = useState(() => {
     const previos = valorizaciones.map((v) => Number(v.numero) || 0)
     return previos.length ? Math.max(...previos) + 1 : 1
   })
   const [fecha, setFecha] = useState(hoyISO())
+  // Ajustes por partida antes de cerrar: { [tarea_id]: { acumulado, nota } }.
+  // Vacío = se valoriza lo reportado (previo + partes hasta la fecha).
+  const [ajustes, setAjustes] = useState({})
+
+  const listaAjustes = useMemo(
+    () =>
+      Object.entries(ajustes)
+        .filter(([, a]) => a?.acumulado !== '' && a?.acumulado != null)
+        .map(([tarea_id, a]) => ({
+          tarea_id: Number(tarea_id),
+          metrado_acumulado: Number(a.acumulado) || 0,
+          nota: a.nota ?? '',
+        })),
+    [ajustes],
+  )
 
   const calculo = useMemo(
     () =>
@@ -112,13 +129,50 @@ function ModalNuevaValorizacion({ servicio, tareas, valorizaciones, adelantos, o
         tareas,
         valorizaciones,
         adelantos,
+        partes,
+        ajustes: listaAjustes,
         numero: Number(numero) || 1,
         fecha,
       }),
-    [servicio, tareas, valorizaciones, adelantos, numero, fecha],
+    [servicio, tareas, valorizaciones, adelantos, partes, listaAjustes, numero, fecha],
+  )
+
+  const tolerancia = toleranciaMetrado(servicio)
+  const evaluaciones = useMemo(
+    () =>
+      new Map(
+        calculo.items.map((i) => {
+          const tarea = tareas.find((t) => t.id === i.tarea_id) ?? {}
+          return [
+            i.tarea_id,
+            evaluarAjuste({
+              tarea,
+              reportado: i.metrado_reportado,
+              acumulado: i.metrado_acumulado,
+              nota: i.nota_ajuste,
+              tolerancia,
+            }),
+          ]
+        }),
+      ),
+    [calculo, tareas, tolerancia],
   )
 
   const conPeriodo = calculo.items.filter((i) => i.metrado_periodo > 0)
+  const ajustados = calculo.items.filter((i) => i.ajuste)
+  const sinNota = ajustados.filter((i) => !String(i.nota_ajuste ?? '').trim())
+  const avisosTope = ajustados
+    .map((i) => evaluaciones.get(i.tarea_id))
+    .filter((ev) => ev?.excedeTope)
+    .flatMap((ev) => ev.mensajes)
+
+  const fijarAjuste = (tareaId, campo, valor) =>
+    setAjustes((prev) => ({
+      ...prev,
+      [tareaId]: { acumulado: '', nota: '', ...(prev[tareaId] ?? {}), [campo]: valor },
+    }))
+
+  const signo = (x) => `${x > 0 ? '+' : '−'}${Math.abs(x)}`
 
   return (
     <Modal
@@ -137,7 +191,7 @@ function ModalNuevaValorizacion({ servicio, tareas, valorizaciones, adelantos, o
               onGuardar(calculo)
               onCerrar()
             }}
-            disabled={conPeriodo.length === 0}
+            disabled={conPeriodo.length === 0 || sinNota.length > 0}
           >
             Emitir valorización (S/ {calculo.neto.toLocaleString('es-PE')})
           </Button>
@@ -165,47 +219,105 @@ function ModalNuevaValorizacion({ servicio, tareas, valorizaciones, adelantos, o
           </Campo>
         </div>
 
-        {conPeriodo.length === 0 ? (
+        {conPeriodo.length === 0 && listaAjustes.length === 0 ? (
           <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
             No hay metrado nuevo por valorizar: aumenta el avance de las partidas en el Cronograma.
           </p>
         ) : (
-          <Table>
-            <TableHead>
-              <TableRow>
-                <Th>Partida</Th>
-                <Th>UM</Th>
-                <Th alinear="right">Metrado acum.</Th>
-                <Th alinear="right">Anterior</Th>
-                <Th alinear="right">Periodo</Th>
-                <Th alinear="right">P. Unit.</Th>
-                <Th alinear="right">Importe</Th>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {conPeriodo.map((i) => (
-                <TableRow key={i.tarea_id}>
-                  <Td className="font-medium text-slate-800">{i.nombre}</Td>
-                  <Td className="text-slate-600">{i.unidad ?? '—'}</Td>
-                  <Td alinear="right" className="tabular-nums">
-                    {i.metrado_acumulado}
-                  </Td>
-                  <Td alinear="right" className="tabular-nums text-slate-500">
-                    {i.metrado_previo}
-                  </Td>
-                  <Td alinear="right" className="tabular-nums font-medium">
-                    {i.metrado_periodo}
-                  </Td>
-                  <Td alinear="right" className="tabular-nums">
-                    {formatearMoneda(i.precio_unitario)}
-                  </Td>
-                  <Td alinear="right" className="tabular-nums">
-                    {formatearMoneda(i.importe)}
-                  </Td>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <Th>Partida</Th>
+                  <Th>UM</Th>
+                  <Th alinear="right">Reportado</Th>
+                  <Th alinear="right">A valorizar</Th>
+                  <Th alinear="right">Anterior</Th>
+                  <Th alinear="right">Periodo</Th>
+                  <Th alinear="right">P. Unit.</Th>
+                  <Th alinear="right">Importe</Th>
                 </TableRow>
+              </TableHead>
+              <TableBody>
+                {calculo.items.map((i) => (
+                  <TableRow key={i.tarea_id}>
+                    <Td className="font-medium text-slate-800">{i.nombre}</Td>
+                    <Td className="text-slate-600">{i.unidad ?? '—'}</Td>
+                    <Td alinear="right" className="tabular-nums text-slate-500">
+                      {i.metrado_reportado}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="w-24 text-right tabular-nums"
+                        aria-label={`Metrado a valorizar de ${i.nombre}`}
+                        placeholder={String(i.metrado_reportado)}
+                        value={ajustes[i.tarea_id]?.acumulado ?? ''}
+                        onChange={(e) => fijarAjuste(i.tarea_id, 'acumulado', e.target.value)}
+                      />
+                      {i.ajuste ? (
+                        <span className="block text-xs font-medium text-amber-700">
+                          Dif. {signo(i.ajuste)}
+                        </span>
+                      ) : null}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-500">
+                      {i.metrado_previo}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums font-medium">
+                      {i.metrado_periodo}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(i.precio_unitario)}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(i.importe)}
+                    </Td>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {avisosTope.length > 0 && (
+          <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800">
+            <p className="mb-1 font-semibold">El acumulado supera el tope contratado + tolerancia</p>
+            <ul className="list-disc space-y-1 pl-4">
+              {avisosTope.map((m, k) => (
+                <li key={k}>{m}</li>
               ))}
-            </TableBody>
-          </Table>
+            </ul>
+          </div>
+        )}
+
+        {ajustados.length > 0 && (
+          <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+            <p className="text-sm font-semibold text-slate-800">
+              Notas de los ajustes (obligatorias, una por partida)
+            </p>
+            {ajustados.map((i) => (
+              <Campo
+                key={i.tarea_id}
+                label={`${i.nombre} · diferencia ${signo(i.ajuste)}`}
+                error={
+                  String(i.nota_ajuste ?? '').trim()
+                    ? null
+                    : 'La nota es obligatoria para emitir con este ajuste.'
+                }
+                htmlFor={`vz-nota-${i.tarea_id}`}
+              >
+                <Input
+                  id={`vz-nota-${i.tarea_id}`}
+                  value={ajustes[i.tarea_id]?.nota ?? ''}
+                  onChange={(e) => fijarAjuste(i.tarea_id, 'nota', e.target.value)}
+                  placeholder="Justifica el ajuste (p. ej. mayor metrado verificado en campo)…"
+                />
+              </Campo>
+            ))}
+          </div>
         )}
 
         <ResumenCalculo calculo={calculo} />
@@ -285,6 +397,10 @@ export function ValorizacionesServicio() {
         .filter((a) => a.servicio_id === servicio.id)
         .sort((a, b) => (a.fecha ?? '').localeCompare(b.fecha ?? '')),
     [estado.adelantos, servicio.id],
+  )
+  const partes = useMemo(
+    () => (estado.partes_diario ?? []).filter((p) => p.servicio_id === servicio.id),
+    [estado.partes_diario, servicio.id],
   )
 
   const cfg = configValorizacion(servicio)
@@ -542,6 +658,13 @@ export function ValorizacionesServicio() {
             <Dato etiqueta="Detracción" valor={`${cfg.detraccion_pct}%`} />
             <Dato etiqueta="Fondo de garantía" valor={`${cfg.fondo_garantia_pct}%`} />
           </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Dato
+              etiqueta="Tolerancia de metrado"
+              valor={`${toleranciaMetrado(servicio)}%`}
+              nota="Tope del acumulado valorizado por partida."
+            />
+          </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Dato
               etiqueta="Presupuesto vigente"
@@ -567,6 +690,7 @@ export function ValorizacionesServicio() {
           tareas={tareas}
           valorizaciones={valorizaciones}
           adelantos={adelantos}
+          partes={partes}
           onCerrar={() => setModal(null)}
           onGuardar={emitir}
         />
@@ -609,10 +733,23 @@ export function ValorizacionesServicio() {
                     .filter((i) => i.metrado_periodo > 0)
                     .map((i) => (
                       <TableRow key={i.tarea_id}>
-                        <Td className="font-medium text-slate-800">{i.nombre}</Td>
+                        <Td className="font-medium text-slate-800">
+                          {i.nombre}
+                          {i.ajuste ? (
+                            <span className="block text-xs font-normal text-amber-700">
+                              Ajuste {i.ajuste > 0 ? '+' : '−'}
+                              {Math.abs(i.ajuste)} · {i.nota_ajuste || 'sin nota'}
+                            </span>
+                          ) : null}
+                        </Td>
                         <Td className="text-slate-600">{i.unidad ?? '—'}</Td>
                         <Td alinear="right" className="tabular-nums">
                           {i.metrado_periodo}
+                          {i.ajuste ? (
+                            <span className="block text-xs text-slate-500">
+                              rep. {i.metrado_reportado}
+                            </span>
+                          ) : null}
                         </Td>
                         <Td alinear="right" className="tabular-nums">
                           {formatearMoneda(i.precio_unitario)}

@@ -60,10 +60,16 @@ import {
   basePrecio,
   calcularValorizacion,
   configValorizacion,
+  ejecutadoAcumulado,
+  evaluarAjuste,
+  metradoEjecutadoHasta,
+  metradoPrevio,
   partidasValorizables,
   resumenValorizaciones,
   saldoAdelantos,
   siguienteNumero,
+  toleranciaMetrado,
+  topeAcumuladoValorizado,
   valorizacionesQueUsanTareas,
 } from '../src/utils/valorizaciones'
 import {
@@ -1484,12 +1490,17 @@ const val2 = calcularValorizacion({ servicio: servV1, tareas: tareasV2, valoriza
 comprobar('valorización 2: bruto del periodo = 20000', val2.bruta === 20000, String(val2.bruta))
 comprobar('valorización 2: neto = 20768', val2.neto === 20768, String(val2.neto))
 
-// Partidas con metrado × precio unitario.
+// Partidas con metrado × precio unitario: el ejecutado sale del total
+// acumulado (previo + partes) hasta la fecha de corte, no del caché de avance.
 const servV2 = { id: 200, presupuesto_asignado: 60000, igv_pct: 0, detraccion_pct: 0, fondo_garantia_pct: 0 }
 const tareasMetrado = [{ id: 201, servicio_id: 200, nombre: 'Muro', monto: 60000, metrado: 100, precio_unitario: 600, avance: 50 }]
-const valM = calcularValorizacion({ servicio: servV2, tareas: tareasMetrado, valorizaciones: [], adelantos: [] })
+const partesValM = [
+  { id: 1, servicio_id: 200, fecha: '2026-03-01', partidas: [{ tarea_id: 201, metrado_dia: 50 }] },
+]
+const valM = calcularValorizacion({ servicio: servV2, tareas: tareasMetrado, valorizaciones: [], adelantos: [], partes: partesValM })
 comprobar('valorización: metrado × PU gobierna el importe = 30000', valM.bruta === 30000, String(valM.bruta))
 comprobar('valorización: ítem mide por metrado', valM.items[0].mide === 'metrado' && valM.items[0].metrado_acumulado === 50)
+comprobar('valorización: el reportado es el total acumulado (previo + partes)', valM.items[0].metrado_reportado === 50 && valM.items[0].ajuste === undefined)
 
 // Adelanto directo (20 % del contrato) y fondo de garantía 10 %.
 const servV3 = { id: 300, presupuesto_asignado: 100000, igv_pct: 18, detraccion_pct: 0, fondo_garantia_pct: 10 }
@@ -1602,6 +1613,7 @@ const valMod = calcularValorizacion({
   tareas: tareasValMod,
   valorizaciones: [],
   adelantos: [],
+  partes: [{ id: 9, servicio_id: 500, fecha: '2026-05-03', partidas: [{ tarea_id: 2, metrado_dia: 10 }] }],
 })
 comprobar(
   'modificaciones: la partida adicional aprobada se valoriza',
@@ -2603,12 +2615,19 @@ comprobar(
   basePrecio({ id: 2, servicio_id: 6, nombre: 'Global', monto: 5000 }).mide === 'monto',
 )
 
-// La valorización trae la unidad de la partida en cada ítem.
+// La valorización trae la unidad de la partida en cada ítem. Las tareas van
+// migradas (ejecutado previo fijado) como al cargar el estado real.
+const estadoV6 = migrarAvancePrevio({
+  tareas: ESTADO_INICIAL.tareas,
+  partes_diario: ESTADO_INICIAL.partes_diario,
+  registros_servicio: ESTADO_INICIAL.registros_servicio,
+})
 const vz6 = calcularValorizacion({
   servicio: { id: 6 },
-  tareas: ESTADO_INICIAL.tareas,
+  tareas: estadoV6.tareas,
   valorizaciones: [],
   adelantos: [],
+  partes: ESTADO_INICIAL.partes_diario,
 })
 const item15 = vz6.items.find((i) => i.tarea_id === 15)
 const item13 = vz6.items.find((i) => i.tarea_id === 13)
@@ -4047,6 +4066,134 @@ comprobar(
     excavRT.metrado_previo === 50 &&
     excavRT.avance === 25 &&
     entregaRT.hito === true,
+)
+
+// ============================================================
+//  Tarea 2: valorización con ajuste de metrado (Fase D)
+// ============================================================
+
+console.log('\n[ tarea 2: valorización con ajuste ]')
+
+const servA = { id: 400, presupuesto_asignado: 100000, igv_pct: 0, detraccion_pct: 0, fondo_garantia_pct: 0 }
+const tareaA = { id: 401, servicio_id: 400, nombre: 'Excavación', unidad: 'm3', metrado: 100, precio_unitario: 100, monto: 10000, metrado_previo: 20, avance: 70 }
+const partesA = [
+  { id: 1, servicio_id: 400, fecha: '2026-04-10', partidas: [{ tarea_id: 401, metrado_dia: 30 }] },
+  { id: 2, servicio_id: 400, fecha: '2026-05-20', partidas: [{ tarea_id: 401, metrado_dia: 25 }] },
+]
+comprobar(
+  'tarea 2: el ejecutado se corta a la fecha (20 previo + 30, sin el parte posterior)',
+  metradoEjecutadoHasta(partesA, 401, '2026-04-30') === 30 &&
+    ejecutadoAcumulado(tareaA, partesA, '2026-04-30') === 50 &&
+    ejecutadoAcumulado(tareaA, partesA, null) === 75,
+)
+const valA1 = calcularValorizacion({
+  servicio: servA,
+  tareas: [tareaA],
+  valorizaciones: [],
+  adelantos: [],
+  partes: partesA,
+  fecha: '2026-04-30',
+})
+comprobar(
+  'tarea 2: la valorización toma previo + partes hasta el corte (reportado 50, importe 5000)',
+  valA1.items[0].metrado_reportado === 50 &&
+    valA1.items[0].metrado_acumulado === 50 &&
+    valA1.items[0].metrado_periodo === 50 &&
+    valA1.items[0].importe === 5000 &&
+    valA1.bruta === 5000,
+)
+const valA1aj = calcularValorizacion({
+  servicio: servA,
+  tareas: [tareaA],
+  valorizaciones: [],
+  adelantos: [],
+  partes: partesA,
+  fecha: '2026-04-30',
+  ajustes: [{ tarea_id: 401, metrado_acumulado: 55, nota: 'Mayor metrado verificado en campo' }],
+})
+comprobar(
+  'tarea 2: el ajuste con nota cambia periodo e importe, con diferencia visible',
+  valA1aj.items[0].metrado_reportado === 50 &&
+    valA1aj.items[0].metrado_acumulado === 55 &&
+    valA1aj.items[0].ajuste === 5 &&
+    valA1aj.items[0].nota_ajuste === 'Mayor metrado verificado en campo' &&
+    valA1aj.items[0].metrado_periodo === 55 &&
+    valA1aj.items[0].importe === 5500 &&
+    valA1aj.bruta === 5500,
+)
+const evSinNota = evaluarAjuste({ tarea: tareaA, reportado: 50, acumulado: 55, nota: '' })
+const evConNota = evaluarAjuste({ tarea: tareaA, reportado: 50, acumulado: 55, nota: 'x' })
+comprobar(
+  'tarea 2: el ajuste exige nota (sin nota no es válido)',
+  evSinNota.requiereNota === true &&
+    evSinNota.valido === false &&
+    evSinNota.diferencia === 5 &&
+    evConNota.valido === true,
+)
+comprobar(
+  'tarea 2: tope = contratado + tolerancia de la obra (100 + 5 % = 105)',
+  topeAcumuladoValorizado(tareaA, 5) === 105 &&
+    toleranciaMetrado({}) === 5 &&
+    toleranciaMetrado({ tolerancia_metrado: 3 }) === 3 &&
+    topeAcumuladoValorizado({}) === null,
+)
+const evTope = evaluarAjuste({ tarea: tareaA, reportado: 50, acumulado: 110, nota: 'x', tolerancia: 5 })
+comprobar(
+  'tarea 2: por encima del tope advierte (con nota sigue siendo válido)',
+  evTope.excedeTope === true && evTope.valido === true && evTope.mensajes.length > 0,
+)
+const valA2 = calcularValorizacion({
+  servicio: servA,
+  tareas: [tareaA],
+  valorizaciones: [valA1aj],
+  adelantos: [],
+  partes: partesA,
+  fecha: '2026-05-31',
+})
+comprobar(
+  'tarea 2: la siguiente valorización arranca del acumulado ajustado (previo 55, periodo 20)',
+  valA2.items[0].metrado_previo === 55 &&
+    valA2.items[0].metrado_reportado === 75 &&
+    valA2.items[0].metrado_periodo === 20 &&
+    valA2.items[0].importe === 2000,
+)
+comprobar(
+  'tarea 2: metradoPrevio lee el acumulado previo sin migración (val1: 60000/20000)',
+  metradoPrevio([val1], 101) === 60000 && metradoPrevio([val1], 102) === 20000 && metradoPrevio([], 101) === 0,
+)
+const valCerrada = JSON.stringify(valA1aj)
+const estadoPost = recalcularAvances(
+  {
+    servicios: [servA],
+    tareas: [{ ...tareaA, modo_medicion: 'metrado' }],
+    partes_diario: [
+      ...partesA,
+      { id: 3, servicio_id: 400, fecha: '2026-06-01', partidas: [{ tarea_id: 401, metrado_dia: 10 }] },
+    ],
+    registros_servicio: [],
+  },
+  '2026-06-02',
+)
+comprobar(
+  'tarea 2: la valorización cerrada es inmutable aunque se editen partes (el avance sí se mueve a 85)',
+  JSON.stringify(valA1aj) === valCerrada &&
+    estadoPost.tareas.find((t) => t.id === 401).avance === 85,
+)
+comprobar(
+  'tarea 2: el ajuste no toca la tarea (solo vive en la valorización)',
+  tareaA.metrado_previo === 20 && tareaA.avance === 70,
+)
+const htmlValAj = htmlValorizacion({
+  servicio: { ...servV1, nombre_servicio: 'Obra Ajustada', cliente: 'Cliente A' },
+  valorizacion: valA1aj,
+  generado: '16/10/2026',
+})
+comprobar(
+  'tarea 2: el PDF muestra el ajuste y su nota',
+  htmlValAj.includes('(ajuste +5:') &&
+    htmlValAj.includes('Mayor metrado verificado en campo') &&
+    !htmlValAj.includes('undefined') &&
+    !htmlValAj.includes('NaN'),
 )
 
 // ============================================================
