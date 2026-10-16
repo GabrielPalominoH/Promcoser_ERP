@@ -1544,12 +1544,16 @@ comprobar(
 
 console.log('\n[ cartera ]')
 
+// El corte va fijo (CURVA_HOY): el PV se prorratea día a día, así que sin
+// inyectar la fecha la prueba dependería del reloj de la máquina y dejaría de
+// ser determinista (el resto de valores esperados se calculan para ese corte).
 const evmCart = evmCartera({
   servicios: ESTADO_INICIAL.servicios,
   tareas: ESTADO_INICIAL.tareas,
   registros: ESTADO_INICIAL.registros_servicio.filter(cuentaComoManoDeObra),
   lineasBase: ESTADO_INICIAL.lineas_base ?? [],
   lecturas: ESTADO_INICIAL.lecturas_avance ?? [],
+  hoy: CURVA_HOY,
 })
 comprobar('cartera EVM: presupuesto = 610000', evmCart.presupuesto === 610000, String(evmCart.presupuesto))
 comprobar('cartera EVM: AC = 304345', evmCart.ac === 304345, String(evmCart.ac))
