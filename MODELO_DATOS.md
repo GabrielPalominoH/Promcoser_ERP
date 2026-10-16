@@ -10,7 +10,7 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `personal` | `id` | Ficha: nombre, apellido, cargo, DNI, tarifa/hora, ámbito (Obra/Oficina) |
 | `equipos` | `id` | Ficha: nombre, costo/hora |
 | `servicios` | `id` | Obra: nombre, cliente, tipo, presupuesto inicial, inicio, fin estimado, avance, estatus |
-| `tareas` | `id` | Cronograma + montos: servicio, padre (árbol), nombre, fechas, avance %, monto |
+| `tareas` | `id` | Cronograma + montos: servicio, padre (árbol), nombre, fechas, avance %, monto, y en cada hoja el modo de medición del avance (`modo_medicion`, con `pasos`/`nota_justificacion` cuando aplica) |
 | `registros_servicio` | `id` | Libro único de costos: servicio, tarea?, tipo, referencia/nombre, cantidad, monto, fecha, modalidad, asignación? |
 | `asignaciones` | `id` | Personal asignado: servicio, persona, tarea?, horas/día, tarifa, inicio, fin? (vacío = vigente). El costo mensual se genera automático |
 | `costos_oficina` | `id` | Gasto general: persona (ámbito Oficina), mes, monto. Sin servicio |
@@ -47,6 +47,7 @@ modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partida
 - **Días estimados del padre = suma de hijas** (`diasEstimadosTarea`). Hoja: duración planificada (fin − inicio + 1 día, sale de las fechas del Cronograma).
 - **Días reales = fechas distintas con registros de personal propios + descendientes** (`diasRealesTarea`). Desviación = reales − estimados (`desviacionDias`, % `null` sin estimado).
 - **Valorizado = monto × avance efectivo** (`valorizadoTarea`). Sin metrados.
+- **Modo de medición del avance** (`src/utils/avance.js`, solo hojas): cada tarea hoja declara `modo_medicion` — `metrado` (ejecutado ÷ contratado), `hitos` (suma de los pesos de los `pasos` cumplidos; los pesos suman 100), `tiempo` (días laborables transcurridos ÷ duración, con el calendario de obra y corte a "hoy"), `costo` (costo ejecutado ÷ monto de la partida) o `manual` (excepción: el avance se fija a mano y exige `nota_justificacion`). Los padres no llevan modo: su avance se sigue derivando de las hijas (`avanceEfectivo`). La asignación inicial es aditiva y no altera ningún avance: con metrado → `metrado`; hito sin metrado → `hitos`; sin metrado con costos vinculados → `costo`; el resto → `manual`. El número autoritativo sigue siendo `tarea.avance`; los cálculos por modo se conectan como fuente única en la Fase C.
 - **Costo de fila = propio + descendientes** (`costoSubarbol`). Costos sin tarea van al aviso, nunca se pierden.
 - **Borrados** (`DataContext ELIMINAR_ITEM`): servicio arrastra registros, tareas, asignaciones, facturas, cobros, modificaciones y ampliaciones de plazo; tarea arrastra subtareas y deja costos sin tarea; asignación arrastra sus meses automáticos.
 - **Personal**: costo directo automático desde asignaciones (`diferenciaPersonalAuto` + `proyeccionAsignaciones`); el devengado hasta hoy vive en registros mensuales (`modalidad: 'mensual'` para que siempre cuente). Baja = `fecha_fin`; lo devengado se conserva.
@@ -71,10 +72,11 @@ modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partida
   `siguienteId`). Los componentes no tocan `localStorage` (salvo preferencia
   visual del sidebar). Si el guardado falla, `Layout` muestra alerta y pide
   exportar respaldo.
-- Versión de esquema `_v: 11`; respaldos de versión mayor se rechazan; lo
-  inválido no destruye lo guardado. Los respaldos v10 (u anteriores) se
-  rellenan con las colecciones nuevas vacías (`modificaciones`,
-  `ampliaciones_plazo`).
+- Versión de esquema `_v: 13`; respaldos de versión mayor se rechazan; lo
+  inválido no destruye lo guardado. Los respaldos anteriores se rellenan con
+  las colecciones nuevas vacías (`modificaciones`, `ampliaciones_plazo`,
+  `partes_diario`) y se normaliza el `modo_medicion` de cada tarea hoja
+  (`normalizarModoMedicion`, idempotente: no toca ningún avance guardado).
 - Finanzas centralizadas en `src/utils/finanzas.js` (resultado/margen bruto,
   saldos, flujo, vigencia, periodos). Política: PEN,
   céntimos, resultado = cobrado − gastado.

@@ -4,11 +4,11 @@ import { useForm } from 'react-hook-form'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Campo, Input, Select } from '../../components/ui/Field'
+import { Campo, Input, Select, Textarea } from '../../components/ui/Field'
 
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
-import { Badge } from '../../components/ui/Badge'
+import { Badge, BadgeModo } from '../../components/ui/Badge'
 import { formatearCantidad, formatearFecha, formatearMoneda } from '../../utils/formatters'
 import { avanceEfectivo, estadoTarea, hoyISO, metricasCronograma, nombreReferencia, sumarMontos } from '../../utils/calculadora'
 import { programar, TIPOS_DEPENDENCIA } from '../../utils/cpm'
@@ -28,7 +28,13 @@ import {
   resumenDesviacionLineaBase,
   ventanaLookahead,
 } from '../../utils/cronograma'
-import { normalizar } from '../../components/ui/ComboBox'
+import { CampoComboBox, normalizar } from '../../components/ui/ComboBox'
+import {
+  MODOS_MEDICION,
+  OPCIONES_MODO,
+  ORIGEN_AVANCE,
+  pasosQueReproducenAvance,
+} from '../../utils/avance'
 import { Buscador, textoCoincide } from '../../components/ui/FiltroBusqueda'
 import { libroCronograma } from '../../utils/exportaciones'
 import { descargarLibro } from '../../utils/descargas'
@@ -107,6 +113,8 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
 
   const {
     register,
+    control,
+    watch,
     handleSubmit,
     getValues,
     setValue,
@@ -118,14 +126,30 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           fecha_inicio: tarea.fecha_inicio,
           fecha_fin: tarea.fecha_fin,
           avance: tarea.avance ?? 0,
+          modo_medicion: MODOS_MEDICION.includes(tarea.modo_medicion) ? tarea.modo_medicion : 'metrado',
+          nota_justificacion: tarea.nota_justificacion ?? '',
         }
-      : { nombre: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(), avance: 0 },
+      : {
+          nombre: '',
+          fecha_inicio: hoyISO(),
+          fecha_fin: hoyISO(),
+          avance: 0,
+          modo_medicion: 'metrado',
+          nota_justificacion: '',
+        },
     mode: 'onBlur',
   })
 
+  // El modo elegido decide qué campos se piden (justificación en `manual`) y
+  // de dónde se explicará que sale el avance.
+  const modoActual = watch('modo_medicion') ?? 'metrado'
+
   const enviar = (valores) => {
     const nombreTarea = valores.nombre.trim()
-    onGuardar({
+    const avance = esGrupo
+      ? Number(tarea.avance) || 0
+      : Math.min(100, Math.max(0, Number(valores.avance) || 0))
+    const cambios = {
       id: tarea?.id,
       servicio_id: servicio.id,
       padre_id: tarea?.padre_id ?? padre?.id ?? null,
@@ -144,10 +168,21 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
               lag: Number(p.lag) || 0,
             })),
       // Con hijas, el avance se calcula solo desde las subtareas.
-      avance: esGrupo
-        ? Number(tarea.avance) || 0
-        : Math.min(100, Math.max(0, Number(valores.avance) || 0)),
-    })
+      avance,
+    }
+
+    // El modo de medición solo aplica a las hojas; al pasar de modo se
+    // conserva el avance. En `manual` la justificación es obligatoria.
+    if (!esGrupo) {
+      const modo = MODOS_MEDICION.includes(valores.modo_medicion) ? valores.modo_medicion : 'metrado'
+      cambios.modo_medicion = modo
+      cambios.nota_justificacion = modo === 'manual' ? String(valores.nota_justificacion ?? '').trim() : ''
+      if (modo === 'hitos' && !(Array.isArray(tarea?.pasos) && tarea.pasos.length > 0)) {
+        cambios.pasos = pasosQueReproducenAvance(avance)
+      }
+    }
+
+    onGuardar(cambios)
   }
 
   const agregarPredecesora = () =>
@@ -277,7 +312,9 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                 hint={
                   tarea?.avance_por_partes
                     ? 'Este avance lo gobiernan los partes diarios: se recalcula al guardarlos.'
-                    : undefined
+                    : modoActual === 'manual'
+                      ? 'Avance fijado a mano: obligatorio justificar el dato.'
+                      : ORIGEN_AVANCE[modoActual]
                 }
                 htmlFor="tarea-avance"
               >
@@ -303,7 +340,43 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                 />
               </Campo>
             )}
+            {!esGrupo && (
+              <Campo
+                label="Modo de medición"
+                error={errors.modo_medicion?.message}
+                hint="Cómo se mide el avance de esta partida."
+                htmlFor="tarea-modo"
+              >
+                <CampoComboBox
+                  control={control}
+                  name="modo_medicion"
+                  id="tarea-modo"
+                  placeholder="Elegir modo…"
+                  opciones={OPCIONES_MODO}
+                  rules={{ required: 'Elige cómo se mide esta partida' }}
+                />
+              </Campo>
+            )}
           </div>
+          {!esGrupo && modoActual === 'manual' && (
+            <div className="mt-4">
+              <Campo
+                label="Justificación del avance manual"
+                error={errors.nota_justificacion?.message}
+                hint="El modo manual es la excepción: explica de dónde sale el avance y quedará marcado en el cronograma."
+                htmlFor="tarea-nota"
+              >
+                <Textarea
+                  id="tarea-nota"
+                  rows={2}
+                  placeholder="Ej. Avance acordado con el supervisor en la visita del 12/07."
+                  {...register('nota_justificacion', {
+                    required: modoActual === 'manual' ? 'Justifica por qué el avance se fija a mano' : false,
+                  })}
+                />
+              </Campo>
+            </div>
+          )}
           {!esGrupo && (
             <div className="mt-4 rounded-lg border border-slate-200 px-4 py-3">
               <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
@@ -1873,6 +1946,7 @@ export function CronogramaServicio() {
                       )}
                         <span className="mt-0.5 inline-flex items-center gap-1.5">
                           <Badge variante={COLORES_ETIQUETA[estado]}>{estado}</Badge>
+                          {!esPadre && t.modo_medicion === 'manual' && <BadgeModo modo="manual" />}
                           {desvio && desvio.fin !== 0 && (
                             <span
                               className={`rounded px-1 text-[10px] font-semibold tabular-nums ${

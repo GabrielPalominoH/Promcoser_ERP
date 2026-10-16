@@ -8,6 +8,7 @@ import { CampoComboBox } from '../../components/ui/ComboBox'
 import { InputMonto } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
+import { BadgeModo } from '../../components/ui/Badge'
 import { UNIDADES } from '../../data/unidades'
 import {
   Table,
@@ -368,6 +369,7 @@ export function PartidasServicio() {
           <TableHead>
             <TableRow>
               <Th>Tarea</Th>
+              <Th>Modo</Th>
               <Th alinear="right">UM</Th>
               <Th alinear="right">Metrado</Th>
               <Th alinear="right">Metrado ej.</Th>
@@ -387,9 +389,9 @@ export function PartidasServicio() {
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={16} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
+              <TableEmpty colSpan={17} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
             ) : filasFiltradas.length === 0 ? (
-              <TableEmpty colSpan={16} mensaje="Ninguna tarea coincide con el filtro." />
+              <TableEmpty colSpan={17} mensaje="Ninguna tarea coincide con el filtro." />
             ) : (
               filasFiltradas.map(({ tarea, nivel, numero, hijas }) => {
                 const monto = montoTarea(tarea, tareas)
@@ -451,6 +453,13 @@ export function PartidasServicio() {
                           </Button>
                         )}
                       </span>
+                    </Td>
+                    <Td>
+                      {esPadre || !tarea.modo_medicion ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        <BadgeModo modo={tarea.modo_medicion} />
+                      )}
                     </Td>
                     <Td alinear="right" className="tabular-nums text-slate-600">
                       {esPadre ? '—' : (tarea.unidad ?? '—')}

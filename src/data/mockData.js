@@ -666,27 +666,30 @@ export const registros_servicio = [
 export const tareas = [
   // Servicio 6 — Mejoramiento de agua potable y alcantarillado. Cada tarea
   // lleva su monto; las tareas "padre" suman automáticamente el de sus hijas.
-  { id: 13, servicio_id: 6, nombre: 'Obras preliminares y trazo', fecha_inicio: '2026-06-01', fecha_fin: '2026-06-15', avance: 100, monto: 15000, unidad: 'Glb' },
+  // Cada HOJA declara además su `modo_medicion` (cómo se mide su avance):
+  // con metrado → metrado; sin metrado pero con costos cargados → costo. Las
+  // tareas padre no miden: su avance se deriva de las hijas (avanceEfectivo).
+  { id: 13, servicio_id: 6, nombre: 'Obras preliminares y trazo', fecha_inicio: '2026-06-01', fecha_fin: '2026-06-15', avance: 100, modo_medicion: 'costo', monto: 15000, unidad: 'Glb' },
   { id: 14, servicio_id: 6, nombre: 'Redes de agua potable', fecha_inicio: '2026-06-16', fecha_fin: '2026-08-15', avance: 0, monto: 0 },
   // Las predecesoras usan tipos FS/SS/FF/SF y holgura (lag) en días
   // laborables; el cronograma las dibuja y el motor CPM calcula la ruta
   // crítica (asesor: solo se aplica con "Reprogramar (CPM)").
-  { id: 15, servicio_id: 6, padre_id: 14, nombre: 'Excavación y tendido de tubería PVC', fecha_inicio: '2026-06-16', fecha_fin: '2026-07-15', avance: 100, monto: 42000, unidad: 'm³', metrado: 600, precio_unitario: 70, predecesoras: [{ id: 13, tipo: 'FS', lag: 0 }] },
-  { id: 16, servicio_id: 6, padre_id: 14, nombre: 'Pruebas hidráulicas y empalmes', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100, monto: 33000, unidad: 'und', metrado: 10, precio_unitario: 3300, predecesoras: [{ id: 15, tipo: 'FS', lag: 0 }] },
+  { id: 15, servicio_id: 6, padre_id: 14, nombre: 'Excavación y tendido de tubería PVC', fecha_inicio: '2026-06-16', fecha_fin: '2026-07-15', avance: 100, modo_medicion: 'metrado', monto: 42000, unidad: 'm³', metrado: 600, precio_unitario: 70, predecesoras: [{ id: 13, tipo: 'FS', lag: 0 }] },
+  { id: 16, servicio_id: 6, padre_id: 14, nombre: 'Pruebas hidráulicas y empalmes', fecha_inicio: '2026-07-16', fecha_fin: '2026-08-15', avance: 100, modo_medicion: 'metrado', monto: 33000, unidad: 'und', metrado: 10, precio_unitario: 3300, predecesoras: [{ id: 15, tipo: 'FS', lag: 0 }] },
   { id: 17, servicio_id: 6, nombre: 'Redes de alcantarillado', fecha_inicio: '2026-08-16', fecha_fin: '2026-10-31', avance: 0, monto: 0 },
-  { id: 18, servicio_id: 6, padre_id: 17, nombre: 'Excavación e instalación de colectores', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-30', avance: 85, monto: 58000, unidad: 'm³', metrado: 800, precio_unitario: 72.5, predecesoras: [{ id: 16, tipo: 'FS', lag: 0 }] },
-  { id: 19, servicio_id: 6, padre_id: 17, nombre: 'Buzones y conexiones domiciliarias', fecha_inicio: '2026-10-01', fecha_fin: '2026-10-31', avance: 40, monto: 47000, unidad: 'und', metrado: 47, precio_unitario: 1000, predecesoras: [{ id: 18, tipo: 'FS', lag: 0 }] },
-  { id: 20, servicio_id: 6, nombre: 'Reposición de pavimento y veredas', fecha_inicio: '2026-11-01', fecha_fin: '2026-12-05', avance: 0, monto: 62000, unidad: 'm²', metrado: 1240, precio_unitario: 50, predecesoras: [{ id: 19, tipo: 'FS', lag: 0 }] },
-  { id: 21, servicio_id: 6, nombre: 'Caseta de bombeo y equipamiento hidráulico', fecha_inicio: '2026-11-15', fecha_fin: '2026-12-20', avance: 0, monto: 78000, unidad: 'und', metrado: 2, precio_unitario: 39000, predecesoras: [{ id: 19, tipo: 'FS', lag: 5 }] },
+  { id: 18, servicio_id: 6, padre_id: 17, nombre: 'Excavación e instalación de colectores', fecha_inicio: '2026-08-16', fecha_fin: '2026-09-30', avance: 85, modo_medicion: 'metrado', monto: 58000, unidad: 'm³', metrado: 800, precio_unitario: 72.5, predecesoras: [{ id: 16, tipo: 'FS', lag: 0 }] },
+  { id: 19, servicio_id: 6, padre_id: 17, nombre: 'Buzones y conexiones domiciliarias', fecha_inicio: '2026-10-01', fecha_fin: '2026-10-31', avance: 40, modo_medicion: 'metrado', monto: 47000, unidad: 'und', metrado: 47, precio_unitario: 1000, predecesoras: [{ id: 18, tipo: 'FS', lag: 0 }] },
+  { id: 20, servicio_id: 6, nombre: 'Reposición de pavimento y veredas', fecha_inicio: '2026-11-01', fecha_fin: '2026-12-05', avance: 0, modo_medicion: 'metrado', monto: 62000, unidad: 'm²', metrado: 1240, precio_unitario: 50, predecesoras: [{ id: 19, tipo: 'FS', lag: 0 }] },
+  { id: 21, servicio_id: 6, nombre: 'Caseta de bombeo y equipamiento hidráulico', fecha_inicio: '2026-11-15', fecha_fin: '2026-12-20', avance: 0, modo_medicion: 'metrado', monto: 78000, unidad: 'und', metrado: 2, precio_unitario: 39000, predecesoras: [{ id: 19, tipo: 'FS', lag: 5 }] },
   // Servicio 7 — Pistas y veredas Jr. Amazonas (en curso, con retraso y sobrecosto).
-  { id: 22, servicio_id: 7, nombre: 'Trabajos preliminares y trazo', fecha_inicio: '2026-03-02', fecha_fin: '2026-03-20', avance: 100, monto: 18000, unidad: 'Glb' },
-  { id: 23, servicio_id: 7, nombre: 'Movimiento de tierras', fecha_inicio: '2026-03-21', fecha_fin: '2026-06-30', avance: 100, monto: 52000, unidad: 'm³', metrado: 650, precio_unitario: 80, predecesoras: [{ id: 22, tipo: 'FS', lag: 0 }] },
-  { id: 24, servicio_id: 7, nombre: 'Pavimento rígido (losas)', fecha_inicio: '2026-07-01', fecha_fin: '2026-10-15', avance: 45, monto: 80000, unidad: 'm²', metrado: 1600, precio_unitario: 50, predecesoras: [{ id: 23, tipo: 'FS', lag: 0 }] },
-  { id: 25, servicio_id: 7, nombre: 'Señalización y áreas verdes', fecha_inicio: '2026-10-16', fecha_fin: '2026-10-25', avance: 0, monto: 30000, unidad: 'Glb', metrado: 1, precio_unitario: 30000, predecesoras: [{ id: 24, tipo: 'FS', lag: 0 }] },
+  { id: 22, servicio_id: 7, nombre: 'Trabajos preliminares y trazo', fecha_inicio: '2026-03-02', fecha_fin: '2026-03-20', avance: 100, modo_medicion: 'costo', monto: 18000, unidad: 'Glb' },
+  { id: 23, servicio_id: 7, nombre: 'Movimiento de tierras', fecha_inicio: '2026-03-21', fecha_fin: '2026-06-30', avance: 100, modo_medicion: 'metrado', monto: 52000, unidad: 'm³', metrado: 650, precio_unitario: 80, predecesoras: [{ id: 22, tipo: 'FS', lag: 0 }] },
+  { id: 24, servicio_id: 7, nombre: 'Pavimento rígido (losas)', fecha_inicio: '2026-07-01', fecha_fin: '2026-10-15', avance: 45, modo_medicion: 'metrado', monto: 80000, unidad: 'm²', metrado: 1600, precio_unitario: 50, predecesoras: [{ id: 23, tipo: 'FS', lag: 0 }] },
+  { id: 25, servicio_id: 7, nombre: 'Señalización y áreas verdes', fecha_inicio: '2026-10-16', fecha_fin: '2026-10-25', avance: 0, modo_medicion: 'metrado', monto: 30000, unidad: 'Glb', metrado: 1, precio_unitario: 30000, predecesoras: [{ id: 24, tipo: 'FS', lag: 0 }] },
   // Servicio 8 — Mantenimiento de redes Muyuna (en curso, dentro de plazo y presupuesto).
-  { id: 26, servicio_id: 8, nombre: 'Inspección y limpieza de reservorios', fecha_inicio: '2026-08-01', fecha_fin: '2026-09-15', avance: 100, monto: 22000, unidad: 'und', metrado: 4, precio_unitario: 5500 },
-  { id: 27, servicio_id: 8, nombre: 'Reparación de tuberías y válvulas', fecha_inicio: '2026-09-16', fecha_fin: '2026-12-20', avance: 100, monto: 43000, unidad: 'und', metrado: 43, precio_unitario: 1000, predecesoras: [{ id: 26, tipo: 'FS', lag: 0 }] },
-  { id: 28, servicio_id: 8, nombre: 'Rehabilitación de cámaras de bombeo', fecha_inicio: '2026-12-21', fecha_fin: '2027-02-28', avance: 0, monto: 30000, unidad: 'und', metrado: 3, precio_unitario: 10000, predecesoras: [{ id: 27, tipo: 'FS', lag: 0 }] },
+  { id: 26, servicio_id: 8, nombre: 'Inspección y limpieza de reservorios', fecha_inicio: '2026-08-01', fecha_fin: '2026-09-15', avance: 100, modo_medicion: 'metrado', monto: 22000, unidad: 'und', metrado: 4, precio_unitario: 5500 },
+  { id: 27, servicio_id: 8, nombre: 'Reparación de tuberías y válvulas', fecha_inicio: '2026-09-16', fecha_fin: '2026-12-20', avance: 100, modo_medicion: 'metrado', monto: 43000, unidad: 'und', metrado: 43, precio_unitario: 1000, predecesoras: [{ id: 26, tipo: 'FS', lag: 0 }] },
+  { id: 28, servicio_id: 8, nombre: 'Rehabilitación de cámaras de bombeo', fecha_inicio: '2026-12-21', fecha_fin: '2027-02-28', avance: 0, modo_medicion: 'metrado', monto: 30000, unidad: 'und', metrado: 3, precio_unitario: 10000, predecesoras: [{ id: 27, tipo: 'FS', lag: 0 }] },
 ]
 
 // ------------------------------------------------------------

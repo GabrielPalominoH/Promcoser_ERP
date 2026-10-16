@@ -62,17 +62,21 @@ estatus             = En curso
 ```
 
 ### Árbol de tareas (servicio 6)
-| id | nombre | padre | inicio | fin | avance | monto | duración |
-|---|---|---|---|---|---|---|---|
-| 13 | Obras preliminares y trazo | — | 01/06 | 15/06 | 100% | 15,000 | 15 d |
-| 14 | Redes de agua potable | — | 16/06 | 15/08 | 0 (auto) | 0 | — |
-| 15 | Excavación y tendido de tubería PVC | 14 | 16/06 | 15/07 | 100% | 42,000 | 30 d |
-| 16 | Pruebas hidráulicas y empalmes | 14 | 16/07 | 15/08 | 100% | 33,000 | 31 d |
-| 17 | Redes de alcantarillado | — | 16/08 | 31/10 | 0 (auto) | 0 | — |
-| 18 | Excavación e instalación de colectores | 17 | 16/08 | 30/09 | 85% | 58,000 | 46 d |
-| 19 | Buzones y conexiones domiciliarias | 17 | 01/10 | 31/10 | 40% | 47,000 | 31 d |
-| 20 | Reposición de pavimento y veredas | — | 01/11 | 05/12 | 0% | 62,000 | 35 d |
-| 21 | Caseta de bombeo y equipamiento hidráulico | — | 15/11 | 20/12 | 0% | 78,000 | 36 d |
+| id | nombre | padre | inicio | fin | avance | monto | duración | modo |
+|---|---|---|---|---|---|---|---|---|
+| 13 | Obras preliminares y trazo | — | 01/06 | 15/06 | 100% | 15,000 | 15 d | costo |
+| 14 | Redes de agua potable | — | 16/06 | 15/08 | 0 (auto) | 0 | — | — |
+| 15 | Excavación y tendido de tubería PVC | 14 | 16/06 | 15/07 | 100% | 42,000 | 30 d | metrado |
+| 16 | Pruebas hidráulicas y empalmes | 14 | 16/07 | 15/08 | 100% | 33,000 | 31 d | metrado |
+| 17 | Redes de alcantarillado | — | 16/08 | 31/10 | 0 (auto) | 0 | — | — |
+| 18 | Excavación e instalación de colectores | 17 | 16/08 | 30/09 | 85% | 58,000 | 46 d | metrado |
+| 19 | Buzones y conexiones domiciliarias | 17 | 01/10 | 31/10 | 40% | 47,000 | 31 d | metrado |
+| 20 | Reposición de pavimento y veredas | — | 01/11 | 05/12 | 0% | 62,000 | 35 d | metrado |
+| 21 | Caseta de bombeo y equipamiento hidráulico | — | 15/11 | 20/12 | 0% | 78,000 | 36 d | metrado |
+
+La columna **modo** es el modo de medición del avance (§5.1): solo las hojas lo
+llevan; los padres (14 y 17) lo dejan vacío. Las hojas con metrado miden por
+`metrado`; la 13, sin metrado pero con costos cargados, mide por `costo`.
 
 **Montos automáticos**: las tareas con hijas (14 y 17) tienen `monto: 0` y
 muestran la **suma de sus hijas**:
@@ -294,6 +298,7 @@ Toda la lógica vive en `src/utils/`; las pantallas **no recalculan**.
 | `registrosDeServicio(regs, id)` | filtra `servicio_id === id` | 20 registros |
 | `montoTarea(t, tareas)` | hoja: `monto`; padre: Σ hijas (recursivo) | Redes de agua 75,000 |
 | `avanceEfectivo(t, tareas)` | hoja: `avance`; padre: promedio ponderado por duración de hijas | ver §5 |
+| `avancePorMetrado/Hitos/Tiempo/Costo` (§5.1) | avance según el `modo_medicion` de cada hoja | 600/600 → 100 % |
 | `valorizadoTarea(t, tareas)` | `montoTarea × avanceEfectivo / 100` | Tendido PVC 42,000 |
 | `costoPorTarea(regs, id, tarea)` | Σ montos con `tarea_id === tarea` | Tendido PVC 30,310 |
 | `costoSubarbol(t, tareas, regs, id)` | propio + Σ `costoSubarbol(hijas)` | Redes de agua 40,300 |
@@ -492,6 +497,36 @@ SPI                = avanceGlobal ÷ esperado = 66 ÷ 66.83 = 0.9876 ≈ 0.99
 ```
 La suite usa `indiceAvance(servicio6, 66, '2026-10-14')` → **0.99**.
 
+### 5.1 Modo de medición del avance (Fase A)
+
+Cada tarea **hoja** declara cómo se mide su avance (`modo_medicion`); los padres
+no lo declaran porque su avance se sigue derivando de sus hijas. La lógica pura
+vive en `src/utils/avance.js`:
+
+| modo | avance |
+|---|---|
+| `metrado` | metrado ejecutado acumulado ÷ metrado contratado × 100 |
+| `hitos` | suma de los pesos de los `pasos` cumplidos (los pesos suman 100) |
+| `tiempo` | días laborables transcurridos ÷ duración × 100, con el calendario de obra y corte a "hoy" |
+| `costo` | costo ejecutado ÷ monto de la partida × 100 |
+| `manual` | el avance se fija a mano y exige `nota_justificacion` (la excepción se marca en el Gantt y en Partidas) |
+
+Todos los cálculos recortan a 0–100 con dos decimales y devuelven 0 cuando falta
+la base (sin metrado, sin presupuesto, sin pasos, sin fecha de corte), nunca un
+`NaN`. **Asignación inicial** (aditiva, no toca ningún avance): con metrado →
+`metrado`; sin metrado pero con `hito` → `hitos`; sin metrado con costos
+vinculados → `costo`; el resto → `manual`. `normalizarModoMedicion` aplica esa
+regla al cargar (idempotente: si no falta nada devuelve el mismo objeto) y
+genera los `pasos` que reproducen el avance de una tarea migrada a `hitos`
+(`pasosQueReproducenAvance`).
+
+En esta fase el número autoritativo sigue siendo `tarea.avance`: la migración no
+lo altera (la suite verifica que, al normalizar, el avance global del servicio
+demo no cambia) y estos cálculos se conectan como fuente única de verdad en la
+Fase C. La UI ofrece el modo en el modal de tarea (selector con búsqueda, solo
+hojas), la justificación obligatoria en modo `manual`, la insignia `manual` en
+el Gantt y la columna "Modo" en Partidas.
+
 ---
 
 ## 6. Productividad: días estimados vs. reales
@@ -616,8 +651,11 @@ Orden real de la pantalla:
 8. **Ritmo de avance** (SPI).
 
 ### Partidas
-Mismo árbol del Cronograma con columnas: Monto (sumable), Valorizado, Avance,
-Costo (subárbol), Margen (valorizado − costo), Días est., Días reales, Desv.
+Mismo árbol del Cronograma con columnas: Modo (cómo se mide el avance de cada
+hoja), Monto (sumable), Valorizado, Avance, Costo (subárbol), Margen
+(valorizado − costo), Días est., Días reales, Desv., HH est., HH real y HH/und.
+En el árbol, "Modo" muestra la insignia del modo de cada hoja (los padres, "—";
+el tooltip explica el origen del avance).
 Más "sin tarea asignada" en el total para que nada se pierda.
 
 ### Modificaciones (`/servicios/:id/modificaciones`)

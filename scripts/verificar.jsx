@@ -133,7 +133,21 @@ import { escalarDimensiones } from '../src/data/fotos'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
 import { RedPERT } from '../src/pages/servicio/RedPERT'
-import { calendarioDe } from '../src/utils/calendario'
+import { CALENDARIO_POR_DEFECTO, calendarioDe } from '../src/utils/calendario'
+import {
+  MODOS_MEDICION,
+  acotarAvance,
+  avanceManual,
+  avancePorCosto,
+  avancePorHitos,
+  avancePorMetrado,
+  avancePorTiempo,
+  esHojaTarea,
+  modoMedicionInicial,
+  normalizarModoMedicion,
+  pasosQueReproducenAvance,
+} from '../src/utils/avance'
+import { BadgeModo } from '../src/components/ui/Badge'
 import App from '../src/App'
 
 let fallos = 0
@@ -760,10 +774,25 @@ comprobar(
   'K respaldo v11 rellena partes vacíos',
   Array.isArray(normV11?.partes_diario) && normV11.partes_diario.length === 0,
 )
-// Un respaldo del esquema actual (v12) incompleto sí se rechaza.
-const respaldoV12 = { ...JSON.parse(serial), _v: 12 }
-delete respaldoV12.cargos
-comprobar('K respaldo v12 incompleto se rechaza', validarRespaldo(respaldoV12).ok === false)
+// Un respaldo del esquema actual (v13) incompleto también se rechaza.
+const respaldoV13 = { ...JSON.parse(serial), _v: 13 }
+delete respaldoV13.cargos
+comprobar('K respaldo del esquema actual incompleto se rechaza', validarRespaldo(respaldoV13).ok === false)
+// Un respaldo v12 completo (sin `modo_medicion`) se acepta y la normalización
+// agrega el modo de medición a cada hoja sin tocar ningún avance.
+const respaldoV12Ok = { ...JSON.parse(serial), _v: 12 }
+respaldoV12Ok.tareas = respaldoV12Ok.tareas.map(
+  ({ modo_medicion, pasos, nota_justificacion, ...resto }) => resto,
+)
+comprobar('K respaldo v12 completo se acepta', validarRespaldo(respaldoV12Ok).ok)
+const normV12 = normalizarRespaldo(respaldoV12Ok)
+comprobar(
+  'K respaldo v12 se normaliza con modo_medicion',
+  Array.isArray(normV12?.tareas) &&
+    normV12.tareas.length === ESTADO_INICIAL.tareas.length &&
+    normV12.tareas.filter((t) => t.modo_medicion).length ===
+      ESTADO_INICIAL.tareas.filter((t) => t.modo_medicion).length,
+)
 
 // ============================================================
 //  6. Personal automático y facturas (sin pagos ni cierre mensual)
@@ -2284,6 +2313,180 @@ comprobar(
 )
 
 // ============================================================
+//  7.16b Modo de medición del avance (Fase A)
+// ============================================================
+
+console.log('\n[ modo de medición ]')
+
+// Recorte 0–100 con dos decimales; sin datos devuelve 0 (nunca NaN).
+comprobar(
+  'modo: acotarAvance recorta a 0–100',
+  acotarAvance(120) === 100 && acotarAvance(-5) === 0 && acotarAvance(33.333) === 33.33,
+)
+comprobar('modo: acotarAvance sin dato = 0', acotarAvance(null) === 0 && acotarAvance(undefined) === 0 && acotarAvance('x') === 0)
+
+// Metrado: acumulado ÷ contratado, con tope del 100%.
+comprobar('modo metrado: 600 de 600 = 100', avancePorMetrado({ metrado: 600, ejecutado: 600 }) === 100)
+comprobar('modo metrado: 360 de 600 = 60', avancePorMetrado({ metrado: 600, ejecutado: 360 }) === 60)
+comprobar('modo metrado: sobre-ejecución topa en 100', avancePorMetrado({ metrado: 100, ejecutado: 250 }) === 100)
+comprobar('modo metrado: ejecutado negativo no resta', avancePorMetrado({ metrado: 100, ejecutado: -50 }) === 0)
+comprobar('modo metrado: sin metrado no hay base', avancePorMetrado({ metrado: 0, ejecutado: 50 }) === 0)
+
+// Hitos: suma de los pesos cumplidos (los pesos suman 100).
+const pasosDemo = [
+  { id: 1, nombre: 'Cimentación', peso: 60, estado: 'cumplido' },
+  { id: 2, nombre: 'Estructura', peso: 40, estado: 'pendiente' },
+]
+comprobar('modo hitos: 60 de 100 cumplido', avancePorHitos(pasosDemo) === 60)
+comprobar(
+  'modo hitos: todo cumplido = 100',
+  avancePorHitos(pasosDemo.map((p) => ({ ...p, estado: 'cumplido' }))) === 100,
+)
+comprobar('modo hitos: sin pasos = 0', avancePorHitos([]) === 0 && avancePorHitos(undefined) === 0)
+comprobar(
+  'modo hitos: sin ningún paso cumplido = 0',
+  avancePorHitos(pasosDemo.map((p) => ({ ...p, estado: 'pendiente' }))) === 0,
+)
+
+// Tiempo: días laborables transcurridos ÷ duración, con corte en "hoy".
+comprobar(
+  'modo tiempo: a la mitad del plazo (7 de 13 días laborables) = 53.85',
+  avancePorTiempo({
+    fecha_inicio: '2026-06-01',
+    fecha_fin: '2026-06-15',
+    hoy: '2026-06-08',
+    calendario: CALENDARIO_POR_DEFECTO,
+  }) === 53.85,
+)
+comprobar(
+  'modo tiempo: antes de iniciar = 0',
+  avancePorTiempo({ fecha_inicio: '2026-06-01', fecha_fin: '2026-06-15', hoy: '2026-05-20' }) === 0,
+)
+comprobar(
+  'modo tiempo: plazo cumplido o vencido = 100',
+  avancePorTiempo({ fecha_inicio: '2026-06-01', fecha_fin: '2026-06-15', hoy: '2026-06-30' }) === 100,
+)
+comprobar(
+  'modo tiempo: duración sin días laborables = 0',
+  avancePorTiempo({ fecha_inicio: '2026-06-07', fecha_fin: '2026-06-07', hoy: '2026-06-10' }) === 0,
+)
+
+// Costo: costo ejecutado ÷ presupuesto de la partida.
+comprobar('modo costo: 7500 de 15000 = 50', avancePorCosto({ presupuesto: 15000, costo: 7500 }) === 50)
+comprobar('modo costo: sobrecosto topa en 100', avancePorCosto({ presupuesto: 1000, costo: 4000 }) === 100)
+comprobar('modo costo: sin presupuesto = 0', avancePorCosto({ presupuesto: 0, costo: 500 }) === 0)
+
+// Manual: se conserva el avance tecleado, recortado.
+comprobar('modo manual: conserva el avance', avanceManual({ avance: 45.5 }) === 45.5 && avanceManual({ avance: 300 }) === 100)
+
+// Regla de asignación inicial (tareas existentes).
+comprobar('asignación: con metrado → metrado', modoMedicionInicial({ metrado: 120 }) === 'metrado')
+comprobar(
+  'asignación: hito sin metrado → hitos',
+  modoMedicionInicial({ hito: true }) === 'hitos',
+)
+comprobar(
+  'asignación: sin metrado y con costos → costo',
+  modoMedicionInicial({ id: 5, servicio_id: 6 }, { registros: [{ servicio_id: 6, tarea_id: 5 }] }) === 'costo',
+)
+comprobar(
+  'asignación: sin metrado ni costos → manual',
+  modoMedicionInicial({ id: 5, servicio_id: 6 }, { registros: [] }) === 'manual',
+)
+comprobar(
+  'asignación: un modo ya elegido no se pisa',
+  modoMedicionInicial({ metrado: 120, modo_medicion: 'manual' }) === 'manual',
+)
+
+// Ida y vuelta: los pasos generados reproducen el avance exacto.
+comprobar(
+  'pasos: 0 % → un paso pendiente',
+  avancePorHitos(pasosQueReproducenAvance(0)) === 0 && pasosQueReproducenAvance(0).length === 1,
+)
+comprobar(
+  'pasos: 100 % → un paso cumplido',
+  avancePorHitos(pasosQueReproducenAvance(100)) === 100,
+)
+comprobar(
+  'pasos: valores intermedios se reproducen (45 y 33.33)',
+  avancePorHitos(pasosQueReproducenAvance(45)) === 45 &&
+    avancePorHitos(pasosQueReproducenAvance(33.33)) === 33.33,
+)
+comprobar(
+  'pasos: los pesos suman 100',
+  [0, 45, 33.33, 100].every((a) => {
+    const total = pasosQueReproducenAvance(a).reduce((s, p) => s + p.peso, 0)
+    return Math.abs(total - 100) < 0.01
+  }),
+)
+
+// Normalización idempotente: agrega el modo sin tocar ningún avance.
+const estadoSinModo = {
+  ...ESTADO_INICIAL,
+  tareas: ESTADO_INICIAL.tareas.map(({ modo_medicion, pasos, nota_justificacion, ...resto }) => resto),
+}
+const avanceAntes = metricasCronograma(estadoSinModo.tareas.filter((t) => t.servicio_id === 6)).avanceGlobal
+const estadoNormalizado = normalizarModoMedicion(estadoSinModo)
+const avanceDespues = metricasCronograma(estadoNormalizado.tareas.filter((t) => t.servicio_id === 6)).avanceGlobal
+comprobar(
+  'normalización: el avance global del servicio 6 no cambia (sigue 47)',
+  avanceAntes === 47 && avanceDespues === 47,
+  `${avanceAntes} → ${avanceDespues}`,
+)
+comprobar(
+  'normalización: cada hoja queda con su modo',
+  estadoNormalizado.tareas
+    .filter((t) => esHojaTarea(t, estadoNormalizado.tareas))
+    .every((t) => MODOS_MEDICION.includes(t.modo_medicion)),
+)
+comprobar(
+  'normalización: los padres no llevan modo',
+  estadoNormalizado.tareas
+    .filter((t) => !esHojaTarea(t, estadoNormalizado.tareas))
+    .every((t) => t.modo_medicion === undefined),
+)
+comprobar('normalización: es idempotente', normalizarModoMedicion(estadoNormalizado) === estadoNormalizado)
+comprobar(
+  'normalización: el avance de cada tarea se conserva intacto',
+  estadoNormalizado.tareas.every(
+    (t, i) => t.avance === estadoSinModo.tareas[i].avance,
+  ),
+)
+
+// Una tarea `hito` migrada recibe pasos que reproducen su avance.
+const conHito = normalizarModoMedicion({
+  tareas: [{ id: 50, servicio_id: 6, hito: true, avance: 45 }],
+  registros_servicio: [],
+})
+comprobar(
+  'normalización: hito migrado a `hitos` con pasos que reproducen 45 %',
+  conHito.tareas[0].modo_medicion === 'hitos' && avancePorHitos(conHito.tareas[0].pasos) === 45,
+)
+comprobar(
+  'normalización: manual recibe nota de justificación',
+  normalizarModoMedicion({ tareas: [{ id: 51, servicio_id: 6, avance: 30 }], registros_servicio: [] })
+    .tareas[0].nota_justificacion?.length > 0,
+)
+
+// Los seeds del demo ya traen el modo derivado de la regla.
+comprobar(
+  'seeds: servicio 6 tiene hojas con modo y padres sin modo',
+  tareas6.find((t) => t.id === 13).modo_medicion === 'costo' &&
+    tareas6.find((t) => t.id === 15).modo_medicion === 'metrado' &&
+    tareas6.find((t) => t.id === 14).modo_medicion === undefined &&
+    tareas6.find((t) => t.id === 17).modo_medicion === undefined,
+)
+
+// La insignia del modo se renderiza (el demo no trae hojas `manual`).
+const htmlBadgeModo = renderToString(<BadgeModo modo="manual" />)
+comprobar(
+  'BadgeModo: dibuja la etiqueta y el origen del dato',
+  htmlBadgeModo.includes('Manual') && htmlBadgeModo.includes('Fijado a mano'),
+  htmlBadgeModo,
+)
+comprobar('BadgeModo: sin modo no dibuja nada', renderToString(<BadgeModo modo={undefined} />) === '')
+
+// ============================================================
 //  7.17 Red PERT / CPM: diagrama de red
 // ============================================================
 
@@ -2801,6 +3004,17 @@ comprobar(
     htmlPartidas.includes('Metrado ej.') &&
     htmlPartidas.includes('m³') &&
     htmlPartidas.includes('>Glb<'),
+)
+// Modo de medición (Fase A): columna propia con el modo de cada hoja; los
+// padres muestran "—" y las hojas su insignia (con el origen del avance en
+// el tooltip). Usamos los títulos, que son exclusivos de `BadgeModo`.
+comprobar(
+  'partidas: columna Modo con el modo de cada hoja',
+  htmlPartidas.includes('>Modo<') &&
+    htmlPartidas.includes('title="Calculado desde partes diarios"') &&
+    htmlPartidas.includes('title="Calculado desde costos ejecutados"') &&
+    !htmlPartidas.includes('undefined') &&
+    !htmlPartidas.includes('NaN'),
 )
 comprobar(
   'cronograma: muestra el metrado de la partida',

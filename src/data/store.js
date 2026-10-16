@@ -21,6 +21,9 @@
 //       ampliaciones de plazo; los respaldos v10 se rellenan vacíos)
 //  12 = + partes_diario (parte diario de obra: clima, personal, equipos,
 //       partidas ejecutadas y fotos; los respaldos v11 se rellenan vacíos)
+//  13 = + modo_medicion en cada tarea hoja (cómo se mide su avance: metrado,
+//       hitos, tiempo, costo o manual con justificación). Los respaldos v12 y
+//       anteriores se normalizan al cargar sin tocar ningún avance guardado.
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -29,8 +32,9 @@ import {
   migrarEstadoV1,
   migrarPresupuestoATareas,
 } from './mockData'
+import { normalizarModoMedicion } from '../utils/avance'
 
-export const VERSION_ESQUEMA = 12
+export const VERSION_ESQUEMA = 13
 
 const memoria = {}
 const backendMemoria = {
@@ -95,8 +99,9 @@ export function cargarEstado() {
     if (raw) {
       const combinado = combinarEstado(migrarPresupuestoATareas(JSON.parse(raw)))
       if (combinado) {
-        guardarEstado(combinado)
-        return combinado
+        const normalizado = normalizarModoMedicion(combinado)
+        guardarEstado(normalizado)
+        return normalizado
       }
     }
 
@@ -104,14 +109,15 @@ export function cargarEstado() {
     if (rawAnterior) {
       const combinado = combinarEstado(migrarEstadoV1(JSON.parse(rawAnterior)))
       if (combinado) {
-        guardarEstado(combinado)
-        return combinado
+        const normalizado = normalizarModoMedicion(combinado)
+        guardarEstado(normalizado)
+        return normalizado
       }
     }
 
-    return ESTADO_INICIAL
+    return normalizarModoMedicion(ESTADO_INICIAL)
   } catch {
-    return ESTADO_INICIAL
+    return normalizarModoMedicion(ESTADO_INICIAL)
   }
 }
 
@@ -165,11 +171,12 @@ export function validarRespaldo(datos) {
 }
 
 // Normaliza un respaldo validado contra el esquema actual (rellena lo que
-// falte con valores iniciales). Devuelve null si es inválido.
+// falte con valores iniciales y completa el modo de medición de las tareas).
+// Devuelve null si es inválido.
 export function normalizarRespaldo(datos) {
   const { ok } = validarRespaldo(datos)
   if (!ok) return null
-  return combinarEstado(datos)
+  return normalizarModoMedicion(combinarEstado(datos))
 }
 
 export function serializarRespaldo(estado) {
