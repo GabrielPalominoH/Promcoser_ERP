@@ -246,7 +246,16 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                 </div>
               </Campo>
             ) : (
-              <Campo label="Avance (%)" error={errors.avance?.message} htmlFor="tarea-avance">
+              <Campo
+                label="Avance (%)"
+                error={errors.avance?.message}
+                hint={
+                  tarea?.avance_por_partes
+                    ? 'Este avance lo gobiernan los partes diarios: se recalcula al guardarlos.'
+                    : undefined
+                }
+                htmlFor="tarea-avance"
+              >
                 <Input
                   id="tarea-avance"
                   type="number"

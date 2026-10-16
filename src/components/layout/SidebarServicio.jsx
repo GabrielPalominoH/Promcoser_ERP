@@ -44,6 +44,10 @@ const SECCIONES = [
     opciones: [{ id: 'valorizaciones', etiqueta: 'Valorizaciones', icono: 'factura' }],
   },
   {
+    titulo: 'Ejecución',
+    opciones: [{ id: 'parte-diario', etiqueta: 'Parte diario', icono: 'clipboard' }],
+  },
+  {
     titulo: 'Contrato',
     opciones: [{ id: 'modificaciones', etiqueta: 'Modificaciones', icono: 'enmienda' }],
   },

@@ -19,6 +19,8 @@
 //       obra: línea base del PV, lecturas del EV y valorizaciones del cobro)
 //  11 = + modificaciones, ampliaciones_plazo (adicionales/deductivos y
 //       ampliaciones de plazo; los respaldos v10 se rellenan vacíos)
+//  12 = + partes_diario (parte diario de obra: clima, personal, equipos,
+//       partidas ejecutadas y fotos; los respaldos v11 se rellenan vacíos)
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -28,7 +30,7 @@ import {
   migrarPresupuestoATareas,
 } from './mockData'
 
-export const VERSION_ESQUEMA = 11
+export const VERSION_ESQUEMA = 12
 
 const memoria = {}
 const backendMemoria = {
@@ -121,6 +123,17 @@ export function guardarEstado(estado) {
     return true
   } catch {
     return false
+  }
+}
+
+// Tamaño aproximado (en bytes) del estado serializado. Sirve para avisar
+// cuando el respaldo se acerca a la cuota típica de localStorage (~5 MB) antes
+// de que el guardado empiece a fallar. No escribe nada.
+export function tamanoEstado(estado) {
+  try {
+    return JSON.stringify({ ...estado, _v: VERSION_ESQUEMA }).length
+  } catch {
+    return 0
   }
 }
 

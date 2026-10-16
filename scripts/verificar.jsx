@@ -90,6 +90,25 @@ import {
   siguienteNumero as siguienteNumeroModificacion,
   totalAprobado,
 } from '../src/utils/modificaciones'
+import {
+  CLIMAS,
+  agruparPartesPorMes,
+  avanceAcumulado,
+  avanceDiarioPorTarea,
+  diasDelMes,
+  horasEquipos,
+  horasPersonal,
+  matrizCalendario,
+  mesDeFecha,
+  parteDeFecha,
+  partesDeServicio,
+  personalPresenteSugerido,
+  recalcularAvanceTareas,
+  resumenParte,
+  resumenPeriodo,
+} from '../src/utils/partesDiario'
+import { htmlParteDiario } from '../src/utils/parteImpresion'
+import { escalarDimensiones } from '../src/data/fotos'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
 import { RedPERT } from '../src/pages/servicio/RedPERT'
@@ -710,10 +729,20 @@ comprobar(
     normV10.modificaciones.length === ESTADO_INICIAL.modificaciones.length &&
     Array.isArray(normV10?.ampliaciones_plazo),
 )
-// Un respaldo del esquema actual (v11) incompleto sí se rechaza.
+// Un respaldo de un esquema anterior (v11, sin parte diario) se acepta y el
+// semilla rellena la colección nueva vacía.
 const respaldoV11 = { ...JSON.parse(serial), _v: 11 }
-delete respaldoV11.cargos
-comprobar('K respaldo v11 incompleto se rechaza', validarRespaldo(respaldoV11).ok === false)
+delete respaldoV11.partes_diario
+comprobar('K respaldo v11 sin partes se acepta', validarRespaldo(respaldoV11).ok)
+const normV11 = normalizarRespaldo(respaldoV11)
+comprobar(
+  'K respaldo v11 rellena partes vacíos',
+  Array.isArray(normV11?.partes_diario) && normV11.partes_diario.length === 0,
+)
+// Un respaldo del esquema actual (v12) incompleto sí se rechaza.
+const respaldoV12 = { ...JSON.parse(serial), _v: 12 }
+delete respaldoV12.cargos
+comprobar('K respaldo v12 incompleto se rechaza', validarRespaldo(respaldoV12).ok === false)
 
 // ============================================================
 //  6. Personal automático y facturas (sin pagos ni cierre mensual)
@@ -1540,6 +1569,251 @@ comprobar(
 )
 
 // ============================================================
+//  7.12c Parte diario de obra (clima, personal, equipos, partidas y fotos)
+// ============================================================
+
+console.log('\n[ parte diario ]')
+
+comprobar(
+  'parte diario: catálogo de climas no vacío',
+  CLIMAS.length >= 4 && CLIMAS.includes('Lluvia intensa'),
+)
+comprobar(
+  'parte diario: mesDeFecha y diasDelMes',
+  mesDeFecha('2026-10-15') === '2026-10' &&
+    diasDelMes('2026-10').length === 31 &&
+    diasDelMes('2026-02').length === 28,
+)
+// 2026-10-01 es jueves (getDay=4), así que la primera fila trae 4 huecos.
+const semanasOct = matrizCalendario('2026-10')
+comprobar(
+  'parte diario: matriz del calendario (2026-10 en 5 semanas)',
+  semanasOct.length === 5 &&
+    semanasOct[0].length === 7 &&
+    semanasOct[0][0] === null &&
+    semanasOct[0][4] === '2026-10-01' &&
+    semanasOct[4][6] === '2026-10-31',
+)
+
+const partesDemo = [
+  {
+    id: 1,
+    servicio_id: 500,
+    fecha: '2026-10-01',
+    clima: 'Soleado',
+    responsable: 'Ing. A',
+    personal: [
+      { personal_id: 1, horas: 8 },
+      { personal_id: 2, horas: 4 },
+    ],
+    equipos: [{ equipo_id: 1, horas: 6 }],
+    partidas: [
+      { tarea_id: 10, avance_dia: 20 },
+      { tarea_id: 11, avance_dia: 10 },
+    ],
+    fotos: [{ id: 'f1', tamano: 1024 }],
+    incidencias: '',
+    observaciones: '',
+  },
+  {
+    id: 2,
+    servicio_id: 500,
+    fecha: '2026-10-02',
+    clima: 'Lluvia ligera',
+    responsable: 'Ing. A',
+    personal: [{ personal_id: 1, horas: 8 }],
+    equipos: [],
+    partidas: [{ tarea_id: 10, avance_dia: 30 }],
+    fotos: [],
+    incidencias: 'Paro por lluvia',
+    observaciones: '',
+  },
+  {
+    id: 3,
+    servicio_id: 501,
+    fecha: '2026-10-01',
+    clima: 'Nublado',
+    responsable: 'Ing. B',
+    personal: [],
+    equipos: [],
+    partidas: [{ tarea_id: 10, avance_dia: 5 }],
+    fotos: [],
+  },
+]
+
+comprobar(
+  'parte diario: partesDeServicio filtra por servicio',
+  partesDeServicio(partesDemo, 500).length === 2 && partesDeServicio(partesDemo, 999).length === 0,
+)
+comprobar(
+  'parte diario: parteDeFecha encuentra por servicio y fecha',
+  parteDeFecha(partesDemo, 500, '2026-10-02')?.id === 2 &&
+    parteDeFecha(partesDemo, 500, '2026-10-03') === null,
+)
+comprobar(
+  'parte diario: avanceDiarioPorTarea suma solo las partidas del conjunto dado',
+  avanceDiarioPorTarea(partesDeServicio(partesDemo, 500), 10) === 50 &&
+    avanceDiarioPorTarea(partesDemo, 10) === 55,
+)
+comprobar(
+  'parte diario: avanceAcumulado acota a 100',
+  avanceAcumulado(
+    [
+      { partidas: [{ tarea_id: 10, avance_dia: 80 }] },
+      { partidas: [{ tarea_id: 10, avance_dia: 40 }] },
+    ],
+    10,
+  ) === 100,
+)
+comprobar(
+  'parte diario: horas de personal y equipos',
+  horasPersonal(partesDemo[0]) === 12 && horasEquipos(partesDemo[0]) === 6,
+)
+const resParte = resumenParte(partesDemo[0])
+comprobar(
+  'parte diario: resumen del parte',
+  resParte.personal === 2 &&
+    resParte.equipos === 1 &&
+    resParte.partidas === 2 &&
+    resParte.fotos === 1 &&
+    resParte.avanceTotal === 30 &&
+    resParte.horasPersonal === 12,
+)
+const resPer = resumenPeriodo(partesDeServicio(partesDemo, 500), '2026-10-01', '2026-10-02')
+comprobar(
+  'parte diario: resumen de período por rango de fechas',
+  resPer.cantidad === 2 && resPer.horasPersonal === 20 && resPer.partidas === 3,
+)
+comprobar(
+  'parte diario: agrupar por mes',
+  Object.keys(agruparPartesPorMes(partesDemo)).join(',') === '2026-10' &&
+    agruparPartesPorMes(partesDemo)['2026-10'].length === 3,
+)
+
+// El avance real de una tarea se deriva de sus partes (sin duplicar datos).
+const tareasRec = [
+  { id: 10, servicio_id: 500, avance: 0 },
+  { id: 11, servicio_id: 500, avance: 5 },
+  { id: 12, servicio_id: 500, avance: 90 },
+]
+const cambiosRec = recalcularAvanceTareas({
+  partes: partesDeServicio(partesDemo, 500),
+  tareas: tareasRec,
+  servicioId: 500,
+})
+const cambio10 = cambiosRec.find((c) => c.id === 10)
+comprobar(
+  'parte diario: recalcular deriva el avance de las tareas con partes y no toca las demás',
+  cambio10?.avance === 50 &&
+    cambio10?.avance_por_partes === true &&
+    cambiosRec.find((c) => c.id === 12) === undefined,
+)
+const cambioSinPartes = recalcularAvanceTareas({
+  partes: [],
+  tareas: [{ id: 10, servicio_id: 500, avance: 50, avance_por_partes: true }],
+  servicioId: 500,
+})
+comprobar(
+  'parte diario: sin partes, la tarea gobernada por partes vuelve a 0',
+  cambioSinPartes.length === 1 && cambioSinPartes[0].avance === 0,
+)
+
+// Personal sugerido = asignaciones vigentes ese día (referenciadas por id).
+const asignDemo = [
+  { id: 1, servicio_id: 500, personal_id: 1, fecha_inicio: '2026-10-01', fecha_fin: '2026-10-05', horas_por_dia: 8, tarea_id: 10 },
+  { id: 2, servicio_id: 500, personal_id: 2, fecha_inicio: '2026-10-10', fecha_fin: '2026-10-20', horas_por_dia: 6, tarea_id: 11 },
+  { id: 3, servicio_id: 501, personal_id: 3, fecha_inicio: '2026-10-01', fecha_fin: '2026-10-31', horas_por_dia: 8 },
+]
+const personalDemo = [
+  { id: 1, nombre: 'Ana', apellido: 'Pérez', cargo: 'Operario' },
+  { id: 2, nombre: 'Luis', apellido: 'Gómez', cargo: 'Oficial' },
+]
+const sugerido = personalPresenteSugerido({
+  asignaciones: asignDemo,
+  personal: personalDemo,
+  servicio: { id: 500 },
+  fecha: '2026-10-02',
+})
+comprobar(
+  'parte diario: personal sugerido = asignaciones vigentes del servicio',
+  sugerido.length === 1 &&
+    sugerido[0].personal_id === 1 &&
+    sugerido[0].nombre === 'Ana Pérez' &&
+    sugerido[0].horas === 8 &&
+    sugerido[0].tarea_id === 10,
+)
+comprobar(
+  'parte diario: sin asignación vigente no sugiere a nadie',
+  personalPresenteSugerido({
+    asignaciones: asignDemo,
+    personal: personalDemo,
+    servicio: { id: 500 },
+    fecha: '2026-10-07',
+  }).length === 0,
+)
+
+// Compresión de fotos: escalado puro para el canvas.
+const escGrande = escalarDimensiones(3200, 1600, 1600)
+comprobar(
+  'parte diario: escalar respeta el lado máximo conservando la proporción',
+  escGrande.ancho === 1600 && escGrande.alto === 800,
+)
+comprobar(
+  'parte diario: escalar no agranda imágenes pequeñas ni entra en NaN',
+  escalarDimensiones(800, 600, 1600).ancho === 800 &&
+    escalarDimensiones(0, 0).ancho === 0,
+)
+
+// HTML de impresión (PDF de un día): puro, sin undefined ni NaN.
+const htmlPd = htmlParteDiario({
+  servicio: { nombre_servicio: 'Obra Demo', cliente: 'Cliente X' },
+  parte: partesDemo[0],
+  refs: {
+    personal: personalDemo,
+    equipos: [{ id: 1, nombre: 'Excavadora' }],
+    tareas: [
+      { id: 10, nombre: 'Excavación', unidad: 'm3', metrado: 500 },
+      { id: 11, nombre: 'Relleno', unidad: 'm3', metrado: 200 },
+    ],
+  },
+  partes: partesDemo,
+  generado: '15/10/2026',
+})
+comprobar(
+  'parte diario: el HTML para PDF trae obra, fecha y contenido, sin undefined/NaN',
+  htmlPd.includes('Obra Demo') &&
+    htmlPd.includes('01/10/2026') &&
+    htmlPd.includes('Excavación') &&
+    htmlPd.includes('Excavadora') &&
+    htmlPd.includes('Acumulado') &&
+    !htmlPd.includes('undefined') &&
+    !htmlPd.includes('NaN'),
+)
+const htmlPdVacio = htmlParteDiario({
+  servicio: {},
+  parte: { fecha: '2026-10-01', partidas: [] },
+  refs: {},
+})
+comprobar(
+  'parte diario: el HTML admite un parte sin partidas ni referencias',
+  htmlPdVacio.includes('Sin partidas ejecutadas.') &&
+    !htmlPdVacio.includes('undefined') &&
+    !htmlPdVacio.includes('NaN'),
+)
+
+// La semilla arranca vacía para no mover la línea base del servicio 6.
+comprobar(
+  'parte diario: la semilla arranca vacía y no altera el avance del servicio 6',
+  Array.isArray(ESTADO_INICIAL.partes_diario) &&
+    ESTADO_INICIAL.partes_diario.length === 0 &&
+    recalcularAvanceTareas({
+      partes: ESTADO_INICIAL.partes_diario,
+      tareas: ESTADO_INICIAL.tareas,
+      servicioId: 6,
+    }).length === 0,
+)
+
+// ============================================================
 //  7.13 Horas-hombre (HH): planificadas vs reales
 // ============================================================
 
@@ -1915,6 +2189,7 @@ const rutas = [
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/valorizaciones', etiqueta: 'Panel valorizaciones', monto: true },
   { ruta: '/servicios/6/modificaciones', etiqueta: 'Panel modificaciones', monto: true },
+  { ruta: '/servicios/6/parte-diario', etiqueta: 'Panel parte diario', monto: false },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
   { ruta: '/servicios/999', etiqueta: 'Detalle id inexistente', monto: false },
   { ruta: '/personal', etiqueta: 'Personal', monto: true },
@@ -2075,6 +2350,22 @@ comprobar(
     htmlValorizaciones.includes('IGV') &&
     htmlValorizaciones.includes('Detracción') &&
     htmlValorizaciones.includes('Fondo de garantía'),
+)
+
+// Módulo Parte diario: jornada (clima, personal, equipos, partidas) con
+// calendario y vista de lista.
+const htmlPanelParteDiario = htmlsRuta['/servicios/6/parte-diario'] ?? ''
+comprobar(
+  'parte diario: aparece en el sidebar del servicio',
+  htmlPanelSeguro.includes('href="/servicios/6/parte-diario"') &&
+    htmlPanelSeguro.includes('Parte diario'),
+)
+comprobar(
+  'parte diario: resumen, vista de lista y alta con modal',
+  htmlPanelParteDiario.includes('Parte diario de obra') &&
+    htmlPanelParteDiario.includes('Nuevo parte') &&
+    htmlPanelParteDiario.includes('Sin partes registrados') &&
+    htmlPanelParteDiario.includes('Ver calendario'),
 )
 
 // Módulo Unidades: catálogo estático + mockup ilustrativo de Materiales con UM.

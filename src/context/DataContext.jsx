@@ -93,6 +93,9 @@ export function dataReducer(estado, accion) {
           ampliaciones_plazo: (estado.ampliaciones_plazo ?? []).filter(
             (ampliacion) => ampliacion.servicio_id !== payload.id,
           ),
+          partes_diario: (estado.partes_diario ?? []).filter(
+            (parte) => parte.servicio_id !== payload.id,
+          ),
         }
       }
 

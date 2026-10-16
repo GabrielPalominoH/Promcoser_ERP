@@ -900,6 +900,14 @@ export const ampliaciones_plazo = [
   },
 ]
 
+// Parte diario de obra (Fase 2). Cada parte registra una jornada de un
+// servicio: clima, responsable, personal presente (referenciado por id, no
+// duplicado), equipos usados, partidas ejecutadas con su avance del día,
+// incidencias, observaciones y fotos (los binarios viven en IndexedDB; aquí
+// solo la metadata). Arranca vacío a propósito: el avance de las tareas lo
+// gobiernan los partes cuando existen, y no queremos mover la línea base.
+export const partes_diario = []
+
 export const ESTADO_INICIAL = {
   cargos,
   personal,
@@ -918,6 +926,7 @@ export const ESTADO_INICIAL = {
   adelantos,
   modificaciones,
   ampliaciones_plazo,
+  partes_diario,
 }
 
 
