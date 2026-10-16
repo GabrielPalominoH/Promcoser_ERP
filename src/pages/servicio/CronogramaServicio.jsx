@@ -2551,6 +2551,24 @@ export function CronogramaServicio() {
               </ul>
             </div>
           )}
+          {(importacion.avisos ?? []).length > 0 && (
+            <div className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800">
+              <p className="mb-2 font-semibold">
+                {importacion.avisos.length} aviso{importacion.avisos.length === 1 ? '' : 's'} (la
+                importación continúa)
+              </p>
+              <ul className="list-disc space-y-1 pl-4">
+                {importacion.avisos.slice(0, 8).map((a, i) => (
+                  <li key={i}>
+                    Fila {a.fila}: {a.motivo}
+                  </li>
+                ))}
+                {importacion.avisos.length > 8 && (
+                  <li>…y {importacion.avisos.length - 8} más.</li>
+                )}
+              </ul>
+            </div>
+          )}
           {importadasConAvance > 0 && (
             <p className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-800">
               {importadasConAvance} tarea{importadasConAvance === 1 ? '' : 's'} trae(n) un avance

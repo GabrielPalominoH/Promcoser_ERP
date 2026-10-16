@@ -131,7 +131,7 @@ import {
   resumenPeriodo,
 } from '../src/utils/partesDiario'
 import { htmlParteDiario, htmlValorizacion, htmlReporteMensualObra, imprimirHTML } from '../src/utils/reportes'
-import { crc32, zipStore, columnaLetra, hojaXML, libroXLSX } from '../src/utils/excel'
+import { crc32, zipStore, columnaLetra, hojaXML, libroXLSX, leerXLSX } from '../src/utils/excel'
 import {
   libroCronograma,
   libroValorizaciones,
@@ -3950,6 +3950,103 @@ comprobar(
     impManualSeed.modo_medicion === 'manual' &&
     impManualSeed.avance === 55 &&
     impManualSeed.nota_justificacion === NOTA_MIGRACION_MANUAL,
+)
+
+// ============================================================
+//  Tarea 1: metrado, unidad y precio unitario en la importación
+// ============================================================
+
+console.log('\n[ tarea 1: metrado en importación ]')
+
+// Con las columnas nuevas: la hoja con metrado nace en modo `metrado` y, al no
+// traer monto declarado, el monto de la partida = metrado × P. Unit.
+const filasMetrado = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Metrado', 'Unidad', 'P. Unit. (S/)', 'Monto', 'Predecesoras', 'Avance (%)'],
+  ['1', 'Obra', '2026-06-01', '2026-06-30', 'NO', '', '', '', '', '', ''],
+  ['1.1', 'Excavación', '2026-06-01', '2026-06-15', 'NO', 200, 'm3', 50, '', '', 25],
+  ['1.2', 'Entrega', '2026-06-30', '2026-06-30', 'SI', '', '', '', '', '', ''],
+]
+const impMetradoCols = tareasImportadas({ filas: filasMetrado, servicioId: 701, baseId: 0 })
+const hojaMetrado = impMetradoCols.tareas.find((t) => t.nombre === 'Excavación')
+comprobar(
+  'tarea 1: la hoja con metrado nace en modo metrado con monto = metrado × P. Unit.',
+  hojaMetrado.modo_medicion === 'metrado' &&
+    hojaMetrado.metrado === 200 &&
+    hojaMetrado.unidad === 'm3' &&
+    hojaMetrado.precio_unitario === 50 &&
+    hojaMetrado.monto === 10000 &&
+    hojaMetrado.metrado_previo === 50 &&
+    hojaMetrado.avance === 25 &&
+    impMetradoCols.avisos.length === 0,
+)
+
+// Sin las columnas nuevas el formato clásico sigue funcionando igual.
+const filasClasicas = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Monto', 'Predecesoras'],
+  ['1', 'Obra', '2026-06-01', '2026-06-30', 'NO', 0, ''],
+  ['1.1', 'Limpieza', '2026-06-01', '2026-06-15', 'NO', 8000, ''],
+]
+const impClasicas = tareasImportadas({ filas: filasClasicas, servicioId: 701, baseId: 0 })
+const hojaClasica = impClasicas.tareas.find((t) => t.nombre === 'Limpieza')
+comprobar(
+  'tarea 1: sin columnas nuevas la importación sigue igual (monto y modo manual)',
+  hojaClasica.modo_medicion === 'manual' &&
+    hojaClasica.monto === 8000 &&
+    hojaClasica.metrado === undefined &&
+    hojaClasica.unidad === undefined &&
+    impClasicas.avisos.length === 0,
+)
+
+// Validaciones no bloqueantes de la vista previa.
+const filasAvisos = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Metrado', 'Unidad', 'P. Unit. (S/)', 'Monto', 'Predecesoras', 'Avance (%)'],
+  ['1', 'A metrado negativo', '2026-06-01', '2026-06-02', 'NO', -5, 'm3', '', '', '', ''],
+  ['2', 'B sin unidad', '2026-06-01', '2026-06-02', 'NO', 10, '', '', '', '', ''],
+  ['3', 'C P.U. sin metrado', '2026-06-01', '2026-06-02', 'NO', '', '', 50, '', '', ''],
+  ['4', 'D avance alto', '2026-06-01', '2026-06-02', 'NO', '', '', '', '', '', 150],
+  ['5', 'E monto no cuadra', '2026-06-01', '2026-06-02', 'NO', 10, 'm2', 10, 500, '', ''],
+]
+const impAvisos = tareasImportadas({ filas: filasAvisos, servicioId: 701, baseId: 0 })
+const motivosAvisos = impAvisos.avisos.map((a) => a.motivo).join(' | ')
+comprobar(
+  'tarea 1: la vista previa avisa metrado negativo, unidad faltante, P.U. sin metrado, avance > 100 % y monto que no cuadra',
+  impAvisos.avisos.length === 5 &&
+    /negativo/.test(motivosAvisos) &&
+    /unidad/.test(motivosAvisos) &&
+    /sin metrado/.test(motivosAvisos) &&
+    /100/.test(motivosAvisos) &&
+    /no cuadra/.test(motivosAvisos),
+)
+comprobar(
+  'tarea 1: el avance > 100 % se recorta a 100 en la hoja importada',
+  impAvisos.tareas.find((t) => t.nombre === 'D avance alto').avance === 100,
+)
+
+// Ida y vuelta real: exportar a .xlsx y volver a importar sin perder datos.
+const hojaRT = await (async () => {
+  const servicioRT = { id: 77, nombre_servicio: 'Obra RT', cliente: 'Cliente RT' }
+  const tareasRT = [
+    { id: 1, servicio_id: 77, padre_id: null, nombre: 'Obra', fecha_inicio: '2026-06-01', fecha_fin: '2026-06-30', hito: false, monto: 0, avance: 0 },
+    { id: 2, servicio_id: 77, padre_id: 1, nombre: 'Excavación', fecha_inicio: '2026-06-01', fecha_fin: '2026-06-15', hito: false, metrado: 200, unidad: 'm3', precio_unitario: 50, monto: 10000, modo_medicion: 'metrado', metrado_previo: 50, avance: 25 },
+    { id: 3, servicio_id: 77, padre_id: 1, nombre: 'Entrega', fecha_inicio: '2026-06-30', fecha_fin: '2026-06-30', hito: true, monto: 0, avance: 0 },
+  ]
+  const libro = libroCronograma({ servicio: servicioRT, tareas: tareasRT, generado: '2026-10-16' })
+  const { hojas } = await leerXLSX(libroXLSX({ hojas: libro.hojas }))
+  return hojas.find((h) => h.nombre === 'Cronograma')
+})()
+const reimp = tareasImportadas({ filas: hojaRT.filas, servicioId: 77, baseId: 100 })
+const excavRT = reimp.tareas.find((t) => t.nombre === 'Excavación')
+const entregaRT = reimp.tareas.find((t) => t.nombre === 'Entrega')
+comprobar(
+  'tarea 1: exportar → importar conserva metrado, unidad, P.U., monto, hito, avance y modo',
+  excavRT.metrado === 200 &&
+    excavRT.unidad === 'm3' &&
+    excavRT.precio_unitario === 50 &&
+    excavRT.monto === 10000 &&
+    excavRT.modo_medicion === 'metrado' &&
+    excavRT.metrado_previo === 50 &&
+    excavRT.avance === 25 &&
+    entregaRT.hito === true,
 )
 
 // ============================================================

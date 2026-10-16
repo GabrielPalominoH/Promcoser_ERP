@@ -114,20 +114,32 @@ export function libroCronograma({
     fuerte('Tarea'),
     fuerte('Inicio'),
     fuerte('Fin'),
+    fuerte('Hito'),
     fuerte('Días'),
-    fuerte('Avance'),
+    fuerte('Metrado'),
+    fuerte('Unidad'),
+    fuerte('P. Unit. (S/)'),
+    fuerte('Avance (%)'),
     fuerte('Monto (S/)'),
     fuerte('Estado'),
     fuerte('Predecesoras'),
   ]
+
+  // El avance viaja como número en % (no como estilo de porcentaje): `leerXLSX`
+  // no conserva el formato y el ciclo exportar → importar debe ser sin pérdida.
+  const avancePct = (t) => Math.round((Number(avanceEfectivo(t, propias)) || 0) * 100) / 100
 
   const datos = filas.map(({ tarea, nivel, numero }) => [
     numero,
     `${'    '.repeat(nivel)}${tarea.nombre}`,
     formatearFecha(tarea.fecha_inicio),
     formatearFecha(tarea.fecha_fin),
+    tarea.hito ? 'SI' : 'NO',
     tarea.hito ? 0 : diasCalendarioRango(tarea.fecha_inicio, tarea.fecha_fin),
-    porcentaje(avanceEfectivo(tarea, propias)),
+    tarea.metrado ?? '',
+    tarea.unidad ?? '',
+    tarea.precio_unitario != null ? moneda(tarea.precio_unitario) : '',
+    avancePct(tarea),
     moneda(montoTarea(tarea, propias)),
     capitalizar(estadoTarea(tarea, hoy)),
     textoPredecesoras(tarea, propias),
@@ -135,7 +147,21 @@ export function libroCronograma({
 
   const total = presupuestoTareas(propias, servicio.id)
   if (datos.length > 0) {
-    datos.push([fuerte('Total'), '', '', '', '', '', monedaFuerte(total), '', ''])
+    datos.push([
+      fuerte('Total'),
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      monedaFuerte(total),
+      '',
+      '',
+    ])
   }
 
   return {
