@@ -40,6 +40,38 @@ function nombreCompleto(item) {
   return `${item.nombre} ${item.apellido ?? ''}`.trim()
 }
 
+// Confirmación de eliminación de un costo de oficina. Extraída para poder
+// montarla abierta en pruebas; el contenido es el mismo del bloque inline.
+export function ModalEliminarCosto({ montoTexto, mesTexto, onCerrar, onConfirmar }) {
+  return (
+    <Modal
+      abierto
+      ancho="sm"
+      titulo="Eliminar costo"
+      descripcion="Esta acción no se puede deshacer."
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button variante="peligro" onClick={onConfirmar}>
+            Sí, eliminar
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-slate-600">
+        Se eliminará el costo de{' '}
+        <span className="font-semibold text-slate-900">
+          {montoTexto}
+        </span>{' '}
+        de {mesTexto}.
+      </p>
+    </Modal>
+  )
+}
+
 function FormularioCostoOficina({ personal, mesFijo, onGuardar }) {
   const elegibles = useMemo(
     () =>
@@ -319,31 +351,12 @@ export function Oficina() {
       </Card>
 
       {porEliminar && (
-        <Modal
-          abierto
-          ancho="sm"
-          titulo="Eliminar costo"
-          descripcion="Esta acción no se puede deshacer."
+        <ModalEliminarCosto
+          montoTexto={formatearMoneda(porEliminar.monto_calculado)}
+          mesTexto={etiquetaMes(porEliminar.mes)}
           onCerrar={() => setPorEliminar(null)}
-          pie={
-            <>
-              <Button variante="secundario" onClick={() => setPorEliminar(null)}>
-                Cancelar
-              </Button>
-              <Button variante="peligro" onClick={confirmarEliminar}>
-                Sí, eliminar
-              </Button>
-            </>
-          }
-        >
-          <p className="text-sm text-slate-600">
-            Se eliminará el costo de{' '}
-            <span className="font-semibold text-slate-900">
-              {formatearMoneda(porEliminar.monto_calculado)}
-            </span>{' '}
-            de {etiquetaMes(porEliminar.mes)}.
-          </p>
-        </Modal>
+          onConfirmar={confirmarEliminar}
+        />
       )}
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />

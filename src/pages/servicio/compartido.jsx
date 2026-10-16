@@ -124,9 +124,58 @@ function FilaRegistro({ registro, refs, conCantidad, conUnidad, onEliminar, onEd
   )
 }
 
+// Confirmación de eliminación de un registro (o grupo): mismo contenido que
+// mostraba el bloque inline. Extraída para poder montarla abierta en pruebas.
+export function ModalEliminarRegistro({ porEliminar, refs, onCerrar, onConfirmar }) {
+  return (
+    <Modal
+      abierto
+      ancho="sm"
+      titulo={Array.isArray(porEliminar.ids) ? 'Eliminar grupo' : 'Eliminar registro'}
+      descripcion="Esta acción no se puede deshacer."
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button variante="peligro" onClick={onConfirmar}>
+            Sí, eliminar
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-slate-600">
+        {Array.isArray(porEliminar.ids) ? (
+          <>
+            Se eliminarán los{' '}
+            <span className="font-semibold text-slate-900">
+              {porEliminar.ids.length} registros
+            </span>{' '}
+            de{' '}
+            <span className="font-semibold text-slate-900">
+              {porEliminar.titulo}
+            </span>
+            . El gastado del servicio se actualiza automáticamente.
+          </>
+        ) : (
+          <>
+            Se eliminará{' '}
+            <span className="font-semibold text-slate-900">
+              {conceptoRegistro(porEliminar, refs)}
+            </span>{' '}
+            del {formatearFecha(porEliminar.fecha)}. El gastado del servicio se
+            actualiza automáticamente.
+          </>
+        )}
+      </p>
+    </Modal>
+  )
+}
+
 // Edición de un gasto: concepto, monto, fecha, tarea y comprobante.
 // Los demás tipos no son editables por ahora.
-function ModalEdicionGasto({ registro, tareas, onGuardar, onCerrar }) {
+export function ModalEdicionGasto({ registro, tareas, onGuardar, onCerrar }) {
   const {
     register,
     handleSubmit,
@@ -457,48 +506,12 @@ export function SeccionRegistros({
       )}
 
       {porEliminar && (
-        <Modal
-          abierto
-          ancho="sm"
-          titulo={Array.isArray(porEliminar.ids) ? 'Eliminar grupo' : 'Eliminar registro'}
-          descripcion="Esta acción no se puede deshacer."
+        <ModalEliminarRegistro
+          porEliminar={porEliminar}
+          refs={refs}
           onCerrar={() => setPorEliminar(null)}
-          pie={
-            <>
-              <Button variante="secundario" onClick={() => setPorEliminar(null)}>
-                Cancelar
-              </Button>
-              <Button variante="peligro" onClick={confirmarEliminar}>
-                Sí, eliminar
-              </Button>
-            </>
-          }
-        >
-          <p className="text-sm text-slate-600">
-            {Array.isArray(porEliminar.ids) ? (
-              <>
-                Se eliminarán los{' '}
-                <span className="font-semibold text-slate-900">
-                  {porEliminar.ids.length} registros
-                </span>{' '}
-                de{' '}
-                <span className="font-semibold text-slate-900">
-                  {porEliminar.titulo}
-                </span>
-                . El gastado del servicio se actualiza automáticamente.
-              </>
-            ) : (
-              <>
-                Se eliminará{' '}
-                <span className="font-semibold text-slate-900">
-                  {conceptoRegistro(porEliminar, refs)}
-                </span>{' '}
-                del {formatearFecha(porEliminar.fecha)}. El gastado del servicio se
-                actualiza automáticamente.
-              </>
-            )}
-          </p>
-        </Modal>
+          onConfirmar={confirmarEliminar}
+        />
       )}
 
       {porEditar && (

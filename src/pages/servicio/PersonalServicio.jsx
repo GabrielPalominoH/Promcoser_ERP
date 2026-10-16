@@ -49,7 +49,41 @@ function nombreTarea(tareas, id) {
 // Asignar personal al servicio: persona + pago + vigencia. El gasto se
 // genera solo con la asignación (costo directo automático, sin tareo ni
 // botón de asentar). Se abre en un modal, igual que "Registrar ingreso".
-function ModalAsignacion({ servicio, personal, tareas, notificar, onCerrar }) {
+// Confirmación de baja de personal con fecha de último día trabajado.
+// Extraída para poder montarla abierta en pruebas; el contenido es el mismo
+// del bloque inline.
+export function ModalDarDeBaja({ descripcion, fecha, onCambiarFecha, onCerrar, onConfirmar }) {
+  return (
+    <Modal
+      abierto
+      ancho="sm"
+      titulo="Dar de baja"
+      descripcion={descripcion}
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button variante="peligro" onClick={onConfirmar}>
+            Confirmar baja
+          </Button>
+        </>
+      }
+    >
+      <Campo label="Último día trabajado" htmlFor="baja-fecha">
+        <Input
+          id="baja-fecha"
+          type="date"
+          value={fecha}
+          onChange={(e) => onCambiarFecha(e.target.value)}
+        />
+      </Campo>
+    </Modal>
+  )
+}
+
+export function ModalAsignacion({ servicio, personal, tareas, notificar, onCerrar }) {
   const {
     register,
     handleSubmit,
@@ -588,32 +622,13 @@ export function PersonalServicio() {
       )}
 
       {bajaDe && (
-        <Modal
-          abierto
-          ancho="sm"
-          titulo="Dar de baja"
+        <ModalDarDeBaja
           descripcion={`${personaDe(bajaDe.personal_id) ? nombreCompleto(personaDe(bajaDe.personal_id)) : 'Esta persona'} dejará de generar costo desde esa fecha. Lo devengado se conserva.`}
+          fecha={fechaBaja}
+          onCambiarFecha={setFechaBaja}
           onCerrar={() => setBajaDe(null)}
-          pie={
-            <>
-              <Button variante="secundario" onClick={() => setBajaDe(null)}>
-                Cancelar
-              </Button>
-              <Button variante="peligro" onClick={confirmarBaja}>
-                Confirmar baja
-              </Button>
-            </>
-          }
-        >
-          <Campo label="Último día trabajado" htmlFor="baja-fecha">
-            <Input
-              id="baja-fecha"
-              type="date"
-              value={fechaBaja}
-              onChange={(e) => setFechaBaja(e.target.value)}
-            />
-          </Campo>
-        </Modal>
+          onConfirmar={confirmarBaja}
+        />
       )}
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />

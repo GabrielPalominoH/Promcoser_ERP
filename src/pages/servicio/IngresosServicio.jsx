@@ -48,7 +48,57 @@ export function resolverFacturaIngreso(numero, facturas, cobros, monto) {
 
 // Edición de un ingreso: fecha, monto, concepto y documento. La factura
 // vinculada no se cambia aquí (para cambiarla, elimina y recrea el ingreso).
-function ModalEdicionIngreso({ ingreso, factura, onGuardar, onCerrar }) {
+export function ModalAnularFactura({ onCerrar, onConfirmar }) {
+  return (
+    <Modal
+      abierto
+      ancho="sm"
+      titulo="Anular factura"
+      descripcion="Se conserva en el historial y deja de contar en saldos."
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>Cancelar</Button>
+          <Button variante="peligro" onClick={onConfirmar}>Sí, anular</Button>
+        </>
+      }
+    >
+      <p className="text-sm text-slate-600">
+        Los ingresos ya aplicados a esta factura se conservan como historial, pero la
+        factura deja de contar en los saldos.
+      </p>
+    </Modal>
+  )
+}
+
+export function ModalEliminarIngreso({ onCerrar, onConfirmar }) {
+  return (
+    <Modal
+      abierto
+      ancho="sm"
+      titulo="Eliminar ingreso"
+      descripcion="Esta acción no se puede deshacer."
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button variante="peligro" onClick={onConfirmar}>
+            Sí, eliminar
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-slate-600">
+        Se eliminará el ingreso seleccionado. Cobrado y utilidad se
+        actualizan automáticamente.
+      </p>
+    </Modal>
+  )
+}
+
+export function ModalEdicionIngreso({ ingreso, factura, onGuardar, onCerrar }) {
   const {
     register,
     handleSubmit,
@@ -520,49 +570,11 @@ export function IngresosServicio() {
       )}
 
       {porAnular != null && (
-        <Modal
-          abierto
-          ancho="sm"
-          titulo="Anular factura"
-          descripcion="Se conserva en el historial y deja de contar en saldos."
-          onCerrar={() => setPorAnular(null)}
-          pie={
-            <>
-              <Button variante="secundario" onClick={() => setPorAnular(null)}>Cancelar</Button>
-              <Button variante="peligro" onClick={confirmarAnular}>Sí, anular</Button>
-            </>
-          }
-        >
-          <p className="text-sm text-slate-600">
-            Los ingresos ya aplicados a esta factura se conservan como historial, pero la
-            factura deja de contar en los saldos.
-          </p>
-        </Modal>
+        <ModalAnularFactura onCerrar={() => setPorAnular(null)} onConfirmar={confirmarAnular} />
       )}
 
       {porEliminar != null && (
-        <Modal
-          abierto
-          ancho="sm"
-          titulo="Eliminar ingreso"
-          descripcion="Esta acción no se puede deshacer."
-          onCerrar={() => setPorEliminar(null)}
-          pie={
-            <>
-              <Button variante="secundario" onClick={() => setPorEliminar(null)}>
-                Cancelar
-              </Button>
-              <Button variante="peligro" onClick={confirmarEliminar}>
-                Sí, eliminar
-              </Button>
-            </>
-          }
-        >
-          <p className="text-sm text-slate-600">
-            Se eliminará el ingreso seleccionado. Cobrado y utilidad se
-            actualizan automáticamente.
-          </p>
-        </Modal>
+        <ModalEliminarIngreso onCerrar={() => setPorEliminar(null)} onConfirmar={confirmarEliminar} />
       )}
 
       {porEditar != null && (() => {

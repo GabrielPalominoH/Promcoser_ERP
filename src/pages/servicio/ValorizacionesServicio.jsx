@@ -45,7 +45,7 @@ function Dato({ etiqueta, valor, tono = 'text-slate-900', nota }) {
   )
 }
 
-function ModalAdelanto({ onCerrar, onGuardar }) {
+export function ModalAdelanto({ onCerrar, onGuardar }) {
   const [tipo, setTipo] = useState('directo')
   const [monto, setMonto] = useState('')
   const [fecha, setFecha] = useState(hoyISO())
@@ -100,7 +100,83 @@ function ModalAdelanto({ onCerrar, onGuardar }) {
   )
 }
 
-function ModalNuevaValorizacion({ servicio, tareas, valorizaciones, adelantos, partes, onCerrar, onGuardar }) {
+// Vista de una valorización cerrada (con sus ajustes y notas si los tiene).
+// Extraída para poder montarla abierta en pruebas; el contenido es el mismo
+// del bloque inline.
+export function ModalVerValorizacion({ valorizacion, onCerrar, onImprimir }) {
+  const ver = valorizacion
+  if (!ver) return null
+  return (
+    <Modal
+      abierto
+      ancho="lg"
+      titulo={`Valorización N° ${ver.numero}`}
+      descripcion={`Fecha ${formatearFecha(ver.fecha)}`}
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cerrar
+          </Button>
+          <Button onClick={() => onImprimir(ver)}>Imprimir / PDF</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <Th>Partida</Th>
+              <Th>UM</Th>
+              <Th alinear="right">Metrado</Th>
+              <Th alinear="right">P. Unit.</Th>
+              <Th alinear="right">Importe</Th>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {ver.items.filter((i) => i.metrado_periodo > 0).length === 0 ? (
+              <TableEmpty colSpan={5} mensaje="Esta valorización no tiene partidas con periodo." />
+            ) : (
+              ver.items
+                .filter((i) => i.metrado_periodo > 0)
+                .map((i) => (
+                  <TableRow key={i.tarea_id}>
+                    <Td className="font-medium text-slate-800">
+                      {i.nombre}
+                      {i.ajuste ? (
+                        <span className="block text-xs font-normal text-amber-700">
+                          Ajuste {i.ajuste > 0 ? '+' : '−'}
+                          {Math.abs(i.ajuste)} · {i.nota_ajuste || 'sin nota'}
+                        </span>
+                      ) : null}
+                    </Td>
+                    <Td className="text-slate-600">{i.unidad ?? '—'}</Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {i.metrado_periodo}
+                      {i.ajuste ? (
+                        <span className="block text-xs text-slate-500">
+                          rep. {i.metrado_reportado}
+                        </span>
+                      ) : null}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(i.precio_unitario)}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {formatearMoneda(i.importe)}
+                    </Td>
+                  </TableRow>
+                ))
+            )}
+          </TableBody>
+        </Table>
+        <ResumenCalculo calculo={ver} />
+      </div>
+    </Modal>
+  )
+}
+
+export function ModalNuevaValorizacion({ servicio, tareas, valorizaciones, adelantos, partes, onCerrar, onGuardar }) {
   const [numero, setNumero] = useState(() => {
     const previos = valorizaciones.map((v) => Number(v.numero) || 0)
     return previos.length ? Math.max(...previos) + 1 : 1
@@ -699,72 +775,11 @@ export function ValorizacionesServicio() {
         <ModalAdelanto onCerrar={() => setModal(null)} onGuardar={registrarAdelanto} />
       )}
       {ver && (
-        <Modal
-          abierto
-          ancho="lg"
-          titulo={`Valorización N° ${ver.numero}`}
-          descripcion={`Fecha ${formatearFecha(ver.fecha)}`}
+        <ModalVerValorizacion
+          valorizacion={ver}
           onCerrar={() => setVerId(null)}
-          pie={
-            <>
-              <Button variante="secundario" onClick={() => setVerId(null)}>
-                Cerrar
-              </Button>
-              <Button onClick={() => imprimirValorizacion(ver)}>Imprimir / PDF</Button>
-            </>
-          }
-        >
-          <div className="space-y-4">
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <Th>Partida</Th>
-                  <Th>UM</Th>
-                  <Th alinear="right">Metrado</Th>
-                  <Th alinear="right">P. Unit.</Th>
-                  <Th alinear="right">Importe</Th>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {ver.items.filter((i) => i.metrado_periodo > 0).length === 0 ? (
-                  <TableEmpty colSpan={5} mensaje="Esta valorización no tiene partidas con periodo." />
-                ) : (
-                  ver.items
-                    .filter((i) => i.metrado_periodo > 0)
-                    .map((i) => (
-                      <TableRow key={i.tarea_id}>
-                        <Td className="font-medium text-slate-800">
-                          {i.nombre}
-                          {i.ajuste ? (
-                            <span className="block text-xs font-normal text-amber-700">
-                              Ajuste {i.ajuste > 0 ? '+' : '−'}
-                              {Math.abs(i.ajuste)} · {i.nota_ajuste || 'sin nota'}
-                            </span>
-                          ) : null}
-                        </Td>
-                        <Td className="text-slate-600">{i.unidad ?? '—'}</Td>
-                        <Td alinear="right" className="tabular-nums">
-                          {i.metrado_periodo}
-                          {i.ajuste ? (
-                            <span className="block text-xs text-slate-500">
-                              rep. {i.metrado_reportado}
-                            </span>
-                          ) : null}
-                        </Td>
-                        <Td alinear="right" className="tabular-nums">
-                          {formatearMoneda(i.precio_unitario)}
-                        </Td>
-                        <Td alinear="right" className="tabular-nums">
-                          {formatearMoneda(i.importe)}
-                        </Td>
-                      </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
-            <ResumenCalculo calculo={ver} />
-          </div>
-        </Modal>
+          onImprimir={imprimirValorizacion}
+        />
       )}
     </div>
   )

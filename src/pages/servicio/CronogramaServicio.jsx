@@ -103,7 +103,7 @@ function etiquetaTrimestre(mesesGrupo) {
   return `${ini} - ${MESES_LARGO[ultimo.getMonth()].slice(0, 3)} ${ultimo.getFullYear()}`
 }
 
-function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, candidatas = [], onCerrar, onGuardar, onEliminar }) {
+export function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado, candidatas = [], onCerrar, onGuardar, onEliminar }) {
   const enEdicion = Boolean(tarea)
   const [confirmando, setConfirmando] = useState(false)
   const esGrupo = enEdicion && tieneHijos
@@ -703,7 +703,7 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
 
 // Calendario laboral de la obra: qué días de la semana se trabaja y cuáles son
 // feriados. Define la duración en días laborables y, con ella, el cálculo CPM.
-function ModalCalendario({ servicio, calendario, onCerrar, onGuardar }) {
+export function ModalCalendario({ servicio, calendario, onCerrar, onGuardar }) {
   const base = normalizarCalendario(calendario)
   const [dias, setDias] = useState(base.dias_laborables)
   const [feriados, setFeriados] = useState(base.feriados)
@@ -924,6 +924,133 @@ function CeldaHistograma({ horas, capacidad, maxHoras, tono }) {
         {horas}
       </span>
     </td>
+  )
+}
+
+// Vista previa de la importación desde Excel: errores, avisos, avance
+// importado y tabla de tareas con su modo asignado. Extraída para poder
+// montarla abierta en pruebas; el contenido es el mismo que mostraba el
+// bloque inline.
+export function VistaPreviaImportacion({ importacion, onCerrar, onConfirmar }) {
+  if (!importacion) return null
+  // Tareas hoja con avance importado (%), para avisar que se guarda como
+  // ejecutado previo / pasos / avance a mano y no se pierde.
+  const importadasConAvance = importacion.tareas.filter((t) => Number(t.avance) > 0).length
+  return (
+    <Modal
+      abierto
+      titulo="Importar cronograma desde Excel"
+      descripcion={`Archivo: ${importacion.archivo}`}
+      onCerrar={onCerrar}
+      ancho="lg"
+      pie={
+        <div className="flex items-center justify-end gap-2">
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button onClick={onConfirmar} disabled={importacion.tareas.length === 0}>
+            Agregar {importacion.tareas.length} tarea{importacion.tareas.length === 1 ? '' : 's'}
+          </Button>
+        </div>
+      }
+    >
+      {importacion.errores.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mb-2 font-semibold">
+            {importacion.errores.length} fila{importacion.errores.length === 1 ? '' : 's'} con advertencia/omisión
+          </p>
+          <ul className="list-disc space-y-1 pl-4">
+            {importacion.errores.slice(0, 8).map((e, i) => (
+              <li key={i}>
+                Fila {e.fila}: {e.motivo}
+              </li>
+            ))}
+            {importacion.errores.length > 8 && (
+              <li>…y {importacion.errores.length - 8} más.</li>
+            )}
+          </ul>
+        </div>
+      )}
+      {(importacion.avisos ?? []).length > 0 && (
+        <div className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800">
+          <p className="mb-2 font-semibold">
+            {importacion.avisos.length} aviso{importacion.avisos.length === 1 ? '' : 's'} (la
+            importación continúa)
+          </p>
+          <ul className="list-disc space-y-1 pl-4">
+            {importacion.avisos.slice(0, 8).map((a, i) => (
+              <li key={i}>
+                Fila {a.fila}: {a.motivo}
+              </li>
+            ))}
+            {importacion.avisos.length > 8 && (
+              <li>…y {importacion.avisos.length - 8} más.</li>
+            )}
+          </ul>
+        </div>
+      )}
+      {importadasConAvance > 0 && (
+        <p className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-800">
+          {importadasConAvance} tarea{importadasConAvance === 1 ? '' : 's'} trae(n) un avance
+          importado: se guarda como <b>ejecutado previo</b> (metrado o costo), como pasos
+          (hitos) o como avance a mano, según el modo de cada tarea, para no mover cifras ya
+          valorizadas.
+        </p>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-primary-700 uppercase">
+              <th className="px-2 py-1 text-left">N°</th>
+              <th className="px-2 py-1 text-left">Tarea</th>
+              <th className="px-2 py-1 text-left">Inicio</th>
+              <th className="px-2 py-1 text-left">Fin</th>
+              <th className="px-2 py-1 text-center">Hito</th>
+              <th className="px-2 py-1 text-right">Monto</th>
+              <th className="px-2 py-1 text-right">Días</th>
+              <th className="px-2 py-1 text-left">Modo</th>
+              <th className="px-2 py-1 text-left">Predecesoras</th>
+            </tr>
+          </thead>
+          <tbody>
+            {importacion.tareas.slice(0, 20).map((t) => (
+              <tr key={t.id} className="border-t border-slate-100">
+                <td className="px-2 py-1 text-slate-600 tabular-nums">{t.numero ?? ''}</td>
+                <td className="max-w-[280px] truncate px-2 py-1 text-slate-800">{t.nombre}</td>
+                <td className="px-2 py-1 text-slate-600 tabular-nums">{t.fecha_inicio}</td>
+                <td className="px-2 py-1 text-slate-600 tabular-nums">{t.fecha_fin}</td>
+                <td className="px-2 py-1 text-center text-slate-600">{t.hito ? 'SI' : 'NO'}</td>
+                <td className="px-2 py-1 text-right text-slate-600 tabular-nums">
+                  {formatearMoneda(t.monto)}
+                </td>
+                <td className="px-2 py-1 text-right text-slate-600 tabular-nums">
+                  {diasTareaImportada(t)}
+                </td>
+                <td className="px-2 py-1 text-slate-600">
+                  {t.modo_medicion ? ETIQUETAS_CORTAS_MODO[t.modo_medicion] : 'Padre'}
+                </td>
+                <td className="px-2 py-1 text-slate-500">
+                  {(t.predecesoras ?? []).map((p, i) => (
+                    <span key={i}>
+                      {p.ref ?? p.id}
+                      {p.tipo !== 'FS' || p.lag ? ` (${p.tipo}${p.lag ? `+${p.lag}` : ''})` : ''}
+                      {i < (t.predecesoras ?? []).length - 1 ? ', ' : ''}
+                    </span>
+                  ))}
+                </td>
+              </tr>
+            ))}
+            {importacion.tareas.length > 20 && (
+              <tr>
+                <td colSpan={9} className="px-2 py-2 text-center text-xs text-slate-500">
+                  y {importacion.tareas.length - 20} tareas más
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Modal>
   )
 }
 
@@ -1666,12 +1793,6 @@ export function CronogramaServicio() {
   }
 
   const cancelarImportacion = () => setImportacion(null)
-
-  // Tareas hoja con avance importado (%), para avisar que se guarda como
-  // ejecutado previo / pasos / avance a mano y no se pierde.
-  const importadasConAvance = importacion
-    ? importacion.tareas.filter((t) => Number(t.avance) > 0).length
-    : 0
 
   // --- Geometría de las filas para dibujar las flechas de dependencia -----
   const filaRefs = useRef(new Map())
@@ -2570,120 +2691,11 @@ export function CronogramaServicio() {
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
 
       {importacion && (
-        <Modal
-          abierto
-          titulo="Importar cronograma desde Excel"
-          descripcion={`Archivo: ${importacion.archivo}`}
+        <VistaPreviaImportacion
+          importacion={importacion}
           onCerrar={cancelarImportacion}
-          ancho="lg"
-          pie={
-            <div className="flex items-center justify-end gap-2">
-              <Button variante="secundario" onClick={cancelarImportacion}>
-                Cancelar
-              </Button>
-              <Button onClick={confirmarImportacion} disabled={importacion.tareas.length === 0}>
-                Agregar {importacion.tareas.length} tarea{importacion.tareas.length === 1 ? '' : 's'}
-              </Button>
-            </div>
-          }
-        >
-          {importacion.errores.length > 0 && (
-            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-              <p className="mb-2 font-semibold">
-                {importacion.errores.length} fila{importacion.errores.length === 1 ? '' : 's'} con advertencia/omisión
-              </p>
-              <ul className="list-disc space-y-1 pl-4">
-                {importacion.errores.slice(0, 8).map((e, i) => (
-                  <li key={i}>
-                    Fila {e.fila}: {e.motivo}
-                  </li>
-                ))}
-                {importacion.errores.length > 8 && (
-                  <li>…y {importacion.errores.length - 8} más.</li>
-                )}
-              </ul>
-            </div>
-          )}
-          {(importacion.avisos ?? []).length > 0 && (
-            <div className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800">
-              <p className="mb-2 font-semibold">
-                {importacion.avisos.length} aviso{importacion.avisos.length === 1 ? '' : 's'} (la
-                importación continúa)
-              </p>
-              <ul className="list-disc space-y-1 pl-4">
-                {importacion.avisos.slice(0, 8).map((a, i) => (
-                  <li key={i}>
-                    Fila {a.fila}: {a.motivo}
-                  </li>
-                ))}
-                {importacion.avisos.length > 8 && (
-                  <li>…y {importacion.avisos.length - 8} más.</li>
-                )}
-              </ul>
-            </div>
-          )}
-          {importadasConAvance > 0 && (
-            <p className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-800">
-              {importadasConAvance} tarea{importadasConAvance === 1 ? '' : 's'} trae(n) un avance
-              importado: se guarda como <b>ejecutado previo</b> (metrado o costo), como pasos
-              (hitos) o como avance a mano, según el modo de cada tarea, para no mover cifras ya
-              valorizadas.
-            </p>
-          )}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-primary-700 uppercase">
-                  <th className="px-2 py-1 text-left">N°</th>
-                  <th className="px-2 py-1 text-left">Tarea</th>
-                  <th className="px-2 py-1 text-left">Inicio</th>
-                  <th className="px-2 py-1 text-left">Fin</th>
-                  <th className="px-2 py-1 text-center">Hito</th>
-                  <th className="px-2 py-1 text-right">Monto</th>
-                  <th className="px-2 py-1 text-right">Días</th>
-                  <th className="px-2 py-1 text-left">Modo</th>
-                  <th className="px-2 py-1 text-left">Predecesoras</th>
-                </tr>
-              </thead>
-              <tbody>
-                {importacion.tareas.slice(0, 20).map((t) => (
-                  <tr key={t.id} className="border-t border-slate-100">
-                    <td className="px-2 py-1 text-slate-600 tabular-nums">{t.numero ?? ''}</td>
-                    <td className="max-w-[280px] truncate px-2 py-1 text-slate-800">{t.nombre}</td>
-                    <td className="px-2 py-1 text-slate-600 tabular-nums">{t.fecha_inicio}</td>
-                    <td className="px-2 py-1 text-slate-600 tabular-nums">{t.fecha_fin}</td>
-                    <td className="px-2 py-1 text-center text-slate-600">{t.hito ? 'SI' : 'NO'}</td>
-                    <td className="px-2 py-1 text-right text-slate-600 tabular-nums">
-                      {formatearMoneda(t.monto)}
-                    </td>
-                    <td className="px-2 py-1 text-right text-slate-600 tabular-nums">
-                      {diasTareaImportada(t)}
-                    </td>
-                    <td className="px-2 py-1 text-slate-600">
-                      {t.modo_medicion ? ETIQUETAS_CORTAS_MODO[t.modo_medicion] : 'Padre'}
-                    </td>
-                    <td className="px-2 py-1 text-slate-500">
-                      {(t.predecesoras ?? []).map((p, i) => (
-                        <span key={i}>
-                          {p.ref ?? p.id}
-                          {p.tipo !== 'FS' || p.lag ? ` (${p.tipo}${p.lag ? `+${p.lag}` : ''})` : ''}
-                          {i < (t.predecesoras ?? []).length - 1 ? ', ' : ''}
-                        </span>
-                      ))}
-                    </td>
-                  </tr>
-                ))}
-                {importacion.tareas.length > 20 && (
-                  <tr>
-                    <td colSpan={9} className="px-2 py-2 text-center text-xs text-slate-500">
-                      y {importacion.tareas.length - 20} tareas más
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Modal>
+          onConfirmar={confirmarImportacion}
+        />
       )}
     </div>
   )

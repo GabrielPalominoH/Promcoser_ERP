@@ -11,6 +11,62 @@ import { ESTATUS_SERVICIO, TIPOS_SERVICIO } from '../../data/mockData'
 
 const TEXTO_CONFIRMACION = 'Eliminar servicio'
 
+// Confirmación de eliminación con texto de seguridad. El estado del texto
+// vive aquí dentro: el padre lo monta solo al abrir, así que se comporta
+// igual que antes (se limpia en cada apertura).
+export function ModalEliminarServicio({ nombre, onCerrar, onConfirmar }) {
+  const [textoEliminar, setTextoEliminar] = useState('')
+  const confirmacionValida = textoEliminar.trim() === TEXTO_CONFIRMACION
+  return (
+    <Modal
+      abierto
+      ancho="sm"
+      titulo="Eliminar servicio"
+      descripcion="Esta acción no se puede deshacer."
+      onCerrar={onCerrar}
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button
+            variante="peligro"
+            onClick={() => {
+              if (confirmacionValida) onConfirmar()
+            }}
+            disabled={!confirmacionValida}
+          >
+            Eliminar servicio
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Se eliminará{' '}
+          <span className="font-semibold text-slate-900">
+            {nombre}
+          </span>{' '}
+          junto con sus registros asociados. Para confirmar, escribe{' '}
+          <span className="font-semibold text-slate-900">
+            “{TEXTO_CONFIRMACION}”
+          </span>{' '}
+          en el campo.
+        </p>
+        <Campo label="Confirmación" htmlFor="confirmar_eliminar">
+          <Input
+            id="confirmar_eliminar"
+            placeholder={TEXTO_CONFIRMACION}
+            value={textoEliminar}
+            onChange={(e) => setTextoEliminar(e.target.value)}
+            autoComplete="off"
+          />
+        </Campo>
+      </div>
+    </Modal>
+  )
+}
+
 const PanelServicioContext = createContext(null)
 
 export function usePanelServicio() {
@@ -21,7 +77,7 @@ export function usePanelServicio() {
   return ctx
 }
 
-function FormularioEditarServicio({ servicio, onGuardar }) {
+export function FormularioEditarServicio({ servicio, onGuardar }) {
   const {
     register,
     handleSubmit,
@@ -224,19 +280,14 @@ export function PanelProveedor({ servicio, children }) {
   const [aviso, setAviso] = useState(null)
   const [mostrarEditar, setMostrarEditar] = useState(false)
   const [mostrarEliminar, setMostrarEliminar] = useState(false)
-  const [textoEliminar, setTextoEliminar] = useState('')
-
-  const confirmacionValida = textoEliminar.trim() === TEXTO_CONFIRMACION
 
   const abrirEditar = useCallback(() => setMostrarEditar(true), [])
   const cerrarEditar = useCallback(() => setMostrarEditar(false), [])
   const abrirEliminar = useCallback(() => {
-    setTextoEliminar('')
     setMostrarEliminar(true)
   }, [])
   const cerrarEliminar = useCallback(() => {
     setMostrarEliminar(false)
-    setTextoEliminar('')
   }, [])
 
   const guardarEdicion = (valores) => {
@@ -267,7 +318,6 @@ export function PanelProveedor({ servicio, children }) {
   }
 
   const confirmarEliminar = () => {
-    if (!confirmacionValida) return
     eliminarItem('servicios', servicio.id)
     navegar('/servicios')
   }
@@ -301,50 +351,11 @@ export function PanelProveedor({ servicio, children }) {
       )}
 
       {mostrarEliminar && (
-        <Modal
-          abierto
-          ancho="sm"
-          titulo="Eliminar servicio"
-          descripcion="Esta acción no se puede deshacer."
+        <ModalEliminarServicio
+          nombre={servicio.nombre_servicio}
           onCerrar={cerrarEliminar}
-          pie={
-            <>
-              <Button variante="secundario" onClick={cerrarEliminar}>
-                Cancelar
-              </Button>
-              <Button
-                variante="peligro"
-                onClick={confirmarEliminar}
-                disabled={!confirmacionValida}
-              >
-                Eliminar servicio
-              </Button>
-            </>
-          }
-        >
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Se eliminará{' '}
-              <span className="font-semibold text-slate-900">
-                {servicio.nombre_servicio}
-              </span>{' '}
-              junto con sus registros asociados. Para confirmar, escribe{' '}
-              <span className="font-semibold text-slate-900">
-                “{TEXTO_CONFIRMACION}”
-              </span>{' '}
-              en el campo.
-            </p>
-            <Campo label="Confirmación" htmlFor="confirmar_eliminar">
-              <Input
-                id="confirmar_eliminar"
-                placeholder={TEXTO_CONFIRMACION}
-                value={textoEliminar}
-                onChange={(e) => setTextoEliminar(e.target.value)}
-                autoComplete="off"
-              />
-            </Campo>
-          </div>
-        </Modal>
+          onConfirmar={confirmarEliminar}
+        />
       )}
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />

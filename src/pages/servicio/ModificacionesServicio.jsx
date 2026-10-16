@@ -148,7 +148,7 @@ function EditorPartidas({ partidas, onChange }) {
   )
 }
 
-function ModalModificacion({ servicio, tipo, modificacion, modificaciones, onCerrar, onGuardar }) {
+export function ModalModificacion({ servicio, tipo, modificacion, modificaciones, onCerrar, onGuardar }) {
   const esEdicion = Boolean(modificacion)
   const [numero, setNumero] = useState(() =>
     modificacion ? modificacion.numero : siguienteNumero(modificaciones, servicio.id),
@@ -277,7 +277,7 @@ function ModalModificacion({ servicio, tipo, modificacion, modificaciones, onCer
   )
 }
 
-function ModalAmpliacion({ servicio, ampliacion, ampliaciones, onCerrar, onGuardar }) {
+export function ModalAmpliacion({ servicio, ampliacion, ampliaciones, onCerrar, onGuardar }) {
   const esEdicion = Boolean(ampliacion)
   const [numero, setNumero] = useState(() =>
     ampliacion ? ampliacion.numero : siguienteNumero(ampliaciones, servicio.id),
@@ -396,7 +396,7 @@ function Historial({ historial = [] }) {
   )
 }
 
-function ModalVerModificacion({ modificacion, onCerrar, onCambiarEstado }) {
+export function ModalVerModificacion({ modificacion, onCerrar, onCambiarEstado }) {
   const [estado, setEstado] = useState(modificacion.estado)
   const importe = importeModificacion(modificacion)
   const signo = modificacion.tipo === 'deductivo' ? '−' : '+'
@@ -486,7 +486,7 @@ function ModalVerModificacion({ modificacion, onCerrar, onCambiarEstado }) {
   )
 }
 
-function ModalVerAmpliacion({ ampliacion, onCerrar, onCambiarEstado }) {
+export function ModalVerAmpliacion({ ampliacion, onCerrar, onCambiarEstado }) {
   const [estado, setEstado] = useState(ampliacion.estado)
   const [diasAprobados, setDiasAprobados] = useState(
     ampliacion.dias_aprobados || ampliacion.dias_solicitados || 0,

@@ -974,7 +974,7 @@ function FormularioParte({
   )
 }
 
-function ModalVerParte({ parte, personal, equipos, tareasServicio, partesServicio, onCerrar, onImprimir }) {
+export function ModalVerParte({ parte, personal, equipos, tareasServicio, partesServicio, onCerrar, onImprimir }) {
   const resumen = resumenParte(parte, { tareas: tareasServicio })
   const tareaDe = (id) => tareasServicio.find((t) => t.id === id)
   const personaDe = (id) => personal.find((p) => p.id === id)

@@ -444,8 +444,37 @@ function ValorizadoCosto({ raices, tareas, registros, servicioId }) {
   )
 }
 
-export function ResumenServicio() {
-  const { servicio } = useOutletContext()
+// Selector de mes para el reporte mensual de obra (PDF). Extraído para poder
+// montarlo abierto en pruebas; el contenido es el mismo del bloque inline.
+export function ModalReporteMensual({ abierto, mes, onCambiarMes, onCerrar, onGenerar }) {
+  return (
+    <Modal
+      abierto={abierto}
+      titulo="Reporte mensual de obra"
+      descripcion="Elige el mes; se abrirá el diálogo de impresión (puedes guardarlo como PDF)."
+      onCerrar={onCerrar}
+      ancho="sm"
+      pie={
+        <>
+          <Button variante="secundario" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button onClick={onGenerar}>Generar reporte</Button>
+        </>
+      }
+    >
+      <Campo label="Mes del reporte">
+        <Input
+          type="month"
+          value={mes}
+          onChange={(evento) => onCambiarMes(evento.target.value)}
+        />
+      </Campo>
+    </Modal>
+  )
+}
+
+export function ResumenServicio() {  const { servicio } = useOutletContext()
   const { abrirEditar } = usePanelServicio()
   const {
     estado: {
@@ -1239,29 +1268,13 @@ export function ResumenServicio() {
         </div>
       </Card>
 
-      <Modal
+      <ModalReporteMensual
         abierto={reporteMesAbierto}
-        titulo="Reporte mensual de obra"
-        descripcion="Elige el mes; se abrirá el diálogo de impresión (puedes guardarlo como PDF)."
+        mes={mesReporte}
+        onCambiarMes={setMesReporte}
         onCerrar={() => setReporteMesAbierto(false)}
-        ancho="sm"
-        pie={
-          <>
-            <Button variante="secundario" onClick={() => setReporteMesAbierto(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={imprimirReporteMensual}>Generar reporte</Button>
-          </>
-        }
-      >
-        <Campo label="Mes del reporte">
-          <Input
-            type="month"
-            value={mesReporte}
-            onChange={(evento) => setMesReporte(evento.target.value)}
-          />
-        </Campo>
-      </Modal>
+        onGenerar={imprimirReporteMensual}
+      />
     </div>
   )
 }

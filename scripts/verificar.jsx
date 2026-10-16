@@ -173,6 +173,37 @@ import {
   prepararHojaImportada,
   tareasImportadas,
 } from '../src/utils/importacion'
+import { ModalMonto } from '../src/pages/servicio/PartidasServicio'
+import {
+  ModalCalendario,
+  ModalTarea,
+  VistaPreviaImportacion,
+} from '../src/pages/servicio/CronogramaServicio'
+import {
+  ModalAdelanto,
+  ModalNuevaValorizacion,
+  ModalVerValorizacion,
+} from '../src/pages/servicio/ValorizacionesServicio'
+import { ModalVerParte } from '../src/pages/servicio/ParteDiarioServicio'
+import { ModalAsignacion, ModalDarDeBaja } from '../src/pages/servicio/PersonalServicio'
+import {
+  ModalAmpliacion,
+  ModalModificacion,
+  ModalVerAmpliacion,
+  ModalVerModificacion,
+} from '../src/pages/servicio/ModificacionesServicio'
+import { ModalEdicionGasto, ModalEliminarRegistro } from '../src/pages/servicio/compartido'
+import {
+  ModalAnularFactura,
+  ModalEdicionIngreso,
+  ModalEliminarIngreso,
+} from '../src/pages/servicio/IngresosServicio'
+import { ModalNota } from '../src/pages/servicio/LineaBaseServicio'
+import { FormularioEditarServicio, ModalEliminarServicio } from '../src/pages/servicio/panel'
+import { ModalEliminarCosto } from '../src/pages/Oficina'
+import { ModalReporteMensual } from '../src/pages/servicio/ResumenServicio'
+import { ModalDatosRespaldo } from '../src/pages/Dashboard'
+import { ConfiguracionModal } from '../src/components/layout/ConfiguracionModal'
 import {
   diasInactividadAlerta,
   diasTrabajados,
@@ -4560,6 +4591,462 @@ comprobar(
     alertasDemo.map((a) => `${a.tipo}:${a.tarea_id}`).sort().join(',') ===
       'inactividad:18,inactividad:19,inactividad:24,vencida:18,vencida:24' &&
     alertasDemo.every((a) => a.servicio_id != null && a.tarea_id != null),
+)
+
+// ============================================================
+//  Tarea 5: humo de pantallas y modales
+// ============================================================
+
+console.log('\n[ humo de pantallas y modales ]')
+
+// Todas las páginas ya se renderizan por ruta en `[ render ]`; aquí se
+// confirma que ninguna quedó sin cubrir.
+comprobar(
+  'humo: las 17 páginas tienen ruta SSR',
+  [
+    '/',
+    '/servicios',
+    '/servicios/6',
+    '/servicios/6/materiales',
+    '/servicios/6/personal',
+    '/servicios/6/equipos',
+    '/servicios/6/gastos',
+    '/servicios/6/ingresos',
+    '/servicios/6/cronograma',
+    '/servicios/6/curva-s',
+    '/servicios/6/linea-base',
+    '/servicios/6/partidas',
+    '/servicios/6/valorizaciones',
+    '/servicios/6/modificaciones',
+    '/servicios/6/parte-diario',
+    '/servicios/6/opciones',
+    '/personal',
+    '/cargos',
+    '/equipos',
+    '/oficina',
+    '/unidades',
+  ].every((r) => typeof htmlsRuta[r] === 'string' && htmlsRuta[r].length > 1500),
+)
+
+// Monta un elemento: devuelve { html } o { error } sin tumbar la suite.
+// Se retiran los comentarios `<!-- -->` del SSR (artefacto de formato, igual
+// que en las pruebas existentes).
+function montar(elemento) {
+  try {
+    return { html: renderToString(elemento).replace(/<!-- -->/g, ''), error: null }
+  } catch (error) {
+    return { html: '', error: String((error && error.stack) || error).slice(0, 400) }
+  }
+}
+
+// Prueba de humo: no lanza, muestra los textos clave y no deja
+// `undefined`/`NaN` en el DOM.
+function humo(etiqueta, montado, textos) {
+  if (montado.error) {
+    comprobar(etiqueta, false, `lanza excepción: ${montado.error}`)
+    return
+  }
+  const faltan = textos.filter((t) => !montado.html.includes(t))
+  const fallas = []
+  if (montado.html.includes('undefined')) fallas.push('"undefined" en DOM')
+  if (montado.html.includes('NaN')) fallas.push('"NaN" en DOM')
+  comprobar(
+    etiqueta,
+    faltan.length === 0 && fallas.length === 0,
+    [...faltan.map((t) => `falta «${t}»`), ...fallas].join(', '),
+  )
+}
+
+const nadaHumo = () => {}
+const servHumo = ESTADO_INICIAL.servicios.find((s) => s.id === 6)
+
+// --- Editar partida ---
+humo(
+  'humo: Editar partida',
+  montar(
+    <ModalMonto
+      tarea={{ id: 15, nombre: 'Excavación', monto: 42000, metrado: 600, unidad: 'm³', precio_unitario: 70 }}
+      onCerrar={nadaHumo}
+      onGuardar={nadaHumo}
+    />,
+  ),
+  ['Partida: metrado, unidad y precio', 'Excavación', 'Guardar'],
+)
+
+// --- Modal de tarea en cada modo de medición ---
+const baseTareaHumo = {
+  id: 901,
+  servicio_id: 6,
+  nombre: 'Partida humo',
+  fecha_inicio: '2026-06-01',
+  fecha_fin: '2026-06-30',
+  avance: 40,
+  monto: 10000,
+}
+const propsTareaHumo = {
+  servicio: servHumo,
+  padre: null,
+  costos: [],
+  tieneHijos: false,
+  avanceDerivado: 40,
+  candidatas: [],
+  onCerrar: nadaHumo,
+  onGuardar: nadaHumo,
+  onEliminar: nadaHumo,
+}
+const modosHumo = [
+  {
+    modo: 'metrado',
+    tarea: { ...baseTareaHumo, modo_medicion: 'metrado', unidad: 'm3', metrado: 100, metrado_previo: 20, valorizado_previo: 10 },
+    textos: ['Editar tarea', 'Ejecutado previo', 'Valorizado previo', 'Calculado desde partes diarios'],
+  },
+  {
+    modo: 'hitos',
+    tarea: {
+      ...baseTareaHumo,
+      modo_medicion: 'hitos',
+      pasos: [
+        { id: 1, nombre: 'Paso 1', peso: 60, estado: 'pendiente', fecha_cumplimiento: null },
+        { id: 2, nombre: 'Paso 2', peso: 40, estado: 'pendiente', fecha_cumplimiento: null },
+      ],
+    },
+    textos: ['Editar tarea', 'Pasos', 'Paso 1', 'Calculado por hitos'],
+  },
+  {
+    modo: 'tiempo',
+    tarea: { ...baseTareaHumo, modo_medicion: 'tiempo' },
+    textos: ['Editar tarea', 'Calculado por calendario'],
+  },
+  {
+    modo: 'costo',
+    tarea: { ...baseTareaHumo, modo_medicion: 'costo' },
+    textos: ['Editar tarea', 'Calculado desde costos ejecutados'],
+  },
+  {
+    modo: 'manual',
+    tarea: { ...baseTareaHumo, modo_medicion: 'manual', nota_justificacion: 'Acordado en campo' },
+    textos: ['Editar tarea', 'Justificación del avance manual'],
+  },
+]
+for (const { modo, tarea, textos } of modosHumo) {
+  humo(
+    `humo: modal de tarea en modo ${modo}`,
+    montar(<ModalTarea {...propsTareaHumo} tarea={tarea} />),
+    textos,
+  )
+}
+
+// --- Modal de valorización (creación con ajuste) y vista con ajuste ---
+humo(
+  'humo: modal de valorización con ajuste',
+  montar(
+    <ModalNuevaValorizacion
+      servicio={servHumo}
+      tareas={estadoV6.tareas}
+      valorizaciones={[]}
+      adelantos={[]}
+      partes={[]}
+      onCerrar={nadaHumo}
+      onGuardar={nadaHumo}
+    />,
+  ),
+  ['Valorización N°', 'Reportado', 'A valorizar', 'Emitir valorización'],
+)
+const valHumoAj = calcularValorizacion({
+  servicio: servA,
+  tareas: [tareaA],
+  valorizaciones: [],
+  adelantos: [],
+  partes: partesA,
+  fecha: '2026-04-30',
+  ajustes: [{ tarea_id: 401, metrado_acumulado: 55, nota: 'Mayor metrado verificado en campo' }],
+})
+humo(
+  'humo: ver valorización con ajuste y nota',
+  montar(<ModalVerValorizacion valorizacion={valHumoAj} onCerrar={nadaHumo} onImprimir={nadaHumo} />),
+  ['Valorización N° 1', 'Ajuste', 'Mayor metrado verificado en campo', 'Neto a pagar'],
+)
+humo(
+  'humo: registrar adelanto',
+  montar(<ModalAdelanto onCerrar={nadaHumo} onGuardar={nadaHumo} />),
+  ['Registrar adelanto', 'Tipo'],
+)
+
+// --- Parte diario: vista con filas de metrado y de hitos ---
+// La tarea de hitos lleva id propio (el 21 ya existe en el seed).
+const tareaHumoHitos = {
+  ...tareaHitos,
+  id: 902,
+  servicio_id: 6,
+  nombre: 'Pruebas humo',
+}
+const parteHumoMixto = {
+  id: 1,
+  servicio_id: 6,
+  fecha: '2026-10-01',
+  clima: 'Soleado',
+  responsable: 'Jefe de obra',
+  personal: [],
+  equipos: [],
+  partidas: [
+    { tarea_id: 15, metrado_dia: 10, nota: '' },
+    { tarea_id: 902, hitos: [1], nota: '' },
+  ],
+}
+humo(
+  'humo: ver parte con filas de metrado y de hitos',
+  montar(
+    <ModalVerParte
+      parte={parteHumoMixto}
+      personal={[]}
+      equipos={[]}
+      tareasServicio={[...estadoV6.tareas, tareaHumoHitos]}
+      partesServicio={[parteHumoMixto]}
+      onCerrar={nadaHumo}
+      onImprimir={nadaHumo}
+    />,
+  ),
+  ['Excavación y tendido', 'Pruebas humo', 'Ejecutado previo', 'Total acumulado'],
+)
+
+// --- Vista previa de importación ---
+const impHumo = {
+  archivo: 'cronograma.xlsx',
+  ...tareasImportadas({ filas: filasMetrado, servicioId: 6, baseId: 0 }),
+}
+humo(
+  'humo: vista previa de importación',
+  montar(<VistaPreviaImportacion importacion={impHumo} onCerrar={nadaHumo} onConfirmar={nadaHumo} />),
+  ['Importar cronograma desde Excel', 'Excavación', 'Metrado', 'ejecutado previo'],
+)
+
+// --- Asignación y baja de personal ---
+humo(
+  'humo: asignar personal',
+  montar(
+    <DataProvider>
+      <ModalAsignacion
+        servicio={servHumo}
+        personal={[{ id: 1, nombre: 'Ana', apellido: 'Pérez' }]}
+        tareas={[]}
+        notificar={nadaHumo}
+        onCerrar={nadaHumo}
+      />
+    </DataProvider>,
+  ),
+  ['Asignar personal'],
+)
+humo(
+  'humo: dar de baja',
+  montar(
+    <ModalDarDeBaja
+      descripcion="Ana Pérez dejará de generar costo desde esa fecha. Lo devengado se conserva."
+      fecha="2026-10-10"
+      onCambiarFecha={nadaHumo}
+      onCerrar={nadaHumo}
+      onConfirmar={nadaHumo}
+    />,
+  ),
+  ['Dar de baja', 'Último día trabajado'],
+)
+
+// --- Modificaciones y ampliaciones ---
+humo(
+  'humo: nuevo adicional de obra',
+  montar(
+    <ModalModificacion
+      servicio={servHumo}
+      tipo="adicional"
+      modificacion={null}
+      modificaciones={[]}
+      onCerrar={nadaHumo}
+      onGuardar={nadaHumo}
+    />,
+  ),
+  ['Nuevo adicional de obra', 'Descripción / sustento'],
+)
+humo(
+  'humo: nueva ampliación de plazo',
+  montar(
+    <ModalAmpliacion
+      servicio={servHumo}
+      ampliacion={null}
+      ampliaciones={[]}
+      onCerrar={nadaHumo}
+      onGuardar={nadaHumo}
+    />,
+  ),
+  ['Nueva ampliación de plazo'],
+)
+const modHumo = {
+  id: 1,
+  servicio_id: 6,
+  tipo: 'adicional',
+  numero: 1,
+  fecha: '2026-05-01',
+  estado: 'borrador',
+  descripcion: 'Mayor metrado',
+  documento: '',
+  partidas: [{ nombre: 'Extra', unidad: 'm³', metrado: 10, precio_unitario: 100 }],
+  historial: [],
+}
+humo(
+  'humo: ver modificación con partidas',
+  montar(<ModalVerModificacion modificacion={modHumo} onCerrar={nadaHumo} onCambiarEstado={nadaHumo} />),
+  ['N° 1', 'Guardar estado', 'Importe'],
+)
+const ampHumo = {
+  id: 1,
+  servicio_id: 6,
+  numero: 1,
+  fecha_solicitud: '2026-05-01',
+  estado: 'borrador',
+  dias_solicitados: 5,
+  dias_aprobados: 0,
+  dias_aplicados: 0,
+  motivo: 'Lluvias',
+  documento: '',
+  historial: [],
+}
+humo(
+  'humo: ver ampliación de plazo',
+  montar(<ModalVerAmpliacion ampliacion={ampHumo} onCerrar={nadaHumo} onCambiarEstado={nadaHumo} />),
+  ['Ampliación de plazo N° 1', 'Guardar estado', 'Días solicitados'],
+)
+
+// --- Gastos e ingresos ---
+humo(
+  'humo: editar gasto',
+  montar(
+    <ModalEdicionGasto
+      registro={{ id: 1, concepto: 'Cemento', monto_calculado: 100, fecha: '2026-10-01', tarea_id: null, documento: '' }}
+      tareas={[]}
+      onGuardar={nadaHumo}
+      onCerrar={nadaHumo}
+    />,
+  ),
+  ['Editar gasto', 'Concepto del gasto'],
+)
+humo(
+  'humo: editar ingreso',
+  montar(
+    <ModalEdicionIngreso
+      ingreso={{ id: 1, fecha: '2026-10-01', monto: 100, concepto: 'Adelanto', documento: '' }}
+      factura={null}
+      onGuardar={nadaHumo}
+      onCerrar={nadaHumo}
+    />,
+  ),
+  ['Editar ingreso'],
+)
+humo(
+  'humo: anular factura',
+  montar(<ModalAnularFactura onCerrar={nadaHumo} onConfirmar={nadaHumo} />),
+  ['Anular factura', 'Sí, anular'],
+)
+humo(
+  'humo: eliminar ingreso',
+  montar(<ModalEliminarIngreso onCerrar={nadaHumo} onConfirmar={nadaHumo} />),
+  ['Eliminar ingreso', 'Sí, eliminar'],
+)
+humo(
+  'humo: eliminar registro',
+  montar(
+    <ModalEliminarRegistro
+      porEliminar={{ id: 1, concepto: 'Cemento', fecha: '2026-10-01' }}
+      refs={{}}
+      onCerrar={nadaHumo}
+      onConfirmar={nadaHumo}
+    />,
+  ),
+  ['Eliminar registro', 'Cemento'],
+)
+humo(
+  'humo: eliminar grupo de registros',
+  montar(
+    <ModalEliminarRegistro
+      porEliminar={{ ids: [1, 2], titulo: 'Gastos' }}
+      refs={{}}
+      onCerrar={nadaHumo}
+      onConfirmar={nadaHumo}
+    />,
+  ),
+  ['Eliminar grupo', '2 registros'],
+)
+
+// --- Línea base, calendario, servicio, oficina, reporte y respaldo ---
+humo(
+  'humo: nota de línea base',
+  montar(
+    <ModalNota
+      titulo="Nota de prueba"
+      descripcion="Describe el cambio."
+      etiqueta="Motivo"
+      onCerrar={nadaHumo}
+      onGuardar={nadaHumo}
+    />,
+  ),
+  ['Nota de prueba', 'Motivo'],
+)
+humo(
+  'humo: calendario laboral',
+  montar(
+    <ModalCalendario servicio={servHumo} calendario={null} onCerrar={nadaHumo} onGuardar={nadaHumo} />,
+  ),
+  ['Calendario laboral', 'Días laborables'],
+)
+humo(
+  'humo: editar servicio',
+  montar(<FormularioEditarServicio servicio={servHumo} onGuardar={nadaHumo} />),
+  ['Nombre del servicio', 'Tolerancia de metrado (%)', 'Umbral de rendimiento (%)'],
+)
+humo(
+  'humo: eliminar servicio',
+  montar(<ModalEliminarServicio nombre="Obra X" onCerrar={nadaHumo} onConfirmar={nadaHumo} />),
+  ['Eliminar servicio', 'Esta acción no se puede deshacer'],
+)
+humo(
+  'humo: eliminar costo de oficina',
+  montar(
+    <ModalEliminarCosto montoTexto="S/ 100.00" mesTexto="oct 2026" onCerrar={nadaHumo} onConfirmar={nadaHumo} />,
+  ),
+  ['Eliminar costo', 'S/ 100.00'],
+)
+humo(
+  'humo: reporte mensual de obra',
+  montar(
+    <ModalReporteMensual
+      abierto
+      mes="2026-10"
+      onCambiarMes={nadaHumo}
+      onCerrar={nadaHumo}
+      onGenerar={nadaHumo}
+    />,
+  ),
+  ['Reporte mensual de obra', 'Generar reporte'],
+)
+humo(
+  'humo: datos y respaldo',
+  montar(
+    <ModalDatosRespaldo
+      abierto
+      vaciarArmado={false}
+      inputArchivo={{ current: null }}
+      onCerrar={nadaHumo}
+      onExportar={nadaHumo}
+      onImportarArchivo={nadaHumo}
+      onRestablecer={nadaHumo}
+      onVaciar={nadaHumo}
+    />,
+  ),
+  ['Datos y respaldo', 'Exportar respaldo', 'Vaciar todo'],
+)
+humo(
+  'humo: configuración de apariencia',
+  montar(
+    <ConfiguracionModal abierto tema="claro" onCerrar={nadaHumo} onCambiarTema={nadaHumo} />,
+  ),
+  ['Configuración', 'Claro', 'Oscuro'],
 )
 
 // ============================================================

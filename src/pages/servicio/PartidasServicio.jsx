@@ -4,7 +4,7 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
-import { CampoComboBox } from '../../components/ui/ComboBox'
+import { ComboBox } from '../../components/ui/ComboBox'
 import { InputMonto } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
@@ -72,7 +72,7 @@ function hhPorUnidad(horas, metrado, avance) {
   return Math.round((Number(horas) / ejecutado) * 10000) / 10000
 }
 
-function ModalMonto({ tarea, onCerrar, onGuardar }) {
+export function ModalMonto({ tarea, onCerrar, onGuardar }) {
   const [monto, setMonto] = useState(() => Number(tarea?.monto) || 0)
   const [metrado, setMetrado] = useState(() => (tarea?.metrado ?? ''))
   const [unidad, setUnidad] = useState(() => (tarea?.unidad ?? ''))
@@ -144,7 +144,7 @@ function ModalMonto({ tarea, onCerrar, onGuardar }) {
             htmlFor="partida-unidad"
             hint={unidadSinMetrado ? 'Sin metrado, la unidad no aplica' : undefined}
           >
-            <CampoComboBox
+            <ComboBox
               id="partida-unidad"
               placeholder="Elige unidad…"
               opciones={UNIDADES.map((u) => ({ valor: u.sigla, etiqueta: `${u.sigla} — ${u.nombre}` }))}

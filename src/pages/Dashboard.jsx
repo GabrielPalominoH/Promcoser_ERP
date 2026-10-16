@@ -103,6 +103,65 @@ function BarraMes({ valor, maximo, tono }) {
   )
 }
 
+// Datos y respaldo: exportar/importar/restablecer/vaciar. Extraído para poder
+// montarlo abierto en pruebas; el contenido es el mismo del bloque inline.
+// `inputArchivo` es el ref del input de archivo (vive en el padre).
+export function ModalDatosRespaldo({
+  abierto,
+  vaciarArmado,
+  inputArchivo,
+  onCerrar,
+  onExportar,
+  onImportarArchivo,
+  onRestablecer,
+  onVaciar,
+}) {
+  return (
+    <Modal
+      abierto={abierto}
+      titulo="Datos y respaldo"
+      descripcion="Tu información vive en este navegador. Exporta un respaldo con frecuencia."
+      onCerrar={onCerrar}
+      ancho="sm"
+      pie={
+        <Button variante="secundario" onClick={onCerrar}>
+          Cerrar
+        </Button>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-slate-600">
+          «Exportar» descarga un archivo JSON con todo. «Importar» reemplaza los datos actuales
+          por los del archivo. «Restablecer» vuelve a los datos de ejemplo.
+          «Vaciar todo» borra todo para empezar de cero (conserva la configuración).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button variante="secundario" onClick={onExportar}>
+            Exportar respaldo
+          </Button>
+          <Button variante="secundario" onClick={() => inputArchivo.current?.click()}>
+            Importar respaldo
+          </Button>
+          <Button variante="peligro" onClick={onRestablecer}>
+            Restablecer datos de ejemplo
+          </Button>
+          <Button variante={vaciarArmado ? 'peligro' : 'secundario'} onClick={onVaciar}>
+            {vaciarArmado ? 'Pulsa de nuevo para vaciar todo' : 'Vaciar todo'}
+          </Button>
+        </div>
+        <input
+          ref={inputArchivo}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          aria-label="Importar respaldo JSON"
+          onChange={onImportarArchivo}
+        />
+      </div>
+    </Modal>
+  )
+}
+
 export function Dashboard() {
   const { estado, restablecer, reemplazarColeccion, actualizarItem } = useData()
   const [aviso, setAviso] = useState(null)
@@ -1337,48 +1396,16 @@ export function Dashboard() {
         )}
       </Card>
 
-      <Modal
+      <ModalDatosRespaldo
         abierto={datosAbierto}
-        titulo="Datos y respaldo"
-        descripcion="Tu información vive en este navegador. Exporta un respaldo con frecuencia."
+        vaciarArmado={vaciarArmado}
+        inputArchivo={inputArchivo}
         onCerrar={cerrarDatos}
-        ancho="sm"
-        pie={
-          <Button variante="secundario" onClick={cerrarDatos}>
-            Cerrar
-          </Button>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600">
-            «Exportar» descarga un archivo JSON con todo. «Importar» reemplaza los datos actuales
-            por los del archivo. «Restablecer» vuelve a los datos de ejemplo.
-            «Vaciar todo» borra todo para empezar de cero (conserva la configuración).
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button variante="secundario" onClick={exportarRespaldo}>
-              Exportar respaldo
-            </Button>
-            <Button variante="secundario" onClick={() => inputArchivo.current?.click()}>
-              Importar respaldo
-            </Button>
-            <Button variante="peligro" onClick={restablecer}>
-              Restablecer datos de ejemplo
-            </Button>
-            <Button variante={vaciarArmado ? 'peligro' : 'secundario'} onClick={vaciarTodo}>
-              {vaciarArmado ? 'Pulsa de nuevo para vaciar todo' : 'Vaciar todo'}
-            </Button>
-          </div>
-          <input
-            ref={inputArchivo}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            aria-label="Importar respaldo JSON"
-            onChange={importarRespaldo}
-          />
-        </div>
-      </Modal>
+        onExportar={exportarRespaldo}
+        onImportarArchivo={importarRespaldo}
+        onRestablecer={restablecer}
+        onVaciar={vaciarTodo}
+      />
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
     </div>

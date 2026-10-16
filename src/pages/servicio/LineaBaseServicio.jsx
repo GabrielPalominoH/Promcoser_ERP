@@ -43,7 +43,7 @@ function EtiquetaDesvio({ valor, sufijo = '', invertir = false }) {
   )
 }
 
-function ModalNota({ titulo, descripcion, etiqueta, onCerrar, onGuardar }) {
+export function ModalNota({ titulo, descripcion, etiqueta, onCerrar, onGuardar }) {
   const [nota, setNota] = useState('')
   return (
     <Modal
