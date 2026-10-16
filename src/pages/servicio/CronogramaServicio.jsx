@@ -32,6 +32,12 @@ import { normalizar } from '../../components/ui/ComboBox'
 import { Buscador, textoCoincide } from '../../components/ui/FiltroBusqueda'
 import { libroCronograma } from '../../utils/exportaciones'
 import { descargarLibro } from '../../utils/descargas'
+import { leerXLSX } from '../../utils/excel'
+import {
+  plantillaCronograma,
+  tareasImportadas,
+  diasTareaImportada,
+} from '../../utils/importacion'
 import { RedPERT } from './RedPERT'
 
 // En SSR useLayoutEffect avisa; cae a useEffect en el servidor.
@@ -645,10 +651,12 @@ export function CronogramaServicio() {
 
   const [aviso, setAviso] = useState(null)
   const [modal, setModal] = useState(null) // null | { modo: 'crear', padre? } | { modo: 'editar', tarea }
+  const [importacion, setImportacion] = useState(null) // null | { archivo, tareas, errores, total }
   const [calendarioAbierto, setCalendarioAbierto] = useState(false)
   const [vistaRed, setVistaRed] = useState(false) // false = Gantt, true = red PERT
   const [colapsadas, setColapsadas] = useState({})
   const [busqueda, setBusqueda] = useState('')
+  const archivoRef = useRef(null)
   const [zoomManual, setZoomManual] = useState(null) // px por día elegido con +/−; null = ajuste automático
   const [lookahead, setLookahead] = useState(false) // ventana de 3–6 semanas
   const [semanasLA, setSemanasLA] = useState(4)
@@ -1321,6 +1329,58 @@ export function CronogramaServicio() {
     )
   }
 
+  const maxIdTareas = useMemo(() => (todas.length === 0 ? 0 : Math.max(...todas.map((t) => t.id))), [todas])
+
+  const descargarPlantilla = () => {
+    const libro = plantillaCronograma({ servicio, tareas })
+    const ok = descargarLibro(libro)
+    setAviso(
+      ok
+        ? { tipo: 'exito', mensaje: 'Plantilla de cronograma descargada.' }
+        : { tipo: 'error', mensaje: 'No se pudo descargar la plantilla.' },
+    )
+  }
+
+  const alElegirArchivo = async (evento) => {
+    const archivo = evento.target.files?.[0]
+    if (evento.target) evento.target.value = ''
+    if (!archivo) return
+    try {
+      const buffer = await archivo.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      const { hojas } = await leerXLSX(bytes)
+      const hoja =
+        hojas.find((h) => normalizar(h.nombre) === normalizar('Cronograma')) ??
+        hojas.find((h) => normalizar(h.nombre).includes('crono')) ??
+        hojas[0]
+      if (!hoja) throw new Error('El archivo .xlsx no tiene hojas.')
+      const previa = tareasImportadas({
+        filas: hoja.filas,
+        servicioId: servicio.id,
+        baseId: maxIdTareas,
+      })
+      setImportacion({ archivo: archivo.name, ...previa })
+    } catch (err) {
+      setAviso({
+        tipo: 'error',
+        mensaje: `No se pudo leer el archivo .xlsx: ${err.message}`,
+      })
+    }
+  }
+
+  const confirmarImportacion = () => {
+    if (!importacion || importacion.tareas.length === 0) return
+    registrarPaso()
+    importacion.tareas.forEach((t) => agregarItem('tareas', t))
+    setImportacion(null)
+    setAviso({
+      tipo: 'exito',
+      mensaje: `Se importaron ${importacion.tareas.length} tarea(s) al cronograma.`,
+    })
+  }
+
+  const cancelarImportacion = () => setImportacion(null)
+
   // --- Geometría de las filas para dibujar las flechas de dependencia -----
   const filaRefs = useRef(new Map())
   const [alturaFila, setAlturaFila] = useState({})
@@ -1394,6 +1454,24 @@ export function CronogramaServicio() {
           <Button variante="secundario" onClick={exportarExcel} disabled={tareas.length === 0}>
             Exportar Excel
           </Button>
+          <Button variante="secundario" onClick={descargarPlantilla}>
+            Plantilla
+          </Button>
+          <Button
+            variante="secundario"
+            onClick={() => {
+              if (archivoRef.current) archivoRef.current.click()
+            }}
+          >
+            Importar Excel
+          </Button>
+          <input
+            ref={archivoRef}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="hidden"
+            onChange={alElegirArchivo}
+          />
           <Button variante="secundario" onClick={() => setCalendarioAbierto(true)}>
             Calendario
           </Button>
@@ -2197,6 +2275,93 @@ export function CronogramaServicio() {
       )}
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
+
+      {importacion && (
+        <Modal
+          abierto
+          titulo="Importar cronograma desde Excel"
+          descripcion={`Archivo: ${importacion.archivo}`}
+          onCerrar={cancelarImportacion}
+          ancho="lg"
+          pie={
+            <div className="flex items-center justify-end gap-2">
+              <Button variante="secundario" onClick={cancelarImportacion}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmarImportacion} disabled={importacion.tareas.length === 0}>
+                Agregar {importacion.tareas.length} tarea{importacion.tareas.length === 1 ? '' : 's'}
+              </Button>
+            </div>
+          }
+        >
+          {importacion.errores.length > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              <p className="mb-2 font-semibold">
+                {importacion.errores.length} fila{importacion.errores.length === 1 ? '' : 's'} con advertencia/omisión
+              </p>
+              <ul className="list-disc space-y-1 pl-4">
+                {importacion.errores.slice(0, 8).map((e, i) => (
+                  <li key={i}>
+                    Fila {e.fila}: {e.motivo}
+                  </li>
+                ))}
+                {importacion.errores.length > 8 && (
+                  <li>…y {importacion.errores.length - 8} más.</li>
+                )}
+              </ul>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-slate-600">
+                  <th className="px-2 py-1 text-left font-semibold">N°</th>
+                  <th className="px-2 py-1 text-left font-semibold">Tarea</th>
+                  <th className="px-2 py-1 text-left font-semibold">Inicio</th>
+                  <th className="px-2 py-1 text-left font-semibold">Fin</th>
+                  <th className="px-2 py-1 text-center font-semibold">Hito</th>
+                  <th className="px-2 py-1 text-right font-semibold">Monto</th>
+                  <th className="px-2 py-1 text-right font-semibold">Días</th>
+                  <th className="px-2 py-1 text-left font-semibold">Predecesoras</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importacion.tareas.slice(0, 20).map((t) => (
+                  <tr key={t.id} className="border-t border-slate-100">
+                    <td className="px-2 py-1 text-slate-600 tabular-nums">{t.numero ?? ''}</td>
+                    <td className="max-w-[280px] truncate px-2 py-1 text-slate-800">{t.nombre}</td>
+                    <td className="px-2 py-1 text-slate-600 tabular-nums">{t.fecha_inicio}</td>
+                    <td className="px-2 py-1 text-slate-600 tabular-nums">{t.fecha_fin}</td>
+                    <td className="px-2 py-1 text-center text-slate-600">{t.hito ? 'SI' : 'NO'}</td>
+                    <td className="px-2 py-1 text-right text-slate-600 tabular-nums">
+                      {formatearMoneda(t.monto)}
+                    </td>
+                    <td className="px-2 py-1 text-right text-slate-600 tabular-nums">
+                      {diasTareaImportada(t)}
+                    </td>
+                    <td className="px-2 py-1 text-slate-500">
+                      {(t.predecesoras ?? []).map((p, i) => (
+                        <span key={i}>
+                          {p.ref ?? p.id}
+                          {p.tipo !== 'FS' || p.lag ? ` (${p.tipo}${p.lag ? `+${p.lag}` : ''})` : ''}
+                          {i < (t.predecesoras ?? []).length - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+                {importacion.tareas.length > 20 && (
+                  <tr>
+                    <td colSpan={8} className="px-2 py-2 text-center text-xs text-slate-500">
+                      y {importacion.tareas.length - 20} tareas más
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

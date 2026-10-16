@@ -302,3 +302,179 @@ export function libroXLSX({ hojas = [] } = {}) {
 
   return zipStore(archivos)
 }
+
+// ==========================================================================
+//  Lectura (.xlsx) — Fase 4
+//
+//  Un .xlsx es un ZIP con XML. Aquí se descomprime el contenedor (métodos
+//  "store" y "deflate", este último con DecompressionStream del navegador o
+//  de Node ≥ 18) y se leen las hojas a una matriz de valores. Se usa regex en
+//  vez de un parser XML completo: basta para el OOXML mínimo que escribimos y
+//  para los archivos que exporta Excel/LibreOffice. Todo asíncrono.
+// ==========================================================================
+
+// Descomprime un bloque "deflate-raw" (método 8) usando la API de streams.
+async function inflar(datos) {
+  const flujo = new Blob([datos]).stream().pipeThrough(new DecompressionStream('deflate-raw'))
+  return new Uint8Array(await new Response(flujo).arrayBuffer())
+}
+
+// Descomprime un contenedor ZIP: devuelve [{ nombre, bytes }].
+export async function descomprimirZip(bytes) {
+  const datos = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+  const dv = new DataView(datos.buffer, datos.byteOffset, datos.byteLength)
+
+  // Localiza el End Of Central Directory (EOCD) desde el final.
+  let eocd = -1
+  for (let i = datos.length - 22; i >= 0; i -= 1) {
+    if (dv.getUint32(i, true) === FIRMA_EOCD) {
+      eocd = i
+      break
+    }
+  }
+  if (eocd < 0) throw new Error('El archivo no es un .xlsx válido (sin EOCD).')
+
+  const total = dv.getUint16(eocd + 10, true)
+  let cursor = dv.getUint32(eocd + 16, true)
+  const decoder = new TextDecoder('utf-8')
+  const salida = []
+
+  for (let e = 0; e < total && cursor + 46 <= datos.length; e += 1) {
+    if (dv.getUint32(cursor, true) !== FIRMA_CENTRAL) break
+    const metodo = dv.getUint16(cursor + 10, true)
+    const comprimido = dv.getUint32(cursor + 20, true)
+    const nombreLen = dv.getUint16(cursor + 28, true)
+    const extraLen = dv.getUint16(cursor + 30, true)
+    const comentarioLen = dv.getUint16(cursor + 32, true)
+    const local = dv.getUint32(cursor + 42, true)
+    const nombre = decoder.decode(datos.subarray(cursor + 46, cursor + 46 + nombreLen))
+
+    // Cabecera local: nombre y extra tienen longitudes propias.
+    const lNombreLen = dv.getUint16(local + 26, true)
+    const lExtraLen = dv.getUint16(local + 28, true)
+    const inicioDatos = local + 30 + lNombreLen + lExtraLen
+    const crudo = datos.subarray(inicioDatos, inicioDatos + comprimido)
+
+    let contenido
+    if (metodo === 0) contenido = crudo
+    else if (metodo === 8) contenido = await inflar(crudo)
+    else throw new Error(`Método de compresión no soportado: ${metodo}`)
+
+    salida.push({ nombre, bytes: contenido })
+    cursor += 46 + nombreLen + extraLen + comentarioLen
+  }
+  return salida
+}
+
+function decodificarEntidades(texto) {
+  return String(texto)
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+}
+
+// Columna de una referencia de celda ("BC12" → 54).
+function columnaDeReferencia(ref) {
+  const letras = (String(ref).match(/^[A-Za-z]+/) ?? [''])[0].toUpperCase()
+  let n = 0
+  for (const c of letras) n = n * 26 + (c.charCodeAt(0) - 64)
+  return n - 1
+}
+
+// Cadena compartida o contenido de una celda.
+function valorCelda(xmlCelda, atributos, compartidas) {
+  const t = /\st="([^"]+)"/.exec(atributos)?.[1]
+  if (t === 'inlineStr') {
+    const partes = [...xmlCelda.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((m) =>
+      decodificarEntidades(m[1]),
+    )
+    return partes.join('')
+  }
+  const v = /<v[^>]*>([\s\S]*?)<\/v>/.exec(xmlCelda)?.[1]
+  if (v == null) return ''
+  if (t === 's') return compartidas[Number(v)] ?? ''
+  if (t === 'str') return decodificarEntidades(v)
+  if (t === 'b') return v === '1'
+  const num = Number(v)
+  return Number.isNaN(num) ? decodificarEntidades(v) : num
+}
+
+// Convierte el XML de una hoja en una matriz de filas (celdas por columna).
+function filasDeHoja(xml, compartidas) {
+  const filas = []
+  for (const mFila of xml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
+    const celdas = []
+    for (const mCelda of mFila[1].matchAll(/<c([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const atributos = mCelda[1]
+      const ref = /\sr="([^"]+)"/.exec(atributos)?.[1]
+      const indice = ref != null ? columnaDeReferencia(ref) : celdas.length
+      const valor = ref != null ? valorCelda(mCelda[2] ?? '', atributos, compartidas) : ''
+      while (celdas.length < indice) celdas.push('')
+      celdas[indice] = valor
+    }
+    filas.push(celdas)
+  }
+  return filas
+}
+
+// Lee un .xlsx y devuelve { hojas: [{ nombre, filas }] }.
+export async function leerXLSX(bytes) {
+  const entradas = await descomprimirZip(bytes)
+  const porNombre = new Map(entradas.map((e) => [e.nombre, e]))
+  const decoder = new TextDecoder('utf-8')
+  const texto = (nombre) => (porNombre.has(nombre) ? decoder.decode(porNombre.get(nombre).bytes) : '')
+
+  // Cadenas compartidas.
+  const compartidas = []
+  const xmlCompartidas = texto('xl/sharedStrings.xml')
+  if (xmlCompartidas) {
+    for (const m of xmlCompartidas.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+      const partes = [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((x) =>
+        decodificarEntidades(x[1]),
+      )
+      compartidas.push(partes.join(''))
+    }
+  }
+
+  // Nombre y destino de cada hoja.
+  const xmlWorkbook = texto('xl/workbook.xml')
+  const xmlRels = texto('xl/_rels/workbook.xml.rels')
+  const destinos = new Map(
+    [...xmlRels.matchAll(/<Relationship\b[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map((m) => [
+      m[1],
+      m[2],
+    ]),
+  )
+  const hojas = []
+  let i = 0
+  for (const m of xmlWorkbook.matchAll(/<sheet\b([^>]*)\/>/g)) {
+    i += 1
+    const nombre = decodificarEntidades(/\sname="([^"]*)"/.exec(m[1])?.[1] ?? `Hoja${i}`)
+    const rid = /\br:id="([^"]+)"/.exec(m[1])?.[1]
+    let ruta = rid != null ? destinos.get(rid) : null
+    if (!ruta) ruta = `worksheets/sheet${i}.xml`
+    const normal = ruta.startsWith('/') ? ruta.slice(1) : ruta.startsWith('xl/') ? ruta : `xl/${ruta}`
+    const xml = texto(normal)
+    hojas.push({ nombre, filas: xml ? filasDeHoja(xml, compartidas) : [] })
+  }
+
+  // Sin workbook.xml (raro): cae a buscar sheets directos.
+  if (hojas.length === 0) {
+    let j = 0
+    for (const e of entradas) {
+      const m = /^xl\/worksheets\/sheet(\d+)\.xml$/.exec(e.nombre)
+      if (!m) continue
+      j += 1
+      hojas.push({
+        nombre: `Hoja${j}`,
+        filas: filasDeHoja(decoder.decode(e.bytes), compartidas),
+      })
+    }
+  }
+
+  return { hojas }
+}
