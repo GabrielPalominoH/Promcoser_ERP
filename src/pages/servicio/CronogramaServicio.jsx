@@ -110,6 +110,11 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
     (tarea?.predecesoras ?? []).filter(Boolean).map((p) => ({ ...p })),
   )
   const [hito, setHito] = useState(() => tarea?.hito === true)
+  // Pasos del modo `hitos` (se editan aquí; el avance sale de sus pesos).
+  const [pasos, setPasos] = useState(() =>
+    Array.isArray(tarea?.pasos) ? tarea.pasos.map((p) => ({ ...p })) : [],
+  )
+  const [errorPasos, setErrorPasos] = useState('')
 
   const {
     register,
@@ -128,6 +133,7 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           avance: tarea.avance ?? 0,
           modo_medicion: MODOS_MEDICION.includes(tarea.modo_medicion) ? tarea.modo_medicion : 'metrado',
           nota_justificacion: tarea.nota_justificacion ?? '',
+          metrado_previo: tarea.metrado_previo ?? '',
         }
       : {
           nombre: '',
@@ -136,6 +142,7 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
           avance: 0,
           modo_medicion: 'metrado',
           nota_justificacion: '',
+          metrado_previo: '',
         },
     mode: 'onBlur',
   })
@@ -143,6 +150,26 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
   // El modo elegido decide qué campos se piden (justificación en `manual`) y
   // de dónde se explicará que sale el avance.
   const modoActual = watch('modo_medicion') ?? 'metrado'
+
+  const sumaPesosPasos = Math.round(
+    (pasos.reduce((s, p) => s + (Number(p.peso) || 0), 0) + Number.EPSILON) * 100,
+  ) / 100
+
+  const agregarPaso = () => {
+    setErrorPasos('')
+    setPasos((lista) => [
+      ...lista,
+      { id: (lista.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) || 0) + 1, nombre: '', peso: 0, estado: 'pendiente', fecha_cumplimiento: null },
+    ])
+  }
+  const quitarPaso = (i) => {
+    setErrorPasos('')
+    setPasos((lista) => lista.filter((_, j) => j !== i))
+  }
+  const cambiarPaso = (i, cambios) => {
+    setErrorPasos('')
+    setPasos((lista) => lista.map((p, j) => (j === i ? { ...p, ...cambios } : p)))
+  }
 
   const enviar = (valores) => {
     const nombreTarea = valores.nombre.trim()
@@ -171,14 +198,37 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
       avance,
     }
 
-    // El modo de medición solo aplica a las hojas; al pasar de modo se
-    // conserva el avance. En `manual` la justificación es obligatoria.
+    // El modo de medición solo aplica a las hojas. Al cambiar de modo se
+    // conserva el avance: en `hitos` se generan pasos que lo reproducen, en
+    // `metrado`/`costo` se fija el ejecutado previo equivalente. En `manual` la
+    // justificación es obligatoria.
     if (!esGrupo) {
       const modo = MODOS_MEDICION.includes(valores.modo_medicion) ? valores.modo_medicion : 'metrado'
+      const modoPrevio = MODOS_MEDICION.includes(tarea?.modo_medicion) ? tarea.modo_medicion : null
+      const cambiaModo = enEdicion && modoPrevio !== modo
       cambios.modo_medicion = modo
       cambios.nota_justificacion = modo === 'manual' ? String(valores.nota_justificacion ?? '').trim() : ''
-      if (modo === 'hitos' && !(Array.isArray(tarea?.pasos) && tarea.pasos.length > 0)) {
-        cambios.pasos = pasosQueReproducenAvance(avance)
+
+      if (modo === 'hitos') {
+        const lista = pasos.length > 0 ? pasos : pasosQueReproducenAvance(avance)
+        const suma = lista.reduce((s, p) => s + (Number(p.peso) || 0), 0)
+        if (Math.abs(suma - 100) > 0.01) {
+          setErrorPasos(`Los pasos deben sumar 100 % (ahora suman ${Math.round(suma * 100) / 100} %).`)
+          return
+        }
+        cambios.pasos = lista
+      } else if (modo === 'metrado') {
+        const crudo = valores.metrado_previo
+        if (crudo !== '' && crudo != null && Number.isFinite(Number(crudo))) {
+          cambios.metrado_previo = Math.max(0, Number(crudo))
+        } else if (cambiaModo) {
+          const met = Number(tarea?.metrado) || 0
+          cambios.metrado_previo = met > 0 ? Math.round((avance * met) / 100 * 100) / 100 : 0
+        }
+      } else if (modo === 'costo' && cambiaModo) {
+        const base = Number(tarea?.monto) || 0
+        const yaCosto = sumarMontos(costos)
+        cambios.costo_previo = Math.max(0, Math.round((avance * base) / 100 * 100) / 100 - yaCosto)
       }
     }
 
@@ -312,7 +362,7 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                 hint={
                   modoActual === 'manual'
                     ? 'Avance fijado a mano: obligatorio justificar el dato.'
-                    : ORIGEN_AVANCE[modoActual]
+                    : `${ORIGEN_AVANCE[modoActual]} (se calcula solo).`
                 }
                 htmlFor="tarea-avance"
               >
@@ -322,6 +372,8 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                   step="1"
                   min="0"
                   max="100"
+                  readOnly={modoActual !== 'manual'}
+                  className={modoActual !== 'manual' ? 'cursor-not-allowed bg-slate-100' : undefined}
                   {...register('avance', {
                     valueAsNumber: true,
                     min: { value: 0, message: 'Mínimo: 0' },
@@ -329,6 +381,7 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                     // El campo no deja escribir fuera de 0–100: al pasar el
                     // límite se recorta solo (además de validar y recortar al guardar).
                     onChange: (e) => {
+                      if (modoActual !== 'manual') return
                       const v = Number(e.target.value)
                       if (Number.isNaN(v)) return
                       if (v > 100) setValue('avance', 100, { shouldValidate: true })
@@ -356,6 +409,108 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
               </Campo>
             )}
           </div>
+          {!esGrupo && modoActual === 'metrado' && (
+            <div className="mt-4">
+              <Campo
+                label="Ejecutado previo"
+                error={errors.metrado_previo?.message}
+                hint="Metrado ya ejecutado ANTES de registrar partes (en la unidad de la partida). El avance = (ejecutado previo + partes) ÷ metrado contratado."
+                htmlFor="tarea-metrado-previo"
+              >
+                <Input
+                  id="tarea-metrado-previo"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  {...register('metrado_previo', { valueAsNumber: true })}
+                />
+              </Campo>
+            </div>
+          )}
+          {!esGrupo && modoActual === 'hitos' && (
+            <div className="mt-4 rounded-lg border border-slate-200 px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-slate-700">
+                  Pasos ·{' '}
+                  <span className={sumaPesosPasos === 100 ? 'text-emerald-700' : 'text-amber-700'}>
+                    {sumaPesosPasos} % de 100 %
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={agregarPaso}
+                  className="rounded-md px-2 py-1 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-50"
+                >
+                  + Agregar paso
+                </button>
+              </div>
+              {pasos.length === 0 ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Sin pasos todavía: al guardar se generan dos que reproducen el avance actual.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {pasos.map((paso, i) => (
+                    <li key={paso.id ?? i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
+                      <Input
+                        value={paso.nombre ?? ''}
+                        onChange={(e) => cambiarPaso(i, { nombre: e.target.value })}
+                        placeholder="Nombre del paso"
+                        aria-label="Nombre del paso"
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={paso.peso ?? 0}
+                        onChange={(e) => cambiarPaso(i, { peso: Number(e.target.value) || 0 })}
+                        aria-label="Peso del paso"
+                        title="Peso del paso (los pesos suman 100)"
+                        className="sm:w-24"
+                      />
+                      <label className="flex items-center gap-2 px-1 text-xs font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={paso.estado === 'cumplido'}
+                          onChange={(e) =>
+                            cambiarPaso(i, {
+                              estado: e.target.checked ? 'cumplido' : 'pendiente',
+                              fecha_cumplimiento: e.target.checked
+                                ? paso.fecha_cumplimiento ?? hoyISO()
+                                : null,
+                            })
+                          }
+                          className="size-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
+                        />
+                        Cumplido
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => quitarPaso(i)}
+                        className="justify-self-end rounded-md px-2 py-1.5 text-sm font-bold text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        aria-label="Quitar paso"
+                        title="Quitar"
+                      >
+                        ×
+                      </button>
+                      {paso.estado === 'cumplido' && (
+                        <Input
+                          type="date"
+                          value={paso.fecha_cumplimiento ?? ''}
+                          onChange={(e) => cambiarPaso(i, { fecha_cumplimiento: e.target.value || null })}
+                          aria-label="Fecha de cumplimiento"
+                          className="sm:col-span-4 sm:w-48"
+                        />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {errorPasos && <p className="mt-2 text-xs font-medium text-red-600">{errorPasos}</p>}
+            </div>
+          )}
           {!esGrupo && modoActual === 'manual' && (
             <div className="mt-4">
               <Campo

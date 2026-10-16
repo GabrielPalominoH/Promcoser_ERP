@@ -125,7 +125,6 @@ import {
   partidasMedibles,
   partesDeServicio,
   personalPresenteSugerido,
-  recalcularAvanceTareas,
   resumenParte,
   resumenPeriodo,
 } from '../src/utils/partesDiario'
@@ -147,15 +146,18 @@ import { CALENDARIO_POR_DEFECTO, calendarioDe } from '../src/utils/calendario'
 import {
   MODOS_MEDICION,
   acotarAvance,
+  avanceDeTarea,
   avanceManual,
   avancePorCosto,
   avancePorHitos,
   avancePorMetrado,
   avancePorTiempo,
   esHojaTarea,
+  migrarAvancePrevio,
   modoMedicionInicial,
   normalizarModoMedicion,
   pasosQueReproducenAvance,
+  recalcularAvances,
 } from '../src/utils/avance'
 import { BadgeModo } from '../src/components/ui/Badge'
 import App from '../src/App'
@@ -784,10 +786,10 @@ comprobar(
   'K respaldo v11 rellena partes vacíos',
   Array.isArray(normV11?.partes_diario) && normV11.partes_diario.length === 0,
 )
-// Un respaldo del esquema actual (v14) incompleto también se rechaza.
-const respaldoV14 = { ...JSON.parse(serial), _v: 14 }
-delete respaldoV14.cargos
-comprobar('K respaldo del esquema actual incompleto se rechaza', validarRespaldo(respaldoV14).ok === false)
+// Un respaldo del esquema actual (v15) incompleto también se rechaza.
+const respaldoV15 = { ...JSON.parse(serial), _v: 15 }
+delete respaldoV15.cargos
+comprobar('K respaldo del esquema actual incompleto se rechaza', validarRespaldo(respaldoV15).ok === false)
 // Un respaldo v13 completo (parte diario en % y el flag `avance_por_partes`)
 // se acepta: el parte migra a metrado y el flag desaparece, sin perder avance.
 const tarea15 = ESTADO_INICIAL.tareas.find((t) => t.id === 15)
@@ -1799,32 +1801,30 @@ comprobar(
     agruparPartesPorMes(partesDemo)['2026-10'].length === 3,
 )
 
-// El avance real de una tarea se deriva de sus partes (sin duplicar datos).
-const tareasRec = [
-  { id: 10, servicio_id: 500, avance: 0 },
-  { id: 11, servicio_id: 500, avance: 5 },
-  { id: 12, servicio_id: 500, avance: 90 },
-]
-const cambiosRec = recalcularAvanceTareas({
-  partes: partesDeServicio(partesDemo, 500),
-  tareas: tareasRec,
-  servicioId: 500,
-})
-const cambio10 = cambiosRec.find((c) => c.id === 10)
+// El avance real de una tarea se deriva de su medición: `recalcularAvances`
+// (Fase C) es la ÚNICA fuente de verdad de `tarea.avance`.
+const estadoRec = {
+  servicios: [{ id: 500 }],
+  registros_servicio: [],
+  tareas: [
+    { id: 20, servicio_id: 500, modo_medicion: 'metrado', metrado: 500 },
+    { id: 21, servicio_id: 500, modo_medicion: 'manual', avance: 90, nota_justificacion: 'x' },
+  ],
+  partes_diario: [
+    { id: 1, servicio_id: 500, fecha: '2026-10-01', partidas: [{ tarea_id: 20, metrado_dia: 100 }] },
+    { id: 2, servicio_id: 500, fecha: '2026-10-02', partidas: [{ tarea_id: 20, metrado_dia: 50 }] },
+  ],
+}
+const recalculado = recalcularAvances(estadoRec)
 comprobar(
-  'parte diario: recalcular deriva el avance de las tareas con partes y no toca las demás',
-  cambio10?.avance === 50 && cambiosRec.find((c) => c.id === 12) === undefined,
+  'fase C: recalcularAvances deriva el metrado (150/500 = 30 %) y respeta el modo manual',
+  recalculado.tareas.find((t) => t.id === 20).avance === 30 &&
+    recalculado.tareas.find((t) => t.id === 21).avance === 90,
 )
-// Una tarea sin metrado sigue la vía legado; sin partes no se gobierna (la
-// semilla demo no se mueve al guardar un parte de otra partida).
-const cambioSinPartes = recalcularAvanceTareas({
-  partes: [],
-  tareas: [{ id: 10, servicio_id: 500, avance: 50, modo_medicion: 'metrado', metrado: 100 }],
-  servicioId: 500,
-})
 comprobar(
-  'parte diario: sin partes la tarea no se gobierna (conserva su avance)',
-  cambioSinPartes.length === 0,
+  'fase C: recalcularAvances es idempotente (devuelve la misma referencia sin cambios)',
+  recalcularAvances(recalculado) === recalculado &&
+    recalcularAvances(estadoRec, '2026-10-15') !== estadoRec,
 )
 
 // --- Fase B: metrado ejecutado en el parte ---
@@ -1980,18 +1980,18 @@ comprobar(
 comprobar(
   'parte diario: recalcular deriva metrado e hitos de sus partes',
   (() => {
-    const cambios = recalcularAvanceTareas({
-      partes: [
+    const recalculado = recalcularAvances({
+      servicios: [{ id: 500 }],
+      registros_servicio: [],
+      partes_diario: [
         ...partesMetrado,
         { id: 3, servicio_id: 500, fecha: '2026-10-03', partidas: [{ tarea_id: 21, hitos: [1] }] },
       ],
       tareas: [tareaMetrado, { ...tareaHitos, pasos: [{ id: 1, peso: 40, estado: 'cumplido' }] }],
-      servicioId: 500,
     })
-    return (
-      cambios.find((c) => c.id === 20)?.avance === 30 &&
-      cambios.find((c) => c.id === 21)?.avance === 40
-    )
+    const t20 = recalculado.tareas.find((t) => t.id === 20)
+    const t21 = recalculado.tareas.find((t) => t.id === 21)
+    return t20.avance === 30 && t21.avance === 40
   })(),
 )
 comprobar(
@@ -2165,15 +2165,12 @@ comprobar(
 )
 
 // La semilla arranca vacía para no mover la línea base del servicio 6.
+const seedDerivado = recalcularAvances(migrarAvancePrevio(ESTADO_INICIAL))
 comprobar(
-  'parte diario: la semilla arranca vacía y no altera el avance del servicio 6',
+  'fase C: la semilla arranca vacía y el avance del servicio 6 se conserva',
   Array.isArray(ESTADO_INICIAL.partes_diario) &&
     ESTADO_INICIAL.partes_diario.length === 0 &&
-    recalcularAvanceTareas({
-      partes: ESTADO_INICIAL.partes_diario,
-      tareas: ESTADO_INICIAL.tareas,
-      servicioId: 6,
-    }).length === 0,
+    metricasCronograma(seedDerivado.tareas.filter((t) => t.servicio_id === 6)).avanceGlobal === 47,
 )
 
 // ============================================================

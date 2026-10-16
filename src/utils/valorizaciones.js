@@ -77,6 +77,17 @@ export function metradoPrevio(valorizaciones = [], tareaId) {
   return r4(total)
 }
 
+// Valorizaciones que ya usaron el metrado de alguna de estas tareas (su importe
+// del periodo fue mayor que cero). Sirve para AVISAR antes de editar o borrar un
+// parte: el avance se ajusta de forma consistente, pero lo ya valorizado no se
+// recalcula solo.
+export function valorizacionesQueUsanTareas(valorizaciones = [], tareaIds = []) {
+  const ids = new Set(tareaIds ?? [])
+  return (valorizaciones ?? []).filter((v) =>
+    (v.items ?? []).some((i) => ids.has(i.tarea_id) && n(i.metrado_periodo) > 0),
+  )
+}
+
 // Total de adelantos registrados de un tipo: 'directo' | 'materiales'.
 export function totalAdelantos(adelantos = [], servicioId, tipo) {
   return r2(

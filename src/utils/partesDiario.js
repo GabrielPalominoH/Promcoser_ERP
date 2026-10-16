@@ -9,7 +9,7 @@
 // nombres se resuelven al pintar) y el avance de una tarea se DERIVA de la suma
 // de los metrados ejecutados de sus partes (`metradoEjecutadoAcumulado`). Así el
 // parte es el único punto donde se teclea el progreso diario y `tarea.avance`
-// queda sincronizado por `recalcularAvanceTareas`.
+// queda sincronizado por `recalcularAvances` (src/utils/avance.js).
 //
 // Los partes anteriores a la Fase B (avance diario en %) se migran con
 // `migrarPartesAMetrado` cuando la tarea tiene metrado contratado; los de
@@ -17,7 +17,18 @@
 //
 // Módulo puro: no toca localStorage, IndexedDB ni el estado de React.
 
-import { avancePorHitos, avancePorMetrado, esHojaTarea } from './avance'
+import {
+  avancePorHitos,
+  avancePorMetrado,
+  esHojaTarea,
+  metradoDeFila,
+  metradoEjecutadoAcumulado,
+} from './avance'
+
+// Re-exportados: el metrado de los partes ahora vive en `avance.js` (módulo del
+// que se deriva `tarea.avance`), pero se mantienen accesibles desde aquí para
+// no romper a quien los consumía (`reportes.js`, la suite).
+export { metradoDeFila, metradoEjecutadoAcumulado }
 
 const n = (x) => Number(x) || 0
 const clamp01a100 = (x) => Math.min(100, Math.max(0, x))
@@ -118,26 +129,9 @@ export function avanceAcumulado(partes = [], tareaId) {
 // ------------------------------------------------------------
 //  Metrado ejecutado (Fase B)
 // ------------------------------------------------------------
-
-// Metrado del día de una fila (null = la fila no es de metrado: legado o hito).
-export function metradoDeFila(fila) {
-  if (fila?.metrado_dia == null || fila.metrado_dia === '') return null
-  const valor = Number(fila.metrado_dia)
-  return Number.isFinite(valor) ? valor : null
-}
-
-// Suma del metrado ejecutado de una tarea en los partes dados (sin tope).
-export function metradoEjecutadoAcumulado(partes = [], tareaId) {
-  let total = 0
-  for (const p of partes ?? []) {
-    for (const x of p.partidas ?? []) {
-      if (x.tarea_id !== tareaId) continue
-      const metrado = metradoDeFila(x)
-      if (metrado != null) total += metrado
-    }
-  }
-  return dosDecimales(total)
-}
+// `metradoDeFila` y `metradoEjecutadoAcumulado` viven en `avance.js` (se
+// importan y re-exportan arriba): el avance se deriva de ellos y desde la
+// Fase C son la misma fuente de verdad.
 
 // Estado de una fila de metrado: acumulado (otros partes + hoy), saldo por
 // ejecutar, % resultante, rendimiento del día y tope con tolerancia. Nunca
@@ -353,33 +347,6 @@ export function personalPresenteSugerido({
         tarea_id: a.tarea_id ?? null,
       }
     })
-}
-
-// Recalcula `tarea.avance` desde los partes diarios. Solo toca las tareas que
-// aparecen en algún parte (las demás conservan su avance: la semilla demo
-// arranca sin partes y no se mueve). El valor sale de `avanceDePartes`, que
-// respeta el modo: metrado, hitos o el % legado de los partes anteriores.
-// Devuelve la lista de cambios a aplicar con `actualizarItem('tareas', ...)`.
-export function recalcularAvanceTareas({ partes = [], tareas = [], servicioId } = {}) {
-  const delServicio = (partes ?? []).filter(
-    (p) => servicioId == null || p.servicio_id === servicioId,
-  )
-  const referenciadas = new Set()
-  for (const p of delServicio) {
-    for (const x of p.partidas ?? []) {
-      if (x.tarea_id != null) referenciadas.add(x.tarea_id)
-    }
-  }
-
-  const cambios = []
-  for (const t of tareas ?? []) {
-    if (servicioId != null && t.servicio_id !== servicioId) continue
-    if (!referenciadas.has(t.id)) continue
-
-    const nuevo = avanceDePartes({ tarea: t, partes: delServicio })
-    if (n(t.avance) !== nuevo) cambios.push({ id: t.id, avance: nuevo })
-  }
-  return cambios
 }
 
 // Peso total (bytes) de las fotos de una colección de partes, según su metadata.

@@ -28,6 +28,10 @@
 //       diario en %; el parte también marca pasos cumplidos (hitos) y guarda
 //       quién y cuándo. Los `avance_dia` de tareas con metrado se migran a
 //       metrado (pérdida cero); el flag `avance_por_partes` desaparece.
+//  15 = `tarea.avance` pasa a ser un CACHÉ DERIVADO de la medición (Fase C):
+//       se recalcula por modo con `recalcularAvances` al cargar/restaurar y
+//       tras cada cambio. `metrado_previo`/`costo_previo` guardan lo ejecutado
+//       antes del sistema para que ningún avance ya registrado se mueva.
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -36,15 +40,28 @@ import {
   migrarEstadoV1,
   migrarPresupuestoATareas,
 } from './mockData'
-import { normalizarModoMedicion } from '../utils/avance'
+import {
+  migrarAvancePrevio,
+  normalizarModoMedicion,
+  recalcularAvances,
+} from '../utils/avance'
+import { hoyISO } from '../utils/calculadora'
 import { migrarPartesAMetrado } from '../utils/partesDiario'
 
-export const VERSION_ESQUEMA = 14
+export const VERSION_ESQUEMA = 15
 
-// Normalización al cargar/importar: primero el modo de medición de cada hoja,
-// luego la migración del parte diario (metrado). Ambas son idempotentes.
+// Normalización al cargar/importar (todo idempotente): modo de medición de
+// cada hoja, migración del parte diario (metrado), fijación del ejecutado
+// previo y recálculo final del avance como caché derivado.
 function normalizarEstado(estado) {
-  return migrarPartesAMetrado(normalizarModoMedicion(estado))
+  const migrado = migrarAvancePrevio(migrarPartesAMetrado(normalizarModoMedicion(estado)))
+  return recalcularAvances(migrado, hoyISO())
+}
+
+// Estado inicial ya normalizado (mismo contenido de siempre, con el avance
+// derivado y el ejecutado previo fijado). Lo usa el proveedor al restablecer.
+export function estadoInicial() {
+  return normalizarEstado(ESTADO_INICIAL)
 }
 
 const memoria = {}

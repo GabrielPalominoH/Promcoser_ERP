@@ -1,26 +1,28 @@
-// Modo de medición del avance de cada tarea HOJA (Fase A).
+// Modo de medición del avance de cada tarea HOJA (Fase A) y recálculo del
+// avance de todo el cronograma como CACHÉ derivado (Fase C).
 //
 // El avance de una partida no debe teclearse: se deriva de un dato real que
 // depende de cómo se mida esa partida. Cada hoja declara `modo_medicion` y
 // este módulo (puro) sabe resolver cada modo:
 //
-//   metrado  metrado ejecutado acumulado ÷ metrado contratado × 100
+//   metrado  (metrado previo + metrado de los partes) ÷ metrado contratado × 100
 //   hitos    suma de los pesos de los pasos cumplidos (los pesos suman 100)
 //   tiempo   días laborables transcurridos ÷ duración × 100, con el
 //            calendario de obra y acotado a la fecha de corte ("hoy")
-//   costo    costo ejecutado ÷ presupuesto de la partida × 100
+//   costo    (costo previo + costo ejecutado) ÷ presupuesto de la partida × 100
 //   manual   excepción: el avance se fija a mano y exige una nota de
 //            justificación; se marca en el Gantt y en Partidas
 //
 // Solo aplica a HOJAS: los padres siguen derivándose de sus hijas con
-// `avanceEfectivo` (src/utils/calculadora.js), que no cambia. En la Fase A el
-// número que se muestra sigue siendo `tarea.avance` (la migración no toca
-// ningún avance); estos cálculos se conectan como fuente única de verdad en
-// la Fase C. La Fase B (parte diario) ya captura el metrado ejecutado del día
-// en `metrado_dia` y los pasos cumplidos: `normalizarModoMedicion` también
-// retira el flag `avance_por_partes`, ya deprecado.
+// `avanceEfectivo` (src/utils/calculadora.js). `recalcularAvances` es la ÚNICA
+// fuente de verdad de `tarea.avance`: derive cada hoja por su modo y cada padre
+// de sus hijas, y la app la invoca al cargar/restaurar y tras cada cambio de
+// estado (el reducer central). `metrado_previo`/`costo_previo` guardan lo ya
+// ejecutado ANTES de usar el sistema, de modo que conectar la medición no
+// mueve ningún avance ya registrado (migración `migrarAvancePrevio`).
 
-import { diasLaborablesRango } from './calendario'
+import { calendarioDe, diasLaborablesRango } from './calendario'
+import { avanceEfectivo, costoPorTarea, hoyISO, montoTarea } from './calculadora'
 
 // Orden fijo de UI y catálogo de modos válidos.
 export const MODOS_MEDICION = ['metrado', 'hitos', 'tiempo', 'costo', 'manual']
@@ -126,6 +128,122 @@ export function avanceManual(tarea) {
 }
 
 // ------------------------------------------------------------
+//  Metrado ejecutado en los partes (Fase B)
+// ------------------------------------------------------------
+
+const n = (x) => Number(x) || 0
+// Dos decimales: el metrado es una cantidad de obra, no dinero.
+const dosDecimales = (x) => Math.round((Number(x) || 0) * 100) / 100
+
+// Metrado del día de una fila (null = la fila no es de metrado: legado o hito).
+export function metradoDeFila(fila) {
+  if (fila?.metrado_dia == null || fila.metrado_dia === '') return null
+  const valor = Number(fila.metrado_dia)
+  return Number.isFinite(valor) ? valor : null
+}
+
+// Suma del metrado ejecutado de una tarea en los partes dados (sin tope).
+export function metradoEjecutadoAcumulado(partes = [], tareaId) {
+  let total = 0
+  for (const p of partes ?? []) {
+    for (const x of p.partidas ?? []) {
+      if (x.tarea_id !== tareaId) continue
+      const metrado = metradoDeFila(x)
+      if (metrado != null) total += metrado
+    }
+  }
+  return dosDecimales(total)
+}
+
+// ¿Algún parte referencia esta tarea? Sirve para saber si corresponde fijar el
+// ejecutado previo (una tarea que ya se mide por partes no lo necesita).
+export function tienePartesDe(partes = [], tareaId) {
+  return (partes ?? []).some((p) =>
+    (p?.partidas ?? []).some((x) => x?.tarea_id === tareaId),
+  )
+}
+
+// ------------------------------------------------------------
+//  Resolución de `tarea.avance` por modo (fuente única, Fase C)
+// ------------------------------------------------------------
+
+// Avance de una tarea HOJA según su modo, a partir del contexto disponible:
+//   { partes, registros, tareas, hoy, calendario }
+// Nunca lanza: sin datos devuelve un número (0..100) y no un NaN.
+export function avanceDeTarea(tarea, contexto = {}) {
+  if (!tarea) return 0
+  const partes = contexto.partes ?? []
+  const modo = esModoMedicion(tarea.modo_medicion) ? tarea.modo_medicion : 'manual'
+  switch (modo) {
+    case 'metrado': {
+      const ejecutado = dosDecimales(
+        n(tarea.metrado_previo) + metradoEjecutadoAcumulado(partes, tarea.id),
+      )
+      return avancePorMetrado({ metrado: tarea.metrado, ejecutado })
+    }
+    case 'hitos':
+      return avancePorHitos(tarea.pasos)
+    case 'tiempo':
+      return avancePorTiempo({
+        fecha_inicio: tarea.fecha_inicio,
+        fecha_fin: tarea.fecha_fin,
+        hoy: contexto.hoy,
+        calendario: contexto.calendario,
+      })
+    case 'costo': {
+      const costo = dosDecimales(
+        n(tarea.costo_previo) +
+          costoPorTarea(contexto.registros ?? [], tarea.servicio_id, tarea.id),
+      )
+      return avancePorCosto({ presupuesto: montoTarea(tarea, contexto.tareas), costo })
+    }
+    case 'manual':
+    default:
+      return avanceManual(tarea)
+  }
+}
+
+// Recalcula `tarea.avance` de TODAS las tareas (caché derivado): cada hoja por
+// su modo y cada padre ponderando a sus hijas como `avanceEfectivo`. Devuelve
+// la MISMA referencia del estado cuando no hay nada que cambiar (idempotente),
+// de modo que no provoca repintados ni rompe la igualdad referencial.
+export function recalcularAvances(estado, hoy = hoyISO()) {
+  if (!estado || typeof estado !== 'object' || !Array.isArray(estado.tareas)) {
+    return estado
+  }
+  const tareas = estado.tareas
+  const partes = estado.partes_diario ?? []
+  const registros = estado.registros_servicio ?? []
+  const calendarioPorServicio = new Map(
+    (estado.servicios ?? []).map((s) => [s.id, calendarioDe(s)]),
+  )
+
+  let cambio = false
+  const conHojas = tareas.map((t) => {
+    if (!esHojaTarea(t, tareas)) return t
+    const nuevo = avanceDeTarea(t, {
+      partes,
+      registros,
+      tareas,
+      hoy,
+      calendario: calendarioPorServicio.get(t.servicio_id),
+    })
+    if (n(t.avance) === nuevo) return t
+    cambio = true
+    return { ...t, avance: nuevo }
+  })
+  const finales = conHojas.map((t) => {
+    if (esHojaTarea(t, tareas)) return t
+    const nuevo = acotarAvance(avanceEfectivo(t, conHojas))
+    if (n(t.avance) === nuevo) return t
+    cambio = true
+    return { ...t, avance: nuevo }
+  })
+
+  return cambio ? { ...estado, tareas: finales } : estado
+}
+
+// ------------------------------------------------------------
 //  Asignación inicial y migración
 // ------------------------------------------------------------
 
@@ -214,4 +332,51 @@ export function normalizarModoMedicion(estado) {
   if (sinCambios) return estado
 
   return { ...estado, tareas }
+}
+
+// Migración de la Fase C (idempotente): fija cuánto se había ejecutado ANTES de
+// que la tarea se midiera por su modo, para que conectar la medición automática
+// no mueva ningún avance ya registrado.
+//
+//   metrado  una hoja con metrado contratado y SIN partes: el avance guardado
+//            se traduce a metrado ejecutado (`avance × metrado ÷ 100`). Una
+//            hoja que ya tiene partes parte de 0 (su avance ya sale de ellas).
+//   costo    una hoja medida por costo: el avance guardado se traduce a un
+//            costo ejecutado de referencia y se le resta lo ya registrado, de
+//            modo que el cociente (previo + registros) ÷ presupuesto devuelva
+//            el avance que traía.
+//   resto    no se toca (tiempo/hitos/manual ya son reproducibles).
+//
+// Solo escribe el campo cuando falta (`== null`); devuelve la MISMA referencia
+// si no hay nada que fijar, tal como exige la suite de migraciones.
+export function migrarAvancePrevio(estado) {
+  if (!estado || typeof estado !== 'object' || !Array.isArray(estado.tareas)) return estado
+
+  const partes = Array.isArray(estado.partes_diario) ? estado.partes_diario : []
+  const registros = Array.isArray(estado.registros_servicio) ? estado.registros_servicio : []
+  const tareas = estado.tareas
+
+  let cambio = false
+  const salida = tareas.map((t) => {
+    if (!esHojaTarea(t, tareas)) return t
+
+    if (t.modo_medicion === 'metrado' && t.metrado_previo == null && Number(t.metrado) > 0) {
+      if (tienePartesDe(partes, t.id)) return t
+      cambio = true
+      return { ...t, metrado_previo: dosDecimales((n(t.avance) * Number(t.metrado)) / 100) }
+    }
+
+    if (t.modo_medicion === 'costo' && t.costo_previo == null) {
+      const base = montoTarea(t, tareas)
+      if (base <= 0) return t
+      const ejecutado = costoPorTarea(registros, t.servicio_id, t.id)
+      const previo = Math.max(0, dosDecimales((n(t.avance) * base) / 100 - ejecutado))
+      cambio = true
+      return { ...t, costo_previo: previo }
+    }
+
+    return t
+  })
+
+  return cambio ? { ...estado, tareas: salida } : estado
 }

@@ -2,9 +2,11 @@ import { createContext, useEffect, useMemo, useReducer, useState } from 'react'
 import { ESTADO_INICIAL } from '../data/mockData'
 import {
   cargarEstado as cargarEstadoCentral,
+  estadoInicial as estadoInicialCentral,
   guardarEstado as persistirEstado,
   siguienteId as siguienteIdCentral,
 } from '../data/store'
+import { recalcularAvances } from '../utils/avance'
 
 const DataContext = createContext(null)
 
@@ -176,12 +178,24 @@ export function dataReducer(estado, accion) {
   }
 }
 
+// Envuelve al reducer genérico: tras CADA cambio recalcula `tarea.avance` como
+// caché derivado de la medición (Fase C), de modo que no quede ningún camino
+// alternativo que escriba el avance a mano. Al restablecer vuelve al estado
+// inicial YA normalizado (con el ejecutado previo y el avance recalculados).
+// Devuelve la MISMA referencia cuando nada cambia (idempotente).
+export function reducerConAvance(estado, accion) {
+  if (accion?.type === 'RESTABLECER') return estadoInicialCentral()
+  const siguiente = dataReducer(estado, accion)
+  if (siguiente === estado) return estado
+  return recalcularAvances(siguiente)
+}
+
 // ------------------------------------------------------------
 //  Provider
 // ------------------------------------------------------------
 
 export function DataProvider({ children }) {
-  const [estado, dispatch] = useReducer(dataReducer, null, cargarEstadoCentral)
+  const [estado, dispatch] = useReducer(reducerConAvance, null, cargarEstadoCentral)
   const [falloGuardado, setFalloGuardado] = useState(false)
 
   useEffect(() => {

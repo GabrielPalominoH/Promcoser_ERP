@@ -41,10 +41,10 @@ import {
   partidasMedibles,
   partesDeServicio,
   personalPresenteSugerido,
-  recalcularAvanceTareas,
   resumenParte,
   resumenPeriodo,
 } from '../../utils/partesDiario'
+import { valorizacionesQueUsanTareas } from '../../utils/valorizaciones'
 import { htmlParteDiario, imprimirHTML } from '../../utils/reportes'
 import {
   CALIDAD_FOTO,
@@ -1228,47 +1228,51 @@ export function ParteDiarioServicio() {
     }
   }
 
-  const recomputarAvance = (coleccionDePartes, tareasBase = tareasServicio) => {
-    recalcularAvanceTareas({
-      partes: coleccionDePartes,
-      tareas: tareasBase,
-      servicioId: servicio.id,
-    }).forEach((cambio) => actualizarItem('tareas', cambio))
-  }
-
+  // El avance de `tarea.avance` lo recalcula el reducer central a partir de los
+  // partes y del modo de cada tarea: aquí solo se guardan los datos.
   const guardarParte = (datos, existente, tareasHitos = []) => {
-    // Los pasos marcados en el parte se aplican a la tarea (quién y cuándo); el
-    // recálculo usa la tarea ya actualizada para no pintar un avance viejo.
-    const tareasActualizadas = tareasHitos.length
-      ? tareasServicio.map((t) => {
-          const cambio = tareasHitos.find((c) => c.id === t.id)
-          return cambio ? { ...t, pasos: cambio.pasos } : t
-        })
-      : tareasServicio
+    // Los pasos marcados en el parte se aplican a la tarea (quién y cuándo).
     tareasHitos.forEach((cambio) => actualizarItem('tareas', cambio))
 
-    let parteFinal
     if (existente) {
-      parteFinal = { ...existente, ...datos }
       actualizarItem('partes_diario', { id: existente.id, ...datos })
     } else {
-      parteFinal = agregarItem('partes_diario', { servicio_id: servicio.id, ...datos })
+      agregarItem('partes_diario', { servicio_id: servicio.id, ...datos })
     }
-    const coleccion = existente
-      ? partes.map((p) => (p.id === existente.id ? parteFinal : p))
-      : [...partes, parteFinal]
-    recomputarAvance(coleccion, tareasActualizadas)
-    setAviso({
-      tipo: 'exito',
-      mensaje: `Parte del ${formatearFecha(datos.fecha)} ${existente ? 'actualizado' : 'registrado'}.`,
-    })
+
+    const avisoValorizado = avisoMetradoValorizado(datos.partidas)
+    setAviso(
+      avisoValorizado ?? {
+        tipo: 'exito',
+        mensaje: `Parte del ${formatearFecha(datos.fecha)} ${existente ? 'actualizado' : 'registrado'}.`,
+      },
+    )
   }
 
   const eliminarParte = (parte) => {
     ;(parte.fotos ?? []).forEach((f) => borrarFoto(f.id))
     eliminarItem('partes_diario', parte.id)
-    recomputarAvance(partes.filter((p) => p.id !== parte.id))
-    setAviso({ tipo: 'info', mensaje: `Parte del ${formatearFecha(parte.fecha)} eliminado.` })
+    // El avance retrocede solo (lo recalcula el reducer); lo ya valorizado no.
+    setAviso(
+      avisoMetradoValorizado(parte.partidas) ?? {
+        tipo: 'info',
+        mensaje: `Parte del ${formatearFecha(parte.fecha)} eliminado.`,
+      },
+    )
+  }
+
+  // Avisa (sin bloquear) cuando el metrado que toca este parte ya se valorizó:
+  // el avance se ajusta igual, pero la valorización emitida no se rehace sola.
+  const avisoMetradoValorizado = (partidas) => {
+    const ids = (partidas ?? []).map((f) => f?.tarea_id).filter((x) => x != null)
+    if (ids.length === 0) return null
+    const usadas = valorizacionesQueUsanTareas(estado.valorizaciones, ids)
+    if (usadas.length === 0) return null
+    const numeros = usadas.map((v) => v.numero).filter((x) => x != null).join(', ')
+    return {
+      tipo: 'warning',
+      mensaje: `Este metrado ya se incluyó en la valorización N° ${numeros || '—'}. El avance se ajusta, pero esa valorización no se recalcula sola.`,
+    }
   }
 
   const moverMes = (delta) => {
