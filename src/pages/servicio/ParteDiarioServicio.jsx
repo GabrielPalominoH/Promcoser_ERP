@@ -38,7 +38,7 @@ import {
   resumenParte,
   resumenPeriodo,
 } from '../../utils/partesDiario'
-import { htmlParteDiario, imprimirHTML } from '../../utils/parteImpresion'
+import { htmlParteDiario, imprimirHTML } from '../../utils/reportes'
 import {
   CALIDAD_FOTO,
   MAX_LADO_FOTO,

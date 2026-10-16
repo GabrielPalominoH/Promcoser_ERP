@@ -29,6 +29,9 @@ import {
   saldoAdelantos,
 } from '../../utils/valorizaciones'
 import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
+import { libroValorizaciones } from '../../utils/exportaciones'
+import { descargarLibro } from '../../utils/descargas'
+import { htmlValorizacion, imprimirHTML } from '../../utils/reportes'
 
 function Dato({ etiqueta, valor, tono = 'text-slate-900', nota }) {
   return (
@@ -322,6 +325,22 @@ export function ValorizacionesServicio() {
     setAviso({ tipo: 'info', mensaje: `Valorización N° ${v.numero} eliminada.` })
   }
 
+  // Exportación a Excel y PDF de las valorizaciones del servicio.
+  const exportarExcel = () => {
+    const ok = descargarLibro(libroValorizaciones({ servicio, valorizaciones, generado: hoyISO() }))
+    setAviso(
+      ok
+        ? { tipo: 'exito', mensaje: 'Valorizaciones exportadas a Excel.' }
+        : { tipo: 'error', mensaje: 'No se pudo exportar las valorizaciones.' },
+    )
+  }
+
+  const imprimirValorizacion = (v) => {
+    if (!imprimirHTML(htmlValorizacion({ servicio, valorizacion: v }))) {
+      setAviso({ tipo: 'error', mensaje: 'La impresión no está disponible en este entorno.' })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
@@ -330,9 +349,18 @@ export function ValorizacionesServicio() {
         titulo="Valorizaciones"
         descripcion="Cobro del avance por partida, con amortización de adelantos, fondo de garantía, IGV y detracción."
         acciones={
-          <Button onClick={() => setModal('nueva')} disabled={tareas.length === 0}>
-            Nueva valorización
-          </Button>
+          <>
+            <Button
+              variante="secundario"
+              onClick={exportarExcel}
+              disabled={valorizaciones.length === 0}
+            >
+              Exportar Excel
+            </Button>
+            <Button onClick={() => setModal('nueva')} disabled={tareas.length === 0}>
+              Nueva valorización
+            </Button>
+          </>
         }
       >
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -554,9 +582,12 @@ export function ValorizacionesServicio() {
           descripcion={`Fecha ${formatearFecha(ver.fecha)}`}
           onCerrar={() => setVerId(null)}
           pie={
-            <Button variante="secundario" onClick={() => setVerId(null)}>
-              Cerrar
-            </Button>
+            <>
+              <Button variante="secundario" onClick={() => setVerId(null)}>
+                Cerrar
+              </Button>
+              <Button onClick={() => imprimirValorizacion(ver)}>Imprimir / PDF</Button>
+            </>
           }
         >
           <div className="space-y-4">

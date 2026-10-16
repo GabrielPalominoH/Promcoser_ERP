@@ -20,6 +20,8 @@ import {
 } from '../../utils/calendario'
 import { normalizar } from '../../components/ui/ComboBox'
 import { Buscador, textoCoincide } from '../../components/ui/FiltroBusqueda'
+import { libroCronograma } from '../../utils/exportaciones'
+import { descargarLibro } from '../../utils/descargas'
 import { RedPERT } from './RedPERT'
 
 // En SSR useLayoutEffect avisa; cae a useEffect en el servidor.
@@ -1057,6 +1059,16 @@ export function CronogramaServicio() {
     })
   }
 
+  // Exportación a Excel del cronograma (cabecera con obra, cliente y periodo).
+  const exportarExcel = () => {
+    const ok = descargarLibro(libroCronograma({ servicio, tareas, generado: hoy }))
+    setAviso(
+      ok
+        ? { tipo: 'exito', mensaje: 'Cronograma exportado a Excel.' }
+        : { tipo: 'error', mensaje: 'No se pudo exportar el cronograma.' },
+    )
+  }
+
   // --- Geometría de las filas para dibujar las flechas de dependencia -----
   const filaRefs = useRef(new Map())
   const [alturaFila, setAlturaFila] = useState({})
@@ -1107,6 +1119,9 @@ export function CronogramaServicio() {
               )}
             </div>
           )}
+          <Button variante="secundario" onClick={exportarExcel} disabled={tareas.length === 0}>
+            Exportar Excel
+          </Button>
           <Button variante="secundario" onClick={() => setCalendarioAbierto(true)}>
             Calendario
           </Button>

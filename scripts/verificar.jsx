@@ -44,7 +44,7 @@ import {
   rentabilidadPorCliente,
   variacionMensual,
 } from '../src/utils/gerencial'
-import { redondearMonto, formatearMoneda, normalizarEntradaMonto, formatearEntradaMonto, parsearEntradaMonto } from '../src/utils/formatters'
+import { redondearMonto, formatearMoneda, formatearFecha, normalizarEntradaMonto, formatearEntradaMonto, parsearEntradaMonto } from '../src/utils/formatters'
 import { curvaServicio } from '../src/utils/curvaS'
 import {
   armarLectura,
@@ -107,7 +107,15 @@ import {
   resumenParte,
   resumenPeriodo,
 } from '../src/utils/partesDiario'
-import { htmlParteDiario } from '../src/utils/parteImpresion'
+import { htmlParteDiario, htmlValorizacion, htmlReporteMensualObra, imprimirHTML } from '../src/utils/reportes'
+import { crc32, zipStore, columnaLetra, hojaXML, libroXLSX } from '../src/utils/excel'
+import {
+  libroCronograma,
+  libroValorizaciones,
+  libroCostosPorPartida,
+  libroFlujoCaja,
+} from '../src/utils/exportaciones'
+import { descargarBlob, descargarXLSX, descargarLibro } from '../src/utils/descargas'
 import { escalarDimensiones } from '../src/data/fotos'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
@@ -2170,6 +2178,196 @@ comprobar(
 )
 
 // ============================================================
+//  7.18 Reportes y exportación (Fase 3): .xlsx sin librerías y PDF vía
+//       el diálogo de impresión del navegador.
+// ============================================================
+
+console.log('\n[ reportes y exportación ]')
+
+const serv6 = ESTADO_INICIAL.servicios.find((s) => s.id === 6)
+
+// --- escritor .xlsx (ZIP store + OOXML mínimo) ---------------------------
+comprobar(
+  'xlsx: CRC-32 de control (123456789 = CBF43926)',
+  crc32('123456789') === 0xcbf43926,
+  crc32('123456789').toString(16),
+)
+
+const zipPrueba = zipStore([{ nombre: 'a.txt', contenido: 'hola' }])
+const finZip = zipPrueba.length
+comprobar(
+  'xlsx: el ZIP abre con cabecera local PK\\x03\\x04',
+  zipPrueba[0] === 0x50 && zipPrueba[1] === 0x4b && zipPrueba[2] === 0x03 && zipPrueba[3] === 0x04,
+)
+comprobar(
+  'xlsx: el ZIP cierra con el directorio central PK\\x05\\x06',
+  zipPrueba[finZip - 22] === 0x50 &&
+    zipPrueba[finZip - 21] === 0x4b &&
+    zipPrueba[finZip - 20] === 0x05 &&
+    zipPrueba[finZip - 19] === 0x06,
+)
+comprobar(
+  'xlsx: numeración de columnas (1=A, 26=Z, 27=AA, 28=AB)',
+  columnaLetra(1) === 'A' &&
+    columnaLetra(26) === 'Z' &&
+    columnaLetra(27) === 'AA' &&
+    columnaLetra(28) === 'AB',
+)
+comprobar(
+  'xlsx: escapa los caracteres prohibidos del XML',
+  hojaXML([['a & b < c > d " e \' f']]).includes('a &amp; b &lt; c &gt; d &quot; e &apos; f'),
+)
+comprobar(
+  'xlsx: estilos (cabecera negrita, moneda y porcentaje como número)',
+  hojaXML([[{ v: 'Total', negrita: true }]]).includes('s="1"') &&
+    hojaXML([[{ v: 1234.5, tipo: 'moneda' }]]).includes('s="2"') &&
+    hojaXML([[{ v: 1234.5, tipo: 'moneda' }]]).includes('<v>1234.5</v>') &&
+    hojaXML([[{ v: 0.29, tipo: 'porcentaje' }]]).includes('s="4"'),
+)
+
+// Como el ZIP va sin comprimir, el XML viaja legible dentro de los bytes.
+const textoDe = (bytes) => new TextDecoder('utf-8').decode(bytes)
+
+// --- exportación: cronograma ---------------------------------------------
+const libroCron = libroCronograma({
+  servicio: serv6,
+  tareas: ESTADO_INICIAL.tareas,
+  generado: '2026-10-16',
+})
+const textoCron = textoDe(libroXLSX({ hojas: libroCron.hojas }))
+comprobar(
+  'xlsx cronograma: cabecera con empresa, obra, cliente y fecha de emisión',
+  textoCron.includes('PROMCOSER') &&
+    textoCron.includes(serv6.nombre_servicio) &&
+    textoCron.includes(serv6.cliente) &&
+    textoCron.includes('16/10/2026'),
+  serv6.nombre_servicio,
+)
+comprobar(
+  'xlsx cronograma: trae las tareas y el monto del servicio (335000)',
+  textoCron.includes('Obras preliminares y trazo') &&
+    textoCron.includes('<v>335000</v>') &&
+    textoCron.includes('Predecesoras'),
+)
+comprobar(
+  'xlsx: incluye las partes del paquete OOXML y la hoja nombrada',
+  textoCron.includes('xl/workbook.xml') &&
+    textoCron.includes('xl/styles.xml') &&
+    textoCron.includes('[Content_Types].xml') &&
+    textoCron.includes('sheet name="Cronograma"'),
+)
+comprobar(
+  'xlsx: el nombre de hoja no repite y el archivo lleva el id del servicio',
+  libroCron.nombre.endsWith('-6') &&
+    libroXLSX({ hojas: [{ nombre: 'Muy largo '.repeat(5), filas: [] }] }).length > 0,
+)
+
+// --- exportación: costos por partida -------------------------------------
+const libroCostos = libroCostosPorPartida({
+  servicio: serv6,
+  tareas: ESTADO_INICIAL.tareas,
+  registros: ESTADO_INICIAL.registros_servicio,
+  generado: '2026-10-16',
+})
+const textoCostos = textoDe(libroXLSX({ hojas: libroCostos.hojas }))
+comprobar(
+  'xlsx costos por partida: monto, valorizado, costo y margen',
+  textoCostos.includes('Monto (S/)') &&
+    textoCostos.includes('Valorizado (S/)') &&
+    textoCostos.includes('Costo (S/)') &&
+    textoCostos.includes('Margen (S/)') &&
+    textoCostos.includes('<v>335000</v>'),
+)
+
+// --- exportación: valorizaciones (dos hojas) -----------------------------
+const libroVal = libroValorizaciones({
+  servicio: servV1,
+  valorizaciones: [val1],
+  generado: '2026-10-16',
+})
+const textoVal = textoDe(libroXLSX({ hojas: libroVal.hojas }))
+comprobar(
+  'xlsx valorizaciones: hojas de resumen y detalle',
+  libroVal.hojas.length === 2 &&
+    libroVal.hojas[0].nombre === 'Valorizaciones' &&
+    libroVal.hojas[1].nombre === 'Detalle' &&
+    textoVal.includes('sheet name="Valorizaciones"') &&
+    textoVal.includes('sheet name="Detalle"'),
+)
+comprobar(
+  'xlsx valorizaciones: bruto y neto del periodo (80000 / 83072)',
+  textoVal.includes('<v>80000</v>') && textoVal.includes('<v>83072</v>'),
+)
+
+// --- exportación: flujo de caja ------------------------------------------
+const flujoDemo = [
+  { mes: '2026-01', cobrado: 1000, egresoObra: 400, oficina: 100, margenReal: 500 },
+  { mes: '2026-02', cobrado: 2000, egresoObra: 500, oficina: 200, margenReal: 1300 },
+]
+const textoCaja = textoDe(
+  libroXLSX({ hojas: libroFlujoCaja({ flujo: flujoDemo, generado: '2026-10-16' }).hojas }),
+)
+comprobar(
+  'xlsx flujo de caja: meses y totales (cobrado 3000, margen 1800)',
+  textoCaja.includes('ene 2026') &&
+    textoCaja.includes('feb 2026') &&
+    textoCaja.includes('<v>3000</v>') &&
+    textoCaja.includes('<v>1800</v>'),
+)
+
+// --- reportes HTML (PDF vía impresión) -----------------------------------
+const htmlVal = htmlValorizacion({
+  servicio: { ...servV1, nombre_servicio: 'Obra Valorizada', cliente: 'Cliente V' },
+  valorizacion: val1,
+  generado: '16/10/2026',
+})
+comprobar(
+  'reporte: la valorización (PDF) trae obra, neto, IGV y detracción',
+  htmlVal.includes('Obra Valorizada') &&
+    htmlVal.includes('Cliente V') &&
+    htmlVal.includes('Neto a pagar') &&
+    htmlVal.includes('IGV') &&
+    htmlVal.includes('Detracción') &&
+    !htmlVal.includes('undefined') &&
+    !htmlVal.includes('NaN'),
+)
+
+const htmlMes = htmlReporteMensualObra({
+  servicio: serv6,
+  mes: '2026-05',
+  tareas: ESTADO_INICIAL.tareas,
+  registros: ESTADO_INICIAL.registros_servicio,
+  cobros: ESTADO_INICIAL.cobros,
+  valorizaciones: ESTADO_INICIAL.valorizaciones,
+  modificaciones: ESTADO_INICIAL.modificaciones,
+  personal: ESTADO_INICIAL.personal,
+  materiales: ESTADO_INICIAL.materiales,
+  equipos: ESTADO_INICIAL.equipos,
+  generado: '16/10/2026',
+})
+comprobar(
+  'reporte: el reporte mensual trae obra, periodo y secciones',
+  htmlMes.includes(serv6.nombre_servicio) &&
+    htmlMes.includes('may 2026') &&
+    htmlMes.includes('Avance del cronograma') &&
+    htmlMes.includes('Costos del mes por tipo') &&
+    htmlMes.includes('Valorizaciones del mes') &&
+    htmlMes.includes('Movimientos del mes') &&
+    !htmlMes.includes('undefined') &&
+    !htmlMes.includes('NaN'),
+  serv6.nombre_servicio,
+)
+
+// En SSR/pruebas (sin DOM) la impresión y las descargas no revientan.
+comprobar('reporte: imprimirHTML no hace nada sin DOM (SSR)', imprimirHTML(htmlMes) === false)
+comprobar(
+  'exportación: las descargas no hacen nada sin DOM (SSR)',
+  descargarBlob(null, 'x') === false &&
+    descargarXLSX(libroXLSX({ hojas: libroCron.hojas }), 'x') === false &&
+    descargarLibro(libroCron) === false,
+)
+
+// ============================================================
 
 console.log('\n[ render ]')
 
@@ -2283,6 +2481,23 @@ comprobar(
     htmlServiciosSeguro.includes('Consumo') &&
     htmlServiciosSeguro.includes('/servicios/6') &&
     !htmlServiciosSeguro.includes('<table'),
+)
+
+// Fase 3: botones de exportación a Excel en las pantallas con datos tabulares
+// y el botón del reporte mensual en el resumen del servicio.
+const htmlCronogramaSSR = htmlsRuta['/servicios/6/cronograma'] ?? ''
+const htmlValorizacionesSSR = htmlsRuta['/servicios/6/valorizaciones'] ?? ''
+const htmlPartidasSSR = htmlsRuta['/servicios/6/partidas'] ?? ''
+comprobar(
+  'exportación: botón Excel en cronograma, valorizaciones, partidas y dashboard',
+  htmlCronogramaSSR.includes('Exportar Excel') &&
+    htmlValorizacionesSSR.includes('Exportar Excel') &&
+    htmlPartidasSSR.includes('Exportar Excel') &&
+    htmlInicioSeguro.includes('Exportar Excel'),
+)
+comprobar(
+  'reporte: botón «Reporte mensual (PDF)» en el resumen del servicio',
+  htmlPanelSeguro.includes('Reporte mensual (PDF)'),
 )
 
 // Módulo Curva S: en el sidebar del servicio y con las tres variables del

@@ -50,6 +50,8 @@ import { GraficoCurvaSCartera, GraficoHistogramaHH } from '../components/charts/
 import { controlCPMCartera, evmCartera } from '../utils/cartera'
 import { serieHorasHombre } from '../utils/horasHombre'
 import { servicioConPresupuestoVigente } from '../utils/modificaciones'
+import { libroFlujoCaja } from '../utils/exportaciones'
+import { descargarLibro } from '../utils/descargas'
 
 function descargarCSV(nombre, filas) {
   const contenido = filas.map((fila) => fila.join(',')).join('\n')
@@ -376,6 +378,16 @@ export function Dashboard() {
       }),
     ])
     setAviso({ tipo: 'exito', mensaje: 'CSV descargado con la rentabilidad por servicio.' })
+  }
+
+  // Exportación a Excel del flujo de caja mensual (cobrado vs egresos).
+  const exportarExcelCaja = () => {
+    const ok = descargarLibro(libroFlujoCaja({ flujo: cajaReal }))
+    setAviso(
+      ok
+        ? { tipo: 'exito', mensaje: 'Flujo de caja exportado a Excel.' }
+        : { tipo: 'error', mensaje: 'No se pudo exportar el flujo de caja.' },
+    )
   }
 
   return (
@@ -863,6 +875,16 @@ export function Dashboard() {
           titulo="Caja real por mes"
           descripcion="Cobrado vs egresos realizados (obra + oficina)"
           className="xl:col-span-3"
+          acciones={
+            <Button
+              variante="secundario"
+              tamano="sm"
+              onClick={exportarExcelCaja}
+              disabled={cajaReal.length === 0}
+            >
+              Exportar Excel
+            </Button>
+          }
         >
           {cajaReal.length === 0 ? (
             <p className="text-sm text-slate-400">Aún no hay movimientos de caja.</p>

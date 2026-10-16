@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
+import { Campo, Input } from '../../components/ui/Field'
+import { Modal } from '../../components/ui/Modal'
 import {
   formatearCantidad,
   formatearMes,
@@ -33,6 +36,7 @@ import { curvaServicio } from '../../utils/curvaS'
 import { lineaBaseVigente } from '../../utils/lineaBase'
 import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
 import { resumenHorasServicio } from '../../utils/horasHombre'
+import { htmlReporteMensualObra, imprimirHTML } from '../../utils/reportes'
 import { usePanelServicio } from './panel'
 
 // Diagrama de cascada vertical: cómo lo cobrado se consume paso a paso
@@ -447,13 +451,19 @@ export function ResumenServicio() {
       registros_servicio: todosLosRegistros,
       tareas: todasLasTareas,
       personal,
+      materiales,
+      equipos,
       asignaciones: todasLasAsignaciones,
       cobros: todosLosCobros,
+      valorizaciones: todasLasValorizaciones,
       lineas_base: lineasBase,
       lecturas_avance: lecturasAvance,
       modificaciones: todasLasModificaciones,
     },
   } = useData()
+
+  const [reporteMesAbierto, setReporteMesAbierto] = useState(false)
+  const [mesReporte, setMesReporte] = useState(() => hoyISO().slice(0, 7))
 
   // El presupuesto contractual vigente (original + adicionales − deductivos
   // aprobados) alimenta el control; el original se conserva aparte para
@@ -547,6 +557,26 @@ export function ResumenServicio() {
   const costoHH = hh.real > 0 ? desglose.personal / hh.real : null
   const alertas = alertasServicio({ estado, dias })
 
+  // Reporte mensual de obra (PDF): resumen, avance, costos y valorizaciones
+  // del mes elegido. Reutiliza las fórmulas puras vía `reportes.js`.
+  const imprimirReporteMensual = () => {
+    imprimirHTML(
+      htmlReporteMensualObra({
+        servicio,
+        mes: mesReporte,
+        tareas: todasLasTareas,
+        registros: todosLosRegistros,
+        cobros: todosLosCobros,
+        valorizaciones: todasLasValorizaciones ?? [],
+        modificaciones: todasLasModificaciones ?? [],
+        personal,
+        materiales: materiales ?? [],
+        equipos: equipos ?? [],
+      }),
+    )
+    setReporteMesAbierto(false)
+  }
+
   return (
     <div className="space-y-6">
       <Card
@@ -554,6 +584,9 @@ export function ResumenServicio() {
         descripcion="Resumen de presupuesto, ingresos, gastos y tiempos."
         acciones={
           <>
+            <Button variante="secundario" tamano="sm" onClick={() => setReporteMesAbierto(true)}>
+              Reporte mensual (PDF)
+            </Button>
             <Button variante="secundario" tamano="sm" onClick={() => window.print()}>
               Imprimir reporte
             </Button>
@@ -1152,6 +1185,30 @@ export function ResumenServicio() {
           </div>
         </div>
       </Card>
+
+      <Modal
+        abierto={reporteMesAbierto}
+        titulo="Reporte mensual de obra"
+        descripcion="Elige el mes; se abrirá el diálogo de impresión (puedes guardarlo como PDF)."
+        onCerrar={() => setReporteMesAbierto(false)}
+        ancho="sm"
+        pie={
+          <>
+            <Button variante="secundario" onClick={() => setReporteMesAbierto(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={imprimirReporteMensual}>Generar reporte</Button>
+          </>
+        }
+      >
+        <Campo label="Mes del reporte">
+          <Input
+            type="month"
+            value={mesReporte}
+            onChange={(evento) => setMesReporte(evento.target.value)}
+          />
+        </Campo>
+      </Modal>
     </div>
   )
 }

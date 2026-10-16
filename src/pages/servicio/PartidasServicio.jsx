@@ -39,8 +39,8 @@ import {
   horasPlanTarea,
   horasRealesTarea,
 } from '../../utils/horasHombre'
-
-
+import { libroCostosPorPartida } from '../../utils/exportaciones'
+import { descargarLibro } from '../../utils/descargas'
 
 // Monto en texto: las hojas se editan con el botón Editar de la fila;
 // los padres con hijas muestran la suma automática (solo lectura).
@@ -272,6 +272,18 @@ export function PartidasServicio() {
     setAviso({ tipo: 'exito', mensaje: `Partida «${tarea.nombre}» actualizada.` })
   }
 
+  // Exportación a Excel de los costos por partida (monto, valorizado, costo).
+  const exportarExcel = () => {
+    const ok = descargarLibro(
+      libroCostosPorPartida({ servicio, tareas, registros: estado.registros_servicio }),
+    )
+    setAviso(
+      ok
+        ? { tipo: 'exito', mensaje: 'Costos por partida exportados a Excel.' }
+        : { tipo: 'error', mensaje: 'No se pudo exportar los costos.' },
+    )
+  }
+
   const montoTotal = presupuestoTareas(tareas, servicio.id)
   const valorizado = tareas
     .filter((t) => t.padre_id == null)
@@ -326,6 +338,11 @@ export function PartidasServicio() {
           montoTotal > 0
             ? `Montos ${formatearMoneda(montoTotal)} · valorizado ${formatearMoneda(valorizado)}`
             : 'Ponle monto a cada tarea: las principales suman solas.'
+        }
+        acciones={
+          <Button variante="secundario" tamano="sm" onClick={exportarExcel} disabled={tareas.length === 0}>
+            Exportar Excel
+          </Button>
         }
       >
         {tareas.length > 0 && (
