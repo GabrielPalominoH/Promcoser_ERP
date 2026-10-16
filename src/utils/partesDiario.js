@@ -133,19 +133,25 @@ export function avanceAcumulado(partes = [], tareaId) {
 // importan y re-exportan arriba): el avance se deriva de ellos y desde la
 // Fase C son la misma fuente de verdad.
 
-// Estado de una fila de metrado: acumulado (otros partes + hoy), saldo por
-// ejecutar, % resultante, rendimiento del día y tope con tolerancia. Nunca
-// devuelve NaN; sin metrado contratado el % es 0 y no hay tope que exceder.
+// Estado de una fila de metrado. Distingue con claridad tres acumulados:
+//   previo          = ejecutado ANTES de usar el sistema (`tarea.metrado_previo`)
+//   acumuladoPartes = metrado de los DEMÁS partes + el del día
+//   acumulado       = previo + acumuladoPartes (TOTAL sobre el que se mide el
+//                     saldo, el % y el tope con tolerancia)
+// Nunca devuelve NaN; sin metrado contratado el % es 0 y no hay tope que exceder.
 export function estadoFilaMetrado({
   tarea,
   metradoDia = 0,
   acumuladoOtros = 0,
+  previo = 0,
   tolerancia = TOLERANCIA_METRADO_DEFECTO,
 } = {}) {
   const contratado = Number(tarea?.metrado) > 0 ? Number(tarea.metrado) : 0
   const delDia = Number(metradoDia) || 0
   const tol = Number(tolerancia) || 0
-  const acumulado = dosDecimales(n(acumuladoOtros) + delDia)
+  const ejecutadoPrevio = dosDecimales(n(previo))
+  const acumuladoPartes = dosDecimales(n(acumuladoOtros) + delDia)
+  const acumulado = dosDecimales(ejecutadoPrevio + acumuladoPartes)
   const tope = dosDecimales(contratado * (1 + tol / 100))
   const excedente = dosDecimales(Math.max(0, acumulado - contratado))
   return {
@@ -153,6 +159,8 @@ export function estadoFilaMetrado({
     unidad: tarea?.unidad ?? '',
     contratado,
     delDia,
+    previo: ejecutadoPrevio,
+    acumuladoPartes,
     acumulado,
     saldo: dosDecimales(Math.max(0, contratado - acumulado)),
     excedente,
@@ -168,7 +176,8 @@ export function estadoFilaMetrado({
 
 // Evalúa las filas de metrado de un parte contra el metrado contratado de su
 // tarea, sumando lo ejecutado en los DEMÁS partes (editar un parte pasado
-// recalcula su acumulado sin contarse dos veces).
+// recalcula su acumulado sin contarse dos veces) y el ejecutado previo de la
+// tarea (`metrado_previo`): el saldo y el tope se miden sobre el total.
 export function evaluarFilasMetrado({
   filas = [],
   tareas = [],
@@ -186,6 +195,7 @@ export function evaluarFilasMetrado({
         tarea,
         metradoDia: metradoDeFila(fila) ?? 0,
         acumuladoOtros: metradoEjecutadoAcumulado(otros, fila?.tarea_id),
+        previo: tarea?.metrado_previo,
         tolerancia,
       }),
     }

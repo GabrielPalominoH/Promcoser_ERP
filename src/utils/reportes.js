@@ -155,15 +155,19 @@ export function htmlParteDiario({
     const t = tareaDe(x.tarea_id)
     const metrado = metradoDeFila(x)
     const esMetrado = metrado != null
-    const acumulado = esMetrado
+    const previo = esMetrado ? Number(t?.metrado_previo) || 0 : 0
+    const acumuladoPartes = esMetrado
       ? metradoEjecutadoAcumulado(partes, x.tarea_id)
       : avanceAcumulado(partes, x.tarea_id)
+    const total = esMetrado ? previo + acumuladoPartes : acumuladoPartes
     return [
       t?.nombre ?? 'Sin tarea',
       t?.unidad ?? '—',
       formatearCantidad(t?.metrado),
       esMetrado ? formatearCantidad(metrado) : `${formatearCantidad(x.avance_dia)} %`,
-      esMetrado ? formatearCantidad(acumulado) : `${formatearCantidad(acumulado)} %`,
+      esMetrado ? formatearCantidad(previo) : '—',
+      esMetrado ? formatearCantidad(acumuladoPartes) : `${formatearCantidad(acumuladoPartes)} %`,
+      esMetrado ? formatearCantidad(total) : `${formatearCantidad(total)} %`,
     ]
   })
 
@@ -187,7 +191,9 @@ export function htmlParteDiario({
       { t: 'UM' },
       { t: 'Metrado', num: true },
       { t: 'Metrado del día', num: true },
-      { t: 'Acumulado', num: true },
+      { t: 'Ejecutado previo', num: true },
+      { t: 'Acumulado en partes', num: true },
+      { t: 'Total acumulado', num: true },
     ],
     filasPartidas,
     'Sin partidas ejecutadas.',

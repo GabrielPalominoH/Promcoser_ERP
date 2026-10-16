@@ -10,6 +10,7 @@
 
 import {
   avanceEfectivo,
+  costoPorTarea,
   costoSubarbol,
   costoSinTarea,
   diasCalendarioRango,
@@ -19,6 +20,7 @@ import {
   presupuestoTareas,
   valorizadoTarea,
 } from './calculadora'
+import { metradoEjecutadoAcumulado } from './avance'
 import { formatearFecha, formatearMes } from './formatters'
 import { resumenValorizaciones } from './valorizaciones'
 
@@ -283,6 +285,7 @@ export function libroCostosPorPartida({
   servicio = {},
   tareas = [],
   registros = [],
+  partes = [],
   generado = hoyISO(),
   empresa = EMPRESA,
 } = {}) {
@@ -294,6 +297,8 @@ export function libroCostosPorPartida({
     fuerte('Partida'),
     fuerte('UM'),
     fuerte('Metrado'),
+    fuerte('Ej. previo'),
+    fuerte('Total acumulado'),
     fuerte('P. Unit. (S/)'),
     fuerte('Monto (S/)'),
     fuerte('Valorizado (S/)'),
@@ -302,15 +307,34 @@ export function libroCostosPorPartida({
     fuerte('Margen (S/)'),
   ]
 
+  // Ejecutado previo y total acumulado (previo + partes/costos). Solo las hojas
+  // en modo metrado (magnitud) o costo (soles) tienen un acumulado comparable.
+  const acumulados = (tarea, esPadre) => {
+    if (esPadre) return { previo: null, total: null }
+    if (tarea.modo_medicion === 'metrado') {
+      const previo = Number(tarea.metrado_previo) || 0
+      return { previo, total: previo + metradoEjecutadoAcumulado(partes, tarea.id) }
+    }
+    if (tarea.modo_medicion === 'costo') {
+      const previo = Number(tarea.costo_previo) || 0
+      return { previo, total: previo + costoPorTarea(registros, servicio.id, tarea.id) }
+    }
+    return { previo: null, total: null }
+  }
+
   const datos = filas.map(({ tarea, nivel, numero }) => {
     const esPadre = propias.some((t) => t.padre_id === tarea.id)
     const valorizado = valorizadoTarea(tarea, propias)
     const costo = costoSubarbol(tarea, propias, registros, servicio.id)
+    const { previo, total } = acumulados(tarea, esPadre)
+    const esCosto = tarea.modo_medicion === 'costo'
     return [
       numero,
       `${'    '.repeat(nivel)}${tarea.nombre}`,
       esPadre ? '—' : (tarea.unidad ?? '—'),
       esPadre || tarea.metrado == null ? '—' : Number(tarea.metrado),
+      previo == null ? '—' : esCosto ? moneda(previo) : previo,
+      total == null ? '—' : esCosto ? moneda(total) : total,
       esPadre || tarea.precio_unitario == null ? '—' : moneda(tarea.precio_unitario),
       moneda(montoTarea(tarea, propias)),
       moneda(valorizado),
@@ -327,10 +351,12 @@ export function libroCostosPorPartida({
   const sinTarea = costoSinTarea(registros, servicio.id)
   if (datos.length > 0) {
     if (sinTarea > 0) {
-      datos.push(['', 'Costo sin tarea asignada', '', '', '', '', '', '', moneda(sinTarea), ''])
+      datos.push(['', 'Costo sin tarea asignada', '', '', '', '', '', '', '', '', moneda(sinTarea), ''])
     }
     datos.push([
       fuerte('Total'),
+      '',
+      '',
       '',
       '',
       '',

@@ -147,6 +147,7 @@ import { FilaPartida } from '../src/pages/servicio/ParteDiarioServicio'
 import { CALENDARIO_POR_DEFECTO, calendarioDe } from '../src/utils/calendario'
 import {
   MODOS_MEDICION,
+  NOTA_MIGRACION_MANUAL,
   acotarAvance,
   avanceDeTarea,
   avanceManual,
@@ -161,6 +162,10 @@ import {
   pasosQueReproducenAvance,
   recalcularAvances,
 } from '../src/utils/avance'
+import {
+  prepararHojaImportada,
+  tareasImportadas,
+} from '../src/utils/importacion'
 import { BadgeModo } from '../src/components/ui/Badge'
 import App from '../src/App'
 
@@ -3331,11 +3336,13 @@ comprobar(
   htmlPartidas.includes('HH est.') && htmlPartidas.includes('HH real') && htmlPartidas.includes('HH/und'),
 )
 
-// Metrado de la partida: columnas UM y Metrado ej., y unidades sembradas.
+// Metrado de la partida: columnas UM, Ej. previo y Total acum. (previo +
+// partes), y unidades sembradas.
 comprobar(
-  'partidas: columnas UM y Metrado ej. con unidades sembradas',
+  'partidas: columnas UM, Ej. previo y Total acum. con unidades sembradas',
   htmlPartidas.includes('>UM<') &&
-    htmlPartidas.includes('Metrado ej.') &&
+    htmlPartidas.includes('Ej. previo') &&
+    htmlPartidas.includes('Total acum.') &&
     htmlPartidas.includes('m³') &&
     htmlPartidas.includes('>Glb<'),
 )
@@ -3754,6 +3761,195 @@ comprobar(
       t13.costo_previo === 3700
     )
   })(),
+)
+
+// ============================================================
+//  Huecos A y B: ejecutado previo visible + importación con modo/avance
+// ============================================================
+
+console.log('\n[ huecos A y B ]')
+
+// --- Hueco A: ejecutado previo visible en UI, reportes y exportaciones ---
+
+// El estado de la fila de metrado separa previo, partes y total, y mide el
+// saldo y el tope sobre el TOTAL (previo + partes).
+const estadoConPrevio = estadoFilaMetrado({
+  tarea: tareaMetrado,
+  metradoDia: 50,
+  acumuladoOtros: 100,
+  previo: 200,
+})
+comprobar(
+  'hueco A: la fila de metrado separa previo, partes y total (200 + 150 = 350)',
+  estadoConPrevio.previo === 200 &&
+    estadoConPrevio.acumuladoPartes === 150 &&
+    estadoConPrevio.acumulado === 350 &&
+    estadoConPrevio.saldo === 150 &&
+    estadoConPrevio.porcentaje === 70 &&
+    estadoConPrevio.excede === false,
+)
+const estadoExcedePrevio = estadoFilaMetrado({
+  tarea: tareaMetrado,
+  metradoDia: 100,
+  acumuladoOtros: 0,
+  previo: 500,
+})
+comprobar(
+  'hueco A: el tope con tolerancia se mide sobre el total (600 > 525)',
+  estadoExcedePrevio.acumulado === 600 &&
+    estadoExcedePrevio.tope === 525 &&
+    estadoExcedePrevio.excede === true &&
+    estadoExcedePrevio.excedente === 100 &&
+    estadoExcedePrevio.saldo === 0,
+)
+const filaEvaluadaPrevio = evaluarFilasMetrado({
+  filas: [{ tarea_id: 20, metrado_dia: 50 }],
+  tareas: [{ ...tareaMetrado, metrado_previo: 200 }],
+  partes: [],
+})[0]
+comprobar(
+  'hueco A: evaluarFilasMetrado suma el metrado previo de la tarea',
+  filaEvaluadaPrevio.previo === 200 &&
+    filaEvaluadaPrevio.acumuladoPartes === 50 &&
+    filaEvaluadaPrevio.acumulado === 250 &&
+    filaEvaluadaPrevio.porcentaje === 50,
+)
+const htmlFilaPrevio = renderToString(
+  <FilaPartida
+    {...propsFila}
+    fila={{ tarea_id: 20, metrado_dia: 50, nota: '' }}
+    tipo="metrado"
+    tarea={{ ...tareaMetrado, metrado_previo: 200 }}
+    estado={estadoConPrevio}
+    opcionesMetrado={[{ valor: 20, etiqueta: 'Excavación (m3)' }]}
+    opcionesHitos={[]}
+  />,
+)
+comprobar(
+  'hueco A: la fila de metrado muestra ejecutado previo, partes y total',
+  htmlFilaPrevio.includes('Ejecutado previo') &&
+    htmlFilaPrevio.includes('Acumulado en partes') &&
+    htmlFilaPrevio.includes('Total acumulado') &&
+    htmlFilaPrevio.includes('350') &&
+    !htmlFilaPrevio.includes('NaN') &&
+    !htmlFilaPrevio.includes('undefined'),
+)
+const htmlPdPrevio = htmlParteDiario({
+  servicio: { nombre_servicio: 'Obra P' },
+  parte: { fecha: '2026-10-01', partidas: [{ tarea_id: 1, metrado_dia: 30, nota: '' }] },
+  refs: {
+    tareas: [
+      { id: 1, nombre: 'Excavación', unidad: 'm3', metrado: 500, metrado_previo: 120, modo_medicion: 'metrado' },
+    ],
+  },
+  partes: [{ id: 9, servicio_id: 1, fecha: '2026-10-01', partidas: [{ tarea_id: 1, metrado_dia: 30 }] }],
+  generado: '15/10/2026',
+})
+comprobar(
+  'hueco A: el PDF del parte trae ejecutado previo, partes y total (120 + 30)',
+  htmlPdPrevio.includes('Ejecutado previo') &&
+    htmlPdPrevio.includes('Acumulado en partes') &&
+    htmlPdPrevio.includes('Total acumulado') &&
+    htmlPdPrevio.includes('150') &&
+    !htmlPdPrevio.includes('NaN') &&
+    !htmlPdPrevio.includes('undefined'),
+)
+comprobar(
+  'hueco A: el Excel de partidas trae las columnas de previo y total acumulado',
+  textoCostos.includes('Ej. previo') && textoCostos.includes('Total acumulado'),
+)
+
+// --- Hueco B: importación de cronograma con modo y avance ---
+
+const filasImporte = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Monto', 'Predecesoras', 'Avance (%)'],
+  ['1', 'Obra', '2026-06-01', '2026-06-30', 'NO', 0, '', ''],
+  ['1.1', 'Excavación', '2026-06-01', '2026-06-15', 'NO', 10000, '', '40'],
+  ['1.2', 'Pruebas', '2026-06-20', '2026-06-20', 'SI', 0, '', '60'],
+]
+const importe = tareasImportadas({ filas: filasImporte, servicioId: 700, baseId: 0 })
+const impPadre = importe.tareas.find((t) => t.id === 1)
+const impManual = importe.tareas.find((t) => t.id === 2)
+const impHito = importe.tareas.find((t) => t.id === 3)
+comprobar(
+  'hueco B: el padre importado no lleva modo; cada hoja sí (manual/hitos)',
+  importe.total === 3 &&
+    impPadre.modo_medicion === undefined &&
+    impPadre.avance === undefined &&
+    impManual.modo_medicion === 'manual' &&
+    impManual.avance === 40 &&
+    impManual.nota_justificacion === NOTA_MIGRACION_MANUAL &&
+    impHito.modo_medicion === 'hitos' &&
+    avancePorHitos(impHito.pasos) === 60,
+)
+comprobar(
+  'hueco B: ninguna tarea hoja importada queda sin modo',
+  importe.tareas
+    .filter((t) => esHojaTarea(t, importe.tareas))
+    .every((t) => MODOS_MEDICION.includes(t.modo_medicion)),
+)
+
+// Sin columna de avance: las hojas nacen igualmente con modo y avance 0.
+const filasImporteSinAvance = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Monto', 'Predecesoras'],
+  ['1', 'Obra', '2026-06-01', '2026-06-30', 'NO', 0, ''],
+  ['1.1', 'Excavación', '2026-06-01', '2026-06-15', 'NO', 10000, ''],
+  ['1.2', 'Pruebas', '2026-06-20', '2026-06-20', 'SI', 0, ''],
+]
+const importeSinAvance = tareasImportadas({ filas: filasImporteSinAvance, servicioId: 700, baseId: 0 })
+const sinManual = importeSinAvance.tareas.find((t) => t.id === 2)
+const sinHito = importeSinAvance.tareas.find((t) => t.id === 3)
+comprobar(
+  'hueco B: sin columna de avance, la hoja queda con modo y avance 0',
+  sinManual.modo_medicion === 'manual' &&
+    sinManual.avance === 0 &&
+    sinHito.modo_medicion === 'hitos' &&
+    avancePorHitos(sinHito.pasos) === 0,
+)
+
+// El avance importado se conserva al recalcular (misma sesión).
+const estadoImporte = recalcularAvances({
+  servicios: [{ id: 700 }],
+  partes_diario: [],
+  registros_servicio: [],
+  tareas: importe.tareas,
+})
+comprobar(
+  'hueco B: recalcular conserva el avance importado (manual 40, hitos 60)',
+  estadoImporte.tareas.find((t) => t.id === 2).avance === 40 &&
+    estadoImporte.tareas.find((t) => t.id === 3).avance === 60,
+)
+
+// Reimportar el mismo archivo produce exactamente las mismas tareas.
+comprobar(
+  'hueco B: reimportar el mismo Excel es idempotente',
+  JSON.stringify(tareasImportadas({ filas: filasImporte, servicioId: 700, baseId: 0 }).tareas) ===
+    JSON.stringify(importe.tareas),
+)
+
+// La siembra del avance importado cubre los cinco modos (misma lógica que la
+// migración): previo para metrado/costo, pasos para hitos, mano para manual.
+const impMetrado = prepararHojaImportada(
+  { id: 1, servicio_id: 1, metrado: 200, hito: false },
+  { avance: 25 },
+)
+const impCosto = prepararHojaImportada(
+  { id: 2, servicio_id: 1, monto: 10000, hito: false },
+  { avance: 30, registros: [{ servicio_id: 1, tarea_id: 2, monto: 0 }] },
+)
+const impHitos = prepararHojaImportada({ id: 3, servicio_id: 1, hito: true }, { avance: 40 })
+const impManualSeed = prepararHojaImportada({ id: 4, servicio_id: 1 }, { avance: 55 })
+comprobar(
+  'hueco B: siembra por modo (metrado previo, costo previo, pasos, manual)',
+  impMetrado.modo_medicion === 'metrado' &&
+    impMetrado.metrado_previo === 50 &&
+    impCosto.modo_medicion === 'costo' &&
+    impCosto.costo_previo === 3000 &&
+    impHitos.modo_medicion === 'hitos' &&
+    avancePorHitos(impHitos.pasos) === 40 &&
+    impManualSeed.modo_medicion === 'manual' &&
+    impManualSeed.avance === 55 &&
+    impManualSeed.nota_justificacion === NOTA_MIGRACION_MANUAL,
 )
 
 // ============================================================

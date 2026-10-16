@@ -30,6 +30,7 @@ import {
 } from '../../utils/cronograma'
 import { CampoComboBox, normalizar } from '../../components/ui/ComboBox'
 import {
+  ETIQUETAS_CORTAS_MODO,
   MODOS_MEDICION,
   OPCIONES_MODO,
   ORIGEN_AVANCE,
@@ -1600,6 +1601,9 @@ export function CronogramaServicio() {
   const confirmarImportacion = () => {
     if (!importacion || importacion.tareas.length === 0) return
     registrarPaso()
+    // Cada alta pasa por el reducer central, que recalcula `tarea.avance`
+    // (`recalcularAvances`): Gantt y Curva S reflejan el avance en la misma
+    // sesión, sin esperar a recargar.
     importacion.tareas.forEach((t) => agregarItem('tareas', t))
     setImportacion(null)
     setAviso({
@@ -1609,6 +1613,12 @@ export function CronogramaServicio() {
   }
 
   const cancelarImportacion = () => setImportacion(null)
+
+  // Tareas hoja con avance importado (%), para avisar que se guarda como
+  // ejecutado previo / pasos / avance a mano y no se pierde.
+  const importadasConAvance = importacion
+    ? importacion.tareas.filter((t) => Number(t.avance) > 0).length
+    : 0
 
   // --- Geometría de las filas para dibujar las flechas de dependencia -----
   const filaRefs = useRef(new Map())
@@ -2541,6 +2551,14 @@ export function CronogramaServicio() {
               </ul>
             </div>
           )}
+          {importadasConAvance > 0 && (
+            <p className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-800">
+              {importadasConAvance} tarea{importadasConAvance === 1 ? '' : 's'} trae(n) un avance
+              importado: se guarda como <b>ejecutado previo</b> (metrado o costo), como pasos
+              (hitos) o como avance a mano, según el modo de cada tarea, para no mover cifras ya
+              valorizadas.
+            </p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -2552,6 +2570,7 @@ export function CronogramaServicio() {
                   <th className="px-2 py-1 text-center">Hito</th>
                   <th className="px-2 py-1 text-right">Monto</th>
                   <th className="px-2 py-1 text-right">Días</th>
+                  <th className="px-2 py-1 text-left">Modo</th>
                   <th className="px-2 py-1 text-left">Predecesoras</th>
                 </tr>
               </thead>
@@ -2569,6 +2588,9 @@ export function CronogramaServicio() {
                     <td className="px-2 py-1 text-right text-slate-600 tabular-nums">
                       {diasTareaImportada(t)}
                     </td>
+                    <td className="px-2 py-1 text-slate-600">
+                      {t.modo_medicion ? ETIQUETAS_CORTAS_MODO[t.modo_medicion] : 'Padre'}
+                    </td>
                     <td className="px-2 py-1 text-slate-500">
                       {(t.predecesoras ?? []).map((p, i) => (
                         <span key={i}>
@@ -2582,7 +2604,7 @@ export function CronogramaServicio() {
                 ))}
                 {importacion.tareas.length > 20 && (
                   <tr>
-                    <td colSpan={8} className="px-2 py-2 text-center text-xs text-slate-500">
+                    <td colSpan={9} className="px-2 py-2 text-center text-xs text-slate-500">
                       y {importacion.tareas.length - 20} tareas más
                     </td>
                   </tr>

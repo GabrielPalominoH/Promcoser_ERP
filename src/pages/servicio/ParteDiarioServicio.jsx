@@ -316,7 +316,19 @@ export function FilaPartida({
             </b>
           </span>
           <span>
-            Acumulado:{' '}
+            Ejecutado previo:{' '}
+            <b className="tabular-nums">
+              {formatearCantidad(estado.previo)} {estado.unidad}
+            </b>
+          </span>
+          <span>
+            Acumulado en partes:{' '}
+            <b className="tabular-nums">
+              {formatearCantidad(estado.acumuladoPartes)} {estado.unidad}
+            </b>
+          </span>
+          <span>
+            Total acumulado:{' '}
             <b className="tabular-nums">
               {formatearCantidad(estado.acumulado)} {estado.unidad}
             </b>
@@ -830,8 +842,9 @@ function FormularioParte({
             </div>
           </div>
           <p className="mb-2 text-xs text-slate-500">
-            Registra el metrado ejecutado HOY (con la unidad de la partida); el acumulado, el saldo y
-            el % se calculan sumando todos los partes. Las partidas por hitos se marcan por pasos.
+            Registra el metrado ejecutado HOY (con la unidad de la partida); el acumulado total
+            (ejecutado previo + partes), el saldo y el % se calculan sumando lo previo y todos los
+            partes. Las partidas por hitos se marcan por pasos.
           </p>
           {filasPartidas.length === 0 ? (
             <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
@@ -1060,7 +1073,9 @@ function ModalVerParte({ parte, personal, equipos, tareasServicio, partesServici
                 <Th>Partida</Th>
                 <Th>UM</Th>
                 <Th alinear="right">Registro del día</Th>
-                <Th alinear="right">Acumulado</Th>
+                <Th alinear="right">Ejecutado previo</Th>
+                <Th alinear="right">Acumulado en partes</Th>
+                <Th alinear="right">Total acumulado</Th>
                 <Th alinear="right">%</Th>
               </TableRow>
             </TableHead>
@@ -1069,9 +1084,11 @@ function ModalVerParte({ parte, personal, equipos, tareasServicio, partesServici
                 const tarea = tareaDe(x.tarea_id)
                 const metrado = metradoDeFila(x)
                 const esMetrado = metrado != null
-                const acumulado = esMetrado
+                const previo = esMetrado ? Number(tarea?.metrado_previo) || 0 : 0
+                const acumuladoPartes = esMetrado
                   ? metradoEjecutadoAcumulado(partesServicio, x.tarea_id)
                   : avanceAcumulado(partesServicio, x.tarea_id)
+                const total = esMetrado ? previo + acumuladoPartes : acumuladoPartes
                 const pasos = Array.isArray(x.hitos)
                   ? x.hitos
                       .map((id) => tarea?.pasos?.find((p) => p.id === id))
@@ -1098,12 +1115,22 @@ function ModalVerParte({ parte, personal, equipos, tareasServicio, partesServici
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {esMetrado
-                        ? `${formatearCantidad(acumulado)} ${tarea?.unidad ?? ''}`.trim()
-                        : `${formatearCantidad(acumulado)} %`}
+                        ? `${formatearCantidad(previo)} ${tarea?.unidad ?? ''}`.trim()
+                        : '—'}
                     </Td>
                     <Td alinear="right" className="tabular-nums">
                       {esMetrado
-                        ? `${formatearCantidad(avancePorMetrado({ metrado: tarea?.metrado, ejecutado: acumulado }))} %`
+                        ? `${formatearCantidad(acumuladoPartes)} ${tarea?.unidad ?? ''}`.trim()
+                        : `${formatearCantidad(acumuladoPartes)} %`}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {esMetrado
+                        ? `${formatearCantidad(total)} ${tarea?.unidad ?? ''}`.trim()
+                        : `${formatearCantidad(total)} %`}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {esMetrado
+                        ? `${formatearCantidad(avancePorMetrado({ metrado: tarea?.metrado, ejecutado: total }))} %`
                         : tarea?.modo_medicion === 'hitos'
                           ? `${formatearCantidad(avancePorHitos(tarea?.pasos))} %`
                           : '—'}

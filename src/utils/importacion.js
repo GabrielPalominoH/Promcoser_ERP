@@ -5,15 +5,25 @@
 // No toca el DOM ni el estado: el componente lee el archivo y despacha.
 //
 // Formato de la plantilla (también tolera el Excel que exporta el ERP):
-//   N° | Tarea | Inicio | Fin | Hito | Monto | Predecesoras
+//   N° | Tarea | Inicio | Fin | Hito | Monto | Predecesoras | Avance (%)
 // - Inicio/Fin: aaaa-mm-dd (también se aceptan dd/mm/aaaa y fechas de Excel).
 // - Hito: SI/NO (si falta, se deduce de Días = 0 e inicio = fin).
 // - N° jerárquico: 1, 1.1, 1.2, 1.2.1… de ahí sale el padre.
 // - Predecesoras: "1.2 FS, 3 SS+2" (referencia por N° o por nombre).
+// - Avance (%): opcional. Se convierte en EJECUTADO PREVIO de la tarea hoja
+//   (misma siembra que la migración de la Fase C); los padres no llevan modo.
 
-import { diasCalendarioRango } from './calculadora'
+import { costoPorTarea, diasCalendarioRango } from './calculadora'
+import {
+  NOTA_MIGRACION_MANUAL,
+  acotarAvance,
+  modoMedicionInicial,
+  pasosQueReproducenAvance,
+} from './avance'
 
 const EMPRESA = 'PROMCOSER'
+
+const dosDecimales = (x) => Math.round((Number(x) || 0) * 100) / 100
 
 // Normaliza un texto de encabezado: sin tildes, minúsculas, sin espacios extra.
 function norm(valor) {
@@ -105,6 +115,7 @@ function mapearColumnas(filas) {
         monto: buscar(['monto', 'importe', 'presupuesto']),
         dias: buscar(['dias', 'duracion']),
         preds: buscar(['predecesora', 'antecesora']),
+        avance: buscar(['avance', 'porcentaje', '%']),
       }
     }
   }
@@ -157,6 +168,9 @@ export function tareasDesdeFilas(filas = []) {
     if (numero.includes('.')) padre_numero = numero.slice(0, numero.lastIndexOf('.'))
 
     const monto = columnas.monto >= 0 ? Number(enFila(fila, columnas.monto)) || 0 : 0
+    const avanceCrudo =
+      columnas.avance >= 0 ? Number(enFila(fila, columnas.avance)) : null
+    const avance = Number.isFinite(avanceCrudo) ? avanceCrudo : null
 
     tareas.push({
       numero,
@@ -165,6 +179,7 @@ export function tareasDesdeFilas(filas = []) {
       fecha_fin,
       hito: esHito,
       monto,
+      avance,
       padre_numero,
       preds: parsearPredecesoras(enFila(fila, columnas.preds)),
     })
@@ -173,7 +188,40 @@ export function tareasDesdeFilas(filas = []) {
   return { tareas, errores, columnas }
 }
 
+// Cada tarea HOJA importada nace con su `modo_medicion` (asignado por la misma
+// regla que la migración: metrado → metrado; hito sin duración → hitos; costos
+// vinculados → costo; el resto → manual con su nota) y, si el Excel trae un
+// avance (%), ese avance se guarda como EJECUTADO PREVIO para que conectar la
+// medición no mueva ninguna cifra:
+//   metrado → `metrado_previo = % × metrado ÷ 100`
+//   costo   → `costo_previo = % × presupuesto ÷ 100 − ya registrado`
+//   hitos   → pasos que reproducen exactamente el %
+//   manual  → el % queda como avance a mano, con su nota de migración
+// Los PADRES no llevan modo: su avance se deriva de sus hijas.
+export function prepararHojaImportada(tarea, { avance = null, registros = [] } = {}) {
+  const porcentaje = acotarAvance(avance)
+  const modo = modoMedicionInicial(tarea, { registros })
+  const salida = { ...tarea, modo_medicion: modo, avance: porcentaje }
+  if (modo === 'metrado') {
+    const metrado = Number(tarea?.metrado) || 0
+    if (metrado > 0) salida.metrado_previo = dosDecimales((porcentaje * metrado) / 100)
+  } else if (modo === 'costo') {
+    const base = Number(tarea?.monto) || 0
+    if (base > 0) {
+      const ejecutado = costoPorTarea(registros, tarea.servicio_id, tarea.id)
+      salida.costo_previo = Math.max(0, dosDecimales((porcentaje * base) / 100 - ejecutado))
+    }
+  } else if (modo === 'hitos') {
+    salida.pasos = pasosQueReproducenAvance(porcentaje)
+  } else {
+    salida.nota_justificacion = NOTA_MIGRACION_MANUAL
+  }
+  return salida
+}
+
 // Asigna ids y resuelve jerarquía y predecesoras: tareas listas para el reducer.
+// Las hojas reciben su modo de medición y su ejecutado previo; `recalcularAvances`
+// (el reducer central) ya deja el avance consistente en la misma sesión.
 export function tareasImportadas({ filas = [], servicioId, baseId = 0 } = {}) {
   const { tareas, errores } = tareasDesdeFilas(filas)
   const porNumero = new Map()
@@ -206,10 +254,21 @@ export function tareasImportadas({ filas = [], servicioId, baseId = 0 } = {}) {
       monto: t.monto,
     }
     if (predecesoras.length > 0) salida.predecesoras = predecesoras
+    // El avance (%) de la fila se guarda aparte solo para sembrar la hoja: no
+    // forma parte del modelo de tareas y se descarta antes de despachar.
+    salida.avance_importado = t.avance
     return salida
   })
 
-  return { tareas: resueltas, errores, total: resueltas.length }
+  // Un id es padre si alguna otra tarea lo referencia en `padre_id`.
+  const idsPadre = new Set(resueltas.filter((t) => t.padre_id != null).map((t) => t.padre_id))
+  const finales = resueltas.map((t) => {
+    const { avance_importado: avance, ...resto } = t
+    if (idsPadre.has(t.id)) return resto
+    return prepararHojaImportada(resto, { avance })
+  })
+
+  return { tareas: finales, errores, total: finales.length }
 }
 
 // --- plantilla -----------------------------------------------------------
@@ -262,6 +321,7 @@ export function plantillaCronograma({ servicio = {}, tareas = [] } = {}) {
       { v: 'Hito', negrita: true },
       { v: 'Monto', negrita: true },
       { v: 'Predecesoras', negrita: true },
+      { v: 'Avance (%)', negrita: true },
     ],
   ]
 
@@ -275,14 +335,15 @@ export function plantillaCronograma({ servicio = {}, tareas = [] } = {}) {
         tarea.hito ? 'SI' : 'NO',
         Number(tarea.monto) || 0,
         textoPredecesorasPlantilla(tarea, numeroPorId),
+        Number(tarea.avance) || 0,
       ])
     }
   } else {
     // Ejemplo mínimo para que el formato quede claro.
-    filas.push(['1', 'Obras preliminares', '2026-06-01', '2026-06-15', 'NO', 15000, ''])
-    filas.push(['2', 'Redes de agua potable', '2026-06-16', '2026-08-15', 'NO', 0, '1 FS'])
-    filas.push(['2.1', 'Excavación y tendido', '2026-06-16', '2026-07-15', 'NO', 42000, '1 FS'])
-    filas.push(['3', 'Entrega de obra', '2026-08-16', '2026-08-16', 'SI', 0, '2'])
+    filas.push(['1', 'Obras preliminares', '2026-06-01', '2026-06-15', 'NO', 15000, '', 0])
+    filas.push(['2', 'Redes de agua potable', '2026-06-16', '2026-08-15', 'NO', 0, '1 FS', 0])
+    filas.push(['2.1', 'Excavación y tendido', '2026-06-16', '2026-07-15', 'NO', 42000, '1 FS', 25])
+    filas.push(['3', 'Entrega de obra', '2026-08-16', '2026-08-16', 'SI', 0, '2', 0])
   }
 
   const instrucciones = [
@@ -294,6 +355,8 @@ export function plantillaCronograma({ servicio = {}, tareas = [] } = {}) {
     ['Monto: número en soles, sin símbolo (puede quedar en 0).'],
     ['Predecesoras: referencias por N° o por nombre, separadas por coma, con tipo'],
     ['FS, SS, FF o SF y desfase opcional, por ejemplo: "1.2 FS, 3 SS+2".'],
+    ['Avance (%): opcional. Solo en tareas hoja: se guarda como ejecutado'],
+    ['previo (metrado/costo), pasos (hitos) o avance a mano; los padres no lo llevan.'],
     [],
     ['Al importar, las tareas se AGREGAN a las que ya existen en el servicio.'],
   ]

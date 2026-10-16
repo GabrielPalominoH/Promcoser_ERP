@@ -24,6 +24,7 @@ import { normalizar } from '../../components/ui/ComboBox'
 import { Buscador, BarraFiltros, textoCoincide } from '../../components/ui/FiltroBusqueda'
 import {
   avanceEfectivo,
+  costoPorTarea,
   costoSinTarea,
   costoSubarbol,
   desviacionDias,
@@ -35,6 +36,7 @@ import {
   tieneHijas,
   valorizadoTarea,
 } from '../../utils/calculadora'
+import { metradoEjecutadoAcumulado } from '../../utils/avance'
 import {
   desviacionHoras,
   horasPlanTarea,
@@ -276,7 +278,12 @@ export function PartidasServicio() {
   // Exportación a Excel de los costos por partida (monto, valorizado, costo).
   const exportarExcel = () => {
     const ok = descargarLibro(
-      libroCostosPorPartida({ servicio, tareas, registros: estado.registros_servicio }),
+      libroCostosPorPartida({
+        servicio,
+        tareas,
+        registros: estado.registros_servicio,
+        partes: estado.partes_diario,
+      }),
     )
     setAviso(
       ok
@@ -310,6 +317,36 @@ export function PartidasServicio() {
   const desvHHTotal = desviacionHoras(hhPlanTotal, hhRealTotal)
   const presupuesto = Number(servicio.presupuesto_asignado) || 0
   const desvioPresupuesto = Math.round((montoTotal - presupuesto) * 100) / 100
+
+  // Ejecutado ANTES de usar el sistema y total acumulado (previo + partes/costos)
+  // por tarea. La unidad depende del modo: metrado y costo muestran su magnitud;
+  // los demás modos no tienen un ejecutado comparable (guion).
+  const ejecutadoPrevio = (tarea) => {
+    if (tarea.modo_medicion === 'metrado') return Number(tarea.metrado_previo) || 0
+    if (tarea.modo_medicion === 'costo') return Number(tarea.costo_previo) || 0
+    return null
+  }
+  const totalAcumulado = (tarea) => {
+    if (tarea.modo_medicion === 'metrado') {
+      return (
+        Math.round(
+          ((Number(tarea.metrado_previo) || 0) +
+            metradoEjecutadoAcumulado(estado.partes_diario, tarea.id)) *
+            100,
+        ) / 100
+      )
+    }
+    if (tarea.modo_medicion === 'costo') {
+      return (
+        Math.round(
+          ((Number(tarea.costo_previo) || 0) +
+            costoPorTarea(estado.registros_servicio, servicio.id, tarea.id)) *
+            100,
+        ) / 100
+      )
+    }
+    return null
+  }
 
   return (
     <div className="space-y-6">
@@ -372,7 +409,8 @@ export function PartidasServicio() {
               <Th>Modo</Th>
               <Th alinear="right">UM</Th>
               <Th alinear="right">Metrado</Th>
-              <Th alinear="right">Metrado ej.</Th>
+              <Th alinear="right">Ej. previo</Th>
+              <Th alinear="right">Total acum.</Th>
               <Th alinear="right">P. Unit.</Th>
               <Th alinear="right">Monto</Th>
               <Th alinear="right">Valorizado</Th>
@@ -389,9 +427,9 @@ export function PartidasServicio() {
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={17} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
+              <TableEmpty colSpan={18} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
             ) : filasFiltradas.length === 0 ? (
-              <TableEmpty colSpan={17} mensaje="Ninguna tarea coincide con el filtro." />
+              <TableEmpty colSpan={18} mensaje="Ninguna tarea coincide con el filtro." />
             ) : (
               filasFiltradas.map(({ tarea, nivel, numero, hijas }) => {
                 const monto = montoTarea(tarea, tareas)
@@ -476,7 +514,24 @@ export function PartidasServicio() {
                       {esPadre ? '—' : (tarea.metrado ?? '—')}
                     </Td>
                     <Td alinear="right" className="tabular-nums text-slate-600">
-                      {esPadre ? '—' : (tarea.metrado == null ? '—' : formatearCantidad(tarea.metrado * ((avance || 0) / 100)))}
+                      {(() => {
+                        if (esPadre) return '—'
+                        const previo = ejecutadoPrevio(tarea)
+                        if (previo == null) return '—'
+                        return tarea.modo_medicion === 'costo'
+                          ? formatearMoneda(previo)
+                          : `${formatearCantidad(previo)} ${tarea.unidad ?? ''}`.trim()
+                      })()}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-600">
+                      {(() => {
+                        if (esPadre) return '—'
+                        const total = totalAcumulado(tarea)
+                        if (total == null) return '—'
+                        return tarea.modo_medicion === 'costo'
+                          ? formatearMoneda(total)
+                          : `${formatearCantidad(total)} ${tarea.unidad ?? ''}`.trim()
+                      })()}
                     </Td>
                     <Td alinear="right" className="tabular-nums text-slate-600">
                       {esPadre || tarea.precio_unitario == null
@@ -579,6 +634,12 @@ export function PartidasServicio() {
                       + {formatearMoneda(sinTarea)} sin tarea asignada
                     </span>
                   )}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   —
