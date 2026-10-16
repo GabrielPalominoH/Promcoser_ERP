@@ -31,7 +31,7 @@ export function Th({ children, className = '', alinear = 'left', colSpan }) {
     <th
       scope="col"
       colSpan={colSpan}
-      className={`border-b border-slate-300 px-4 py-3 text-xs font-bold tracking-wide text-slate-700 uppercase ${alineacion} ${className}`}
+      className={`border-b border-slate-300 px-4 py-3 text-xs font-bold tracking-wide text-primary-700 uppercase ${alineacion} ${className}`}
     >
       {children}
     </th>

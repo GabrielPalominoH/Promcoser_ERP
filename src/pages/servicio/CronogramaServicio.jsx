@@ -2138,7 +2138,7 @@ export function CronogramaServicio() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[620px] border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-slate-700 uppercase">
+                <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-primary-700 uppercase">
                   <th className="px-2 py-1 text-left">Recurso</th>
                   {histograma.semanas.map((s, i) => (
                     <th key={i} className="px-2 py-1 text-center">
@@ -2314,7 +2314,7 @@ export function CronogramaServicio() {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-slate-700 uppercase">
+                <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-primary-700 uppercase">
                   <th className="px-2 py-1 text-left">N°</th>
                   <th className="px-2 py-1 text-left">Tarea</th>
                   <th className="px-2 py-1 text-left">Inicio</th>
