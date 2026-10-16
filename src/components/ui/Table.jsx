@@ -8,7 +8,7 @@ export function Table({ children, className = '' }) {
 
 export function TableHead({ children }) {
   return (
-    <thead className="bg-slate-50">
+    <thead className="bg-slate-100">
       {children}
     </thead>
   )
@@ -31,7 +31,7 @@ export function Th({ children, className = '', alinear = 'left', colSpan }) {
     <th
       scope="col"
       colSpan={colSpan}
-      className={`px-4 py-3 text-xs font-semibold tracking-wide text-slate-500 uppercase ${alineacion} ${className}`}
+      className={`border-b border-slate-300 px-4 py-3 text-xs font-bold tracking-wide text-slate-700 uppercase ${alineacion} ${className}`}
     >
       {children}
     </th>

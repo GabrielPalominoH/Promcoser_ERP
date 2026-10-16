@@ -2138,17 +2138,17 @@ export function CronogramaServicio() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[620px] border-collapse text-sm">
               <thead>
-                <tr className="text-xs text-slate-500">
-                  <th className="px-2 py-1 text-left font-semibold">Recurso</th>
+                <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-slate-700 uppercase">
+                  <th className="px-2 py-1 text-left">Recurso</th>
                   {histograma.semanas.map((s, i) => (
-                    <th key={i} className="px-2 py-1 text-center font-semibold">
+                    <th key={i} className="px-2 py-1 text-center">
                       <span className="block">Sem {i + 1}</span>
                       <span className="block text-[10px] font-normal text-slate-400">
                         {formatearFecha(s.inicio).slice(0, 5)}
                       </span>
                     </th>
                   ))}
-                  <th className="px-2 py-1 text-right font-semibold">Total</th>
+                  <th className="px-2 py-1 text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -2314,15 +2314,15 @@ export function CronogramaServicio() {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="bg-slate-50 text-slate-600">
-                  <th className="px-2 py-1 text-left font-semibold">N°</th>
-                  <th className="px-2 py-1 text-left font-semibold">Tarea</th>
-                  <th className="px-2 py-1 text-left font-semibold">Inicio</th>
-                  <th className="px-2 py-1 text-left font-semibold">Fin</th>
-                  <th className="px-2 py-1 text-center font-semibold">Hito</th>
-                  <th className="px-2 py-1 text-right font-semibold">Monto</th>
-                  <th className="px-2 py-1 text-right font-semibold">Días</th>
-                  <th className="px-2 py-1 text-left font-semibold">Predecesoras</th>
+                <tr className="border-b border-slate-300 bg-slate-100 text-xs font-bold tracking-wide text-slate-700 uppercase">
+                  <th className="px-2 py-1 text-left">N°</th>
+                  <th className="px-2 py-1 text-left">Tarea</th>
+                  <th className="px-2 py-1 text-left">Inicio</th>
+                  <th className="px-2 py-1 text-left">Fin</th>
+                  <th className="px-2 py-1 text-center">Hito</th>
+                  <th className="px-2 py-1 text-right">Monto</th>
+                  <th className="px-2 py-1 text-right">Días</th>
+                  <th className="px-2 py-1 text-left">Predecesoras</th>
                 </tr>
               </thead>
               <tbody>

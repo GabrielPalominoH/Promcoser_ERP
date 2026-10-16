@@ -125,6 +125,13 @@
 :root[data-tema='oscuro'] .bg-white {
   background-color: #192340;
 }
+/* Los tooltips de los gráficos usan `bg-white/95`: al llevar opacidad son
+   OTRA clase (`.bg-white\/95`), no coinciden con la regla anterior y quedaban
+   con fondo blanco mientras el texto `text-slate-*` ya se aclaraba en oscuro
+   (mensaje ilegible). Se fuerza aquí la misma superficie oscura. */
+:root[data-tema='oscuro'] .bg-white\/95 {
+  background-color: rgb(25 35 64 / 0.95);
+}
 /* Fondo de página: en el `body` (por `@apply`) y en el contenedor raíz.
    Notablemente más oscuro que las superficies para dar profundidad. */
 :root[data-tema='oscuro'] body {
