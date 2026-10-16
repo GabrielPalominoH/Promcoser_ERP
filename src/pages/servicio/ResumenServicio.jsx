@@ -36,6 +36,7 @@ import { curvaServicio } from '../../utils/curvaS'
 import { lineaBaseVigente } from '../../utils/lineaBase'
 import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
 import { resumenHorasServicio } from '../../utils/horasHombre'
+import { alertasDeObra } from '../../utils/alertas'
 import { htmlReporteMensualObra, imprimirHTML } from '../../utils/reportes'
 import { usePanelServicio } from './panel'
 
@@ -459,6 +460,7 @@ export function ResumenServicio() {
       lineas_base: lineasBase,
       lecturas_avance: lecturasAvance,
       modificaciones: todasLasModificaciones,
+      partes_diario: todosLosPartes,
     },
   } = useData()
 
@@ -556,6 +558,13 @@ export function ResumenServicio() {
   })
   const costoHH = hh.real > 0 ? desglose.personal / hh.real : null
   const alertas = alertasServicio({ estado, dias })
+  // Alertas de partidas (Fase E): inactividad, bajo rendimiento y vencidas.
+  const alertasPartidas = alertasDeObra({
+    servicio,
+    tareas: todasLasTareas,
+    partes: todosLosPartes ?? [],
+    hoy: hoyISO(),
+  })
 
   // Reporte mensual de obra (PDF): resumen, avance, costos y valorizaciones
   // del mes elegido. Reutiliza las fórmulas puras vía `reportes.js`.
@@ -738,6 +747,50 @@ export function ResumenServicio() {
             Utilidad = cobrado − gastado; Saldo = presupuesto inicial − gastado.
           </p>
         </details>
+      </Card>
+
+      <Card
+        titulo="Alertas de partidas"
+        descripcion="Inactividad, bajo rendimiento y partidas vencidas. Tocan la partida para verla."
+      >
+        {alertasPartidas.length === 0 ? (
+          <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+            Sin alertas en las partidas. Todo va dentro de lo esperado.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {alertasPartidas.map((a) => (
+              <li
+                key={`${a.tipo}-${a.tarea_id}`}
+                className={`rounded-lg border px-4 py-2.5 text-sm ${
+                  a.tipo === 'vencida'
+                    ? 'border-red-200 bg-red-50/40'
+                    : 'border-amber-200 bg-amber-50/40'
+                }`}
+              >
+                <Link
+                  to={`partidas?tarea=${a.tarea_id}`}
+                  className="font-medium text-slate-900 hover:text-primary-700 hover:underline"
+                >
+                  {a.tarea}
+                </Link>
+                <p
+                  className={`mt-0.5 text-xs ${
+                    a.tipo === 'vencida' ? 'text-red-700' : 'text-amber-800'
+                  }`}
+                >
+                  {a.tipo === 'vencida'
+                    ? 'Vencida'
+                    : a.tipo === 'rendimiento'
+                      ? 'Bajo rendimiento'
+                      : 'Sin partes'}
+                  {' · '}
+                  {a.detalle}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <Card

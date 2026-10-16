@@ -173,6 +173,17 @@ import {
   prepararHojaImportada,
   tareasImportadas,
 } from '../src/utils/importacion'
+import {
+  diasInactividadAlerta,
+  diasTrabajados,
+  duracionPlanificada,
+  horasDePartes,
+  metradoDePartes,
+  rendimientoTarea,
+  tonoDesvio,
+  umbralRendimiento,
+} from '../src/utils/rendimientos'
+import { alertasDeCartera, alertasDeObra } from '../src/utils/alertas'
 import { BadgeModo } from '../src/components/ui/Badge'
 import App from '../src/App'
 
@@ -3150,6 +3161,13 @@ for (const { ruta, etiqueta, monto } of rutas) {
 // Sin barra superior: el módulo lo indica el sidebar y el control de menú
 // vive dentro del propio sidebar (riel de 64px en móvil, cajón al abrirlo).
 const htmlInicioSeguro = htmlsRuta['/'] ?? ''
+comprobar(
+  'tarea 3: el dashboard, el resumen y partidas muestran rendimiento y alertas',
+  htmlInicioSeguro.includes('Alertas de partidas') &&
+    (htmlsRuta['/servicios/6'] ?? '').includes('Alertas de partidas') &&
+    (htmlsRuta['/servicios/6/partidas'] ?? '').includes('Rend./día') &&
+    (htmlsRuta['/servicios/6/partidas'] ?? '').includes('Desvío'),
+)
 const htmlPersonalSeguro = htmlsRuta['/personal'] ?? ''
 const htmlPanelSeguro = htmlsRuta['/servicios/6'] ?? ''
 const htmlServiciosSeguro = htmlsRuta['/servicios'] ?? ''
@@ -4363,6 +4381,185 @@ comprobar(
   hojaSinVal.modo_medicion === 'metrado' &&
     hojaSinVal.metrado_previo === 80 &&
     hojaSinVal.valorizado_previo === 80,
+)
+// Avisos (sin bloquear): valorizado sobre el contratado o sobre el ejecutado.
+const filasValAvisos = [
+  ['N°', 'Tarea', 'Inicio', 'Fin', 'Hito', 'Metrado', 'Unidad', 'P. Unit. (S/)', 'Valorizado previo', 'Monto', 'Predecesoras', 'Avance (%)'],
+  ['1', 'A sobre contratado', '2026-06-01', '2026-06-15', 'NO', 100, 'm3', '', 150, '', '', 40],
+  ['2', 'B sobre ejecutado', '2026-06-01', '2026-06-15', 'NO', 200, 'm3', '', 120, '', '', 40],
+  ['3', 'C correcto', '2026-06-01', '2026-06-15', 'NO', 200, 'm3', '', 80, '', '', 40],
+]
+const impValAvisos = tareasImportadas({ filas: filasValAvisos, servicioId: 702, baseId: 0 })
+const motivosVal = impValAvisos.avisos.map((a) => a.motivo).join(' | ')
+comprobar(
+  'tarea 2b: la vista previa avisa valorizado sobre el contratado y sobre el ejecutado',
+  impValAvisos.avisos.length === 2 &&
+    /supera el metrado contratado/.test(motivosVal) &&
+    /mayor que el ejecutado previo/.test(motivosVal),
+)
+
+// ============================================================
+//  Tarea 3: rendimientos y alertas (Fase E)
+// ============================================================
+
+console.log('\n[ tarea 3: rendimientos y alertas ]')
+
+// Parámetros por obra con valores por defecto (sin tocar importes ni demo).
+comprobar(
+  'tarea 3: N (3 días) y umbral (70 %) por defecto; la obra los configura',
+  diasInactividadAlerta({}) === 3 &&
+    umbralRendimiento({}) === 70 &&
+    diasInactividadAlerta({ alerta_inactividad_dias: 10 }) === 10 &&
+    umbralRendimiento({ umbral_rendimiento_pct: 50 }) === 50 &&
+    diasInactividadAlerta({ alerta_inactividad_dias: 'x' }) === 3,
+)
+
+const servR = { id: 600, nombre_servicio: 'Obra R' }
+const tareaR = {
+  id: 601,
+  servicio_id: 600,
+  nombre: 'Excavación',
+  unidad: 'm3',
+  metrado: 100,
+  metrado_previo: 20,
+  modo_medicion: 'metrado',
+  fecha_inicio: '2026-10-01',
+  fecha_fin: '2026-10-20',
+  avance: 50,
+}
+const partesR = [
+  {
+    id: 1,
+    servicio_id: 600,
+    fecha: '2026-10-05',
+    personal: [
+      { personal_id: 1, horas: 8 },
+      { personal_id: 2, horas: 8 },
+    ],
+    partidas: [{ tarea_id: 601, metrado_dia: 10 }],
+  },
+  {
+    id: 2,
+    servicio_id: 600,
+    fecha: '2026-10-06',
+    personal: [{ personal_id: 1, horas: 8 }],
+    partidas: [{ tarea_id: 601, metrado_dia: 20 }],
+  },
+]
+comprobar(
+  'tarea 3: días, metrado y HH salen de los partes (2 días, 30 m³, 24 h)',
+  diasTrabajados(partesR, 601, '2026-10-10') === 2 &&
+    metradoDePartes(partesR, 601, '2026-10-10') === 30 &&
+    horasDePartes(partesR, 601, '2026-10-10') === 24 &&
+    metradoDePartes(partesR, 601, '2026-10-05') === 10 &&
+    duracionPlanificada(tareaR, servR) === 17,
+)
+const rendR = rendimientoTarea(tareaR, { partes: partesR, servicio: servR, hoy: '2026-10-10' })
+comprobar(
+  'tarea 3: real/día 15, real/HH 1.25, plan/día 4.7059 y desvío 318.75 %',
+  rendR.realDia === 15 &&
+    rendR.realHH === 1.25 &&
+    rendR.planDia === 4.7059 &&
+    rendR.desvio === 318.75 &&
+    rendR.unidad === 'm3',
+)
+const partesSinHH = partesR.map((p) => ({ ...p, personal: [] }))
+const rendSinHH = rendimientoTarea(tareaR, { partes: partesSinHH, servicio: servR, hoy: '2026-10-10' })
+comprobar(
+  'tarea 3: sin horas en los partes el real/HH es null pero el resto se calcula',
+  rendSinHH.realHH === null && rendSinHH.horas === 0 && rendSinHH.realDia === 15 && rendSinHH.desvio === 318.75,
+)
+comprobar(
+  'tarea 3: sin metrado no hay rendimiento; sin fechas no hay plan ni desvío',
+  rendimientoTarea({ id: 1 }) === null &&
+    rendimientoTarea({ ...tareaR, fecha_inicio: null }, { partes: partesR, servicio: servR, hoy: '2026-10-10' }).desvio === null,
+)
+comprobar(
+  'tarea 3: semáforo del desvío (verde ≥ 100, ámbar ≥ umbral, rojo debajo, gris sin datos)',
+  tonoDesvio(120) === 'verde' &&
+    tonoDesvio(100) === 'verde' &&
+    tonoDesvio(85) === 'ambar' &&
+    tonoDesvio(69.99) === 'rojo' &&
+    tonoDesvio(null) === 'gris' &&
+    tonoDesvio(60, 50) === 'ambar',
+)
+
+// (a) inactividad: iniciada, sin avance completo y sin partes hace N días.
+const baseA = { id: 701, servicio_id: 700, nombre: 'Partida A', unidad: 'm3', metrado: 100, modo_medicion: 'metrado', fecha_inicio: '2026-09-25', fecha_fin: '2026-12-31', avance: 10 }
+const alertasA = alertasDeObra({ servicio: { id: 700 }, tareas: [baseA], partes: [], hoy: '2026-10-10' })
+comprobar(
+  'tarea 3: alerta inactividad a los 15 días sin partes (N = 3)',
+  alertasA.length === 1 && alertasA[0].tipo === 'inactividad' && alertasA[0].tarea_id === 701,
+)
+const partesAyer = [{ id: 1, servicio_id: 700, fecha: '2026-10-09', partidas: [{ tarea_id: 701, metrado_dia: 5 }] }]
+comprobar(
+  'tarea 3: sin alerta con parte de ayer, sin iniciar, completa o en otro modo',
+  alertasDeObra({ servicio: { id: 700 }, tareas: [baseA], partes: partesAyer, hoy: '2026-10-10' }).length === 0 &&
+    alertasDeObra({ servicio: { id: 700 }, tareas: [{ ...baseA, fecha_inicio: '2026-10-10' }], partes: [], hoy: '2026-10-10' }).length === 0 &&
+    alertasDeObra({ servicio: { id: 700 }, tareas: [{ ...baseA, avance: 100 }], partes: [], hoy: '2026-10-10' }).length === 0 &&
+    alertasDeObra({ servicio: { id: 700 }, tareas: [{ ...baseA, modo_medicion: 'manual' }], partes: [], hoy: '2026-10-10' }).length === 0 &&
+    alertasDeObra({ servicio: { id: 700, alerta_inactividad_dias: 30 }, tareas: [baseA], partes: [], hoy: '2026-10-10' }).length === 0,
+)
+
+// (b) rendimiento bajo el umbral (con datos).
+const tareaBaja = {
+  id: 702,
+  servicio_id: 700,
+  nombre: 'Partida B',
+  unidad: 'm3',
+  metrado: 100,
+  metrado_previo: 0,
+  modo_medicion: 'metrado',
+  fecha_inicio: '2026-10-01',
+  fecha_fin: '2026-10-31',
+  avance: 10,
+}
+const partesBaja = [
+  { id: 1, servicio_id: 700, fecha: '2026-10-09', personal: [], partidas: [{ tarea_id: 702, metrado_dia: 1 }] },
+]
+const alertasBaja = alertasDeObra({ servicio: { id: 700 }, tareas: [tareaBaja], partes: partesBaja, hoy: '2026-10-10' })
+comprobar(
+  'tarea 3: alerta rendimiento con desvío 27 % bajo el umbral 70',
+  alertasBaja.some((a) => a.tipo === 'rendimiento' && a.tarea_id === 702),
+)
+comprobar(
+  'tarea 3: sin alerta de rendimiento con umbral 20 ni sin datos de partes',
+  alertasDeObra({ servicio: { id: 700, umbral_rendimiento_pct: 20 }, tareas: [tareaBaja], partes: partesBaja, hoy: '2026-10-10' }).every((a) => a.tipo !== 'rendimiento') &&
+    alertasDeObra({ servicio: { id: 700 }, tareas: [tareaBaja], partes: [], hoy: '2026-10-10' }).every((a) => a.tipo !== 'rendimiento'),
+)
+
+// (c) vencida: cualquier modo con fin vencido y avance < 100; nunca a padres.
+const tareaVenc = { id: 703, servicio_id: 700, nombre: 'Partida C', modo_medicion: 'manual', fecha_inicio: '2026-09-01', fecha_fin: '2026-10-01', avance: 50 }
+const padreVenc = { id: 704, servicio_id: 700, nombre: 'Grupo', fecha_inicio: '2026-09-01', fecha_fin: '2026-10-01', avance: 50 }
+const hijaVenc = { id: 705, servicio_id: 700, padre_id: 704, nombre: 'Hija', modo_medicion: 'hitos', fecha_inicio: '2026-09-01', fecha_fin: '2026-10-01', avance: 50 }
+const alertasVenc = alertasDeObra({ servicio: { id: 700 }, tareas: [tareaVenc, padreVenc, hijaVenc], partes: [], hoy: '2026-10-10' })
+comprobar(
+  'tarea 3: alerta vencida en manual e hitos, pero no en el padre',
+  alertasVenc.filter((a) => a.tipo === 'vencida').map((a) => a.tarea_id).sort().join(',') === '703,705' &&
+    alertasDeObra({ servicio: { id: 700 }, tareas: [{ ...tareaVenc, avance: 100 }], partes: [], hoy: '2026-10-10' }).length === 0 &&
+    alertasDeObra({ servicio: { id: 700 }, tareas: [{ ...tareaVenc, fecha_fin: '2026-10-20' }], partes: [], hoy: '2026-10-10' }).length === 0,
+)
+
+// El demo a fecha fija: 5 alertas exactas (el seed no trae partes; 18 y 24
+// vencidas e inactivas; 19 iniciada hace 15 días sin partes). Sin falsos
+// positivos de rendimiento (sin partes no hay desvío).
+const tareasDemoR = migrarAvancePrevio({
+  tareas: ESTADO_INICIAL.tareas,
+  partes_diario: [],
+  registros_servicio: [],
+}).tareas
+const alertasDemo = alertasDeCartera({
+  servicios: ESTADO_INICIAL.servicios,
+  tareas: tareasDemoR,
+  partes: [],
+  hoy: '2026-10-16',
+})
+comprobar(
+  'tarea 3: el demo a 2026-10-16 genera 5 alertas y ninguna de rendimiento',
+  alertasDemo.length === 5 &&
+    alertasDemo.map((a) => `${a.tipo}:${a.tarea_id}`).sort().join(',') ===
+      'inactividad:18,inactividad:19,inactividad:24,vencida:18,vencida:24' &&
+    alertasDemo.every((a) => a.servicio_id != null && a.tarea_id != null),
 )
 
 // ============================================================

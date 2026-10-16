@@ -41,6 +41,8 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       detraccion_pct: servicio.detraccion_pct ?? 0,
       fondo_garantia_pct: servicio.fondo_garantia_pct ?? 0,
       tolerancia_metrado: servicio.tolerancia_metrado ?? 5,
+      alerta_inactividad_dias: servicio.alerta_inactividad_dias ?? 3,
+      umbral_rendimiento_pct: servicio.umbral_rendimiento_pct ?? 70,
     },
     mode: 'onBlur',
   })
@@ -58,6 +60,8 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
       detraccion_pct: servicio.detraccion_pct ?? 0,
       fondo_garantia_pct: servicio.fondo_garantia_pct ?? 0,
       tolerancia_metrado: servicio.tolerancia_metrado ?? 5,
+      alerta_inactividad_dias: servicio.alerta_inactividad_dias ?? 3,
+      umbral_rendimiento_pct: servicio.umbral_rendimiento_pct ?? 70,
     })
   }, [servicio, reset])
 
@@ -178,6 +182,34 @@ function FormularioEditarServicio({ servicio, onGuardar }) {
             {...register('tolerancia_metrado')}
           />
         </Campo>
+        <Campo
+          label="Alerta por inactividad (días)"
+          error={errors.alerta_inactividad_dias?.message}
+          htmlFor="alerta_inactividad_dias"
+          hint="Días sin partes para alertar una partida iniciada."
+        >
+          <Input
+            id="alerta_inactividad_dias"
+            type="number"
+            step="1"
+            min="0"
+            {...register('alerta_inactividad_dias')}
+          />
+        </Campo>
+        <Campo
+          label="Umbral de rendimiento (%)"
+          error={errors.umbral_rendimiento_pct?.message}
+          htmlFor="umbral_rendimiento_pct"
+          hint="Desvío real/plan bajo el cual se alerta una partida."
+        >
+          <Input
+            id="umbral_rendimiento_pct"
+            type="number"
+            step="0.01"
+            min="0"
+            {...register('umbral_rendimiento_pct')}
+          />
+        </Campo>
       </div>
     </form>
   )
@@ -223,6 +255,12 @@ export function PanelProveedor({ servicio, children }) {
       tolerancia_metrado: Number.isFinite(Number(valores.tolerancia_metrado))
         ? Number(valores.tolerancia_metrado)
         : 5,
+      alerta_inactividad_dias: Number.isFinite(Number(valores.alerta_inactividad_dias))
+        ? Math.max(0, Math.floor(Number(valores.alerta_inactividad_dias)))
+        : 3,
+      umbral_rendimiento_pct: Number.isFinite(Number(valores.umbral_rendimiento_pct))
+        ? Math.max(0, Number(valores.umbral_rendimiento_pct))
+        : 70,
     })
     setAviso({ tipo: 'exito', mensaje: 'Servicio actualizado correctamente.' })
     setMostrarEditar(false)

@@ -49,6 +49,7 @@ import { GraficoComboCartera } from '../components/charts/GraficoComboCartera'
 import { GraficoCurvaSCartera, GraficoHistogramaHH } from '../components/charts/GraficosControl'
 import { controlCPMCartera, evmCartera } from '../utils/cartera'
 import { serieHorasHombre } from '../utils/horasHombre'
+import { alertasDeCartera } from '../utils/alertas'
 import { servicioConPresupuestoVigente } from '../utils/modificaciones'
 import { libroFlujoCaja } from '../utils/exportaciones'
 import { descargarLibro } from '../utils/descargas'
@@ -194,6 +195,7 @@ export function Dashboard() {
     cobros: todosLosCobros,
     asignaciones: todasLasAsignaciones,
     costos_oficina: costosOficina,
+    partes_diario: todosLosPartes,
   } = estado
 
   // Meta de ingreso: es de la empresa (total cobrado), no la afectan los filtros.
@@ -228,6 +230,7 @@ export function Dashboard() {
   const cobrosF = (todosLosCobros ?? []).filter((c) => idsF.has(c.servicio_id))
   const tareasF = (todasLasTareas ?? []).filter((t) => idsF.has(t.servicio_id))
   const asigF = (todasLasAsignaciones ?? []).filter((a) => idsF.has(a.servicio_id))
+  const partesF = (todosLosPartes ?? []).filter((p) => idsF.has(p.servicio_id))
 
   // Presupuesto contractual vigente: los adicionales/deductivos aprobados
   // ajustan el presupuesto que alimenta el control de cartera. El original se
@@ -294,6 +297,17 @@ export function Dashboard() {
   const totalPersonal = personal.length
   const totalEquipos = equipos.length
   const enRiesgo = analisis.filter((a) => a.motivos.length > 0)
+  // Alertas de partidas de la cartera (Fase E), con filtro por obra.
+  const [filtroAlertaObra, setFiltroAlertaObra] = useState('')
+  const alertasCartera = alertasDeCartera({
+    servicios: serviciosF,
+    tareas: tareasF,
+    partes: partesF,
+    hoy: hoyISO(),
+  })
+  const alertasFiltradas = filtroAlertaObra
+    ? alertasCartera.filter((a) => a.servicio_id === Number(filtroAlertaObra))
+    : alertasCartera
   const serviciosPorGasto = [...analisis].sort((a, b) => b.gastado - a.gastado)
   const maxGasto = Math.max(1, ...serviciosPorGasto.map((a) => a.gastado))
   const rankingUtilidad = [...analisis].sort((a, b) => b.utilidad - a.utilidad)
@@ -869,6 +883,79 @@ export function Dashboard() {
           </dl>
         </Card>
       </div>
+
+      <Card
+        titulo="Alertas de partidas"
+        descripcion="Inactividad, bajo rendimiento y partidas vencidas de la cartera"
+        acciones={
+          <Select
+            value={filtroAlertaObra}
+            onChange={(e) => setFiltroAlertaObra(e.target.value)}
+            aria-label="Filtrar alertas por obra"
+          >
+            <option value="">Todas las obras</option>
+            {serviciosF.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre_servicio}
+              </option>
+            ))}
+          </Select>
+        }
+      >
+        {alertasFiltradas.length === 0 ? (
+          <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+            Sin alertas en las partidas. Toda la cartera va dentro de lo esperado.
+          </p>
+        ) : (
+          <>
+            <ul className="space-y-2">
+              {alertasFiltradas.slice(0, 15).map((a) => (
+                <li
+                  key={`${a.servicio_id}-${a.tipo}-${a.tarea_id}`}
+                  className={`rounded-lg border px-4 py-2.5 text-sm ${
+                    a.tipo === 'vencida'
+                      ? 'border-red-200 bg-red-50/40'
+                      : 'border-amber-200 bg-amber-50/40'
+                  }`}
+                >
+                  <p className="text-xs text-slate-500">
+                    <Link
+                      to={`/servicios/${a.servicio_id}`}
+                      className="font-medium text-slate-600 hover:text-primary-700 hover:underline"
+                    >
+                      {a.servicio}
+                    </Link>
+                    {' · '}
+                    <span
+                      className={`font-semibold ${
+                        a.tipo === 'vencida' ? 'text-red-700' : 'text-amber-800'
+                      }`}
+                    >
+                      {a.tipo === 'vencida'
+                        ? 'Vencida'
+                        : a.tipo === 'rendimiento'
+                          ? 'Bajo rendimiento'
+                          : 'Sin partes'}
+                    </span>
+                  </p>
+                  <Link
+                    to={`/servicios/${a.servicio_id}/partidas?tarea=${a.tarea_id}`}
+                    className="font-medium text-slate-900 hover:text-primary-700 hover:underline"
+                  >
+                    {a.tarea}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-slate-600">{a.detalle}</p>
+                </li>
+              ))}
+            </ul>
+            {alertasFiltradas.length > 15 && (
+              <p className="mt-2 text-center text-xs text-slate-500">
+                …y {alertasFiltradas.length - 15} alerta(s) más. Filtra por obra para verlas.
+              </p>
+            )}
+          </>
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <Card

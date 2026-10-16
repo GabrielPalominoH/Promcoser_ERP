@@ -218,6 +218,16 @@ export function tareasDesdeFilas(filas = []) {
     if (avanceCrudo != null && avanceCrudo > 100) {
       avisos.push({ fila: i + 1, motivo: `"${nombre}": el avance (${avanceCrudo} %) supera 100 %; se recorta a 100 %.` })
     }
+    if (valorizadoPrevio != null && tieneMetrado) {
+      if (valorizadoPrevio > metrado) {
+        avisos.push({ fila: i + 1, motivo: `"${nombre}": el valorizado previo (${valorizadoPrevio}) supera el metrado contratado (${metrado}).` })
+      } else {
+        const previoSembrado = dosDecimales((acotarAvance(avanceCrudo) * metrado) / 100)
+        if (valorizadoPrevio > previoSembrado) {
+          avisos.push({ fila: i + 1, motivo: `"${nombre}": el valorizado previo (${valorizadoPrevio}) es mayor que el ejecutado previo (${previoSembrado}).` })
+        }
+      }
+    }
     if (
       montoDeclarado != null &&
       montoDeclarado > 0 &&

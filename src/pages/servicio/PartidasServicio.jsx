@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, useSearchParams } from 'react-router-dom'
 import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -30,6 +30,7 @@ import {
   desviacionDias,
   diasEstimadosTarea,
   diasRealesTarea,
+  hoyISO,
   montoTarea,
   presupuestoTareas,
   registrosDeServicio,
@@ -37,6 +38,7 @@ import {
   valorizadoTarea,
 } from '../../utils/calculadora'
 import { metradoEjecutadoAcumulado } from '../../utils/avance'
+import { rendimientoTarea, tonoDesvio, umbralRendimiento } from '../../utils/rendimientos'
 import {
   desviacionHoras,
   horasPlanTarea,
@@ -196,7 +198,17 @@ export function PartidasServicio() {
   const [aviso, setAviso] = useState(null)
   const [montoEditando, setMontoEditando] = useState(null)
   const [colapsadas, setColapsadas] = useState({})
-  const [busqueda, setBusqueda] = useState('')
+  // Las alertas enlazan `partidas?tarea=<id>`: se prellena el buscador con la
+  // partida para mostrarla expandida y se resalta su fila.
+  const [searchParams] = useSearchParams()
+  const tareaEnlazada = Number(searchParams.get('tarea')) || null
+  const [busqueda, setBusqueda] = useState(() => {
+    if (tareaEnlazada == null) return ''
+    const destino = (estado.tareas ?? []).find(
+      (t) => t.id === tareaEnlazada && t.servicio_id === servicio.id,
+    )
+    return destino?.nombre ?? ''
+  })
 
   const alternarGrupo = (id) =>
     setColapsadas((previo) => ({ ...previo, [id]: !previo[id] }))
@@ -216,6 +228,13 @@ export function PartidasServicio() {
     () => (estado.asignaciones ?? []).filter((a) => a.servicio_id === servicio.id),
     [estado.asignaciones, servicio.id],
   )
+  // Rendimiento de partidas (Fase E): partes del servicio y corte de hoy.
+  const partes = useMemo(
+    () => (estado.partes_diario ?? []).filter((p) => p.servicio_id === servicio.id),
+    [estado.partes_diario, servicio.id],
+  )
+  const hoy = hoyISO()
+  const umbral = umbralRendimiento(servicio)
 
   // Filtro de la lista: texto sobre el nombre de la tarea. Al buscar se
   // expande el árbol (se ignoran los grupos colapsados) y se conservan los
@@ -423,13 +442,16 @@ export function PartidasServicio() {
               <Th alinear="right">HH est.</Th>
               <Th alinear="right">HH real</Th>
               <Th alinear="right" className="whitespace-nowrap">HH/und</Th>
+              <Th alinear="right" className="whitespace-nowrap">Rend./día</Th>
+              <Th alinear="right" className="whitespace-nowrap">Rend./HH</Th>
+              <Th alinear="right">Desvío</Th>
             </TableRow>
           </TableHead>
           <TableBody>
             {filas.length === 0 ? (
-              <TableEmpty colSpan={18} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
+              <TableEmpty colSpan={21} mensaje="Aún no hay tareas. Créalas en el Cronograma." />
             ) : filasFiltradas.length === 0 ? (
-              <TableEmpty colSpan={18} mensaje="Ninguna tarea coincide con el filtro." />
+              <TableEmpty colSpan={21} mensaje="Ninguna tarea coincide con el filtro." />
             ) : (
               filasFiltradas.map(({ tarea, nivel, numero, hijas }) => {
                 const monto = montoTarea(tarea, tareas)
@@ -442,8 +464,17 @@ export function PartidasServicio() {
                 const desvFila = desviacionDias(estFila, realFila)
                 const esPadre = hijas.length > 0
                 const colapsada = esPadre && colapsadas[tarea.id]
+                // Rendimiento real vs planificado (Fase E): solo hojas en modo
+                // metrado; el resto muestra guion.
+                const rend =
+                  !esPadre && tarea.modo_medicion === 'metrado'
+                    ? rendimientoTarea(tarea, { partes, servicio, hoy })
+                    : null
                 return (
-                  <TableRow key={tarea.id}>
+                  <TableRow
+                    key={tarea.id}
+                    className={tarea.id === tareaEnlazada ? 'bg-amber-50' : ''}
+                  >
                     <Td>
                       <span style={{ paddingLeft: `${nivel * 1.25}rem` }} className="flex items-center gap-2">
                         {esPadre ? (
@@ -620,6 +651,62 @@ export function PartidasServicio() {
                         return hhUnd == null ? '—' : formatearCantidad(hhUnd)
                       })()}
                     </Td>
+                    <Td
+                      alinear="right"
+                      className="tabular-nums text-slate-600"
+                      title={
+                        rend == null
+                          ? undefined
+                          : `Real ${rend.realDia ?? '—'} ${rend.unidad}/día en ${rend.dias} día(s) · plan ${rend.planDia ?? '—'} ${rend.unidad}/día`
+                      }
+                    >
+                      {rend == null || rend.realDia == null ? (
+                        '—'
+                      ) : (
+                        <>
+                          {formatearCantidad(rend.realDia)} {rend.unidad}
+                          <span className="block text-[11px] font-normal text-slate-500">
+                            plan {rend.planDia == null ? '—' : formatearCantidad(rend.planDia)}
+                          </span>
+                        </>
+                      )}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums text-slate-600">
+                      {rend == null || rend.realHH == null ? (
+                        '—'
+                      ) : (
+                        <span title={`${rend.metradoReal} ${rend.unidad} en ${rend.horas} h`}>
+                          {formatearCantidad(rend.realHH)} {rend.unidad}/h
+                        </span>
+                      )}
+                    </Td>
+                    <Td
+                      alinear="right"
+                      className="tabular-nums"
+                      title={
+                        rend?.desvio == null
+                          ? undefined
+                          : `Real respecto a lo planificado (umbral ${umbral} %)`
+                      }
+                    >
+                      {(() => {
+                        if (rend?.desvio == null) return <span className="text-slate-400">—</span>
+                        const tono = tonoDesvio(rend.desvio, umbral)
+                        return (
+                          <span
+                            className={`font-semibold ${
+                              tono === 'verde'
+                                ? 'text-emerald-700'
+                                : tono === 'ambar'
+                                  ? 'text-amber-700'
+                                  : 'text-red-600'
+                            }`}
+                          >
+                            {rend.desvio}%
+                          </span>
+                        )
+                      })()}
+                    </Td>
                   </TableRow>
                 )
               })
@@ -690,6 +777,15 @@ export function PartidasServicio() {
                       {desvHHTotal.porcentaje}%
                     </span>
                   )}
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
+                </Td>
+                <Td alinear="right" className="tabular-nums">
+                  —
                 </Td>
                 <Td alinear="right" className="tabular-nums">
                   —
