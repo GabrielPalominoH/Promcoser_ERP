@@ -1670,7 +1670,7 @@ export function CronogramaServicio() {
             <div style={{ width: ANCHO_ETIQUETA + rango.totalDias * diaVista }}>
               {/* Encabezado: no se mueve al cambiar de vista. Con look-ahead se
                   agrega una fila con el número/rango de cada semana. */}
-              <div className={`mb-1 flex border-b border-slate-200 ${lookahead ? 'h-[84px]' : 'h-[60px]'}`}>
+              <div className={`mb-1 flex border-b border-slate-200 ${lookahead ? 'h-[5.25rem]' : 'h-[3.75rem]'}`}>
                 <div
                   className="sticky left-0 z-20 flex shrink-0 items-center bg-slate-50 px-3 text-xs font-semibold tracking-wide text-slate-500 uppercase"
                   style={{ width: ANCHO_ETIQUETA }}

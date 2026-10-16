@@ -21,6 +21,12 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Sistema un poco más compacto: casi todas las utilidades de Tailwind
+       (tipografías, paddings, gaps, anchos y alturas) están en `rem`, así que
+       bajar la raíz reduce la interfaz completa de forma uniforme. 93.75% =
+       15px sobre el 16px por defecto y respeta el tamaño de letra que haya
+       elegido el usuario en su navegador. */
+    font-size: 93.75%;
     /* Reserva el espacio de la barra de scroll vertical para que el
        contenido no se desplace cuando la lista se acorta y la barra
        aparece o desaparece. */
