@@ -31,6 +31,7 @@ import {
 } from '../../utils/calculadora'
 import { curvaServicio } from '../../utils/curvaS'
 import { lineaBaseVigente } from '../../utils/lineaBase'
+import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
 import { resumenHorasServicio } from '../../utils/horasHombre'
 import { usePanelServicio } from './panel'
 
@@ -450,8 +451,15 @@ export function ResumenServicio() {
       cobros: todosLosCobros,
       lineas_base: lineasBase,
       lecturas_avance: lecturasAvance,
+      modificaciones: todasLasModificaciones,
     },
   } = useData()
+
+  // El presupuesto contractual vigente (original + adicionales − deductivos
+  // aprobados) alimenta el control; el original se conserva aparte para
+  // mostrar la variación.
+  const servicioVig = servicioConPresupuestoVigente(servicio, todasLasModificaciones ?? [])
+  const variacionPresupuesto = servicioVig.presupuesto_asignado - servicioVig.presupuesto_original
 
   // El personal con costo sí suma al gastado, igual que materiales y
   // gastos. Los registros diarios viejos en domingo no cuentan (régimen
@@ -462,7 +470,7 @@ export function ResumenServicio() {
   const registros = registrosDeServicio(registrosVigentes, servicio.id)
   const porMesGasto = gastoPorMes(registros)
   const porMesHoras = horasPorMes(registrosVigentes, servicio.id)
-  const estado = estadoPresupuesto(servicio, registrosVigentes, todosLosCobros)
+  const estado = estadoPresupuesto(servicioVig, registrosVigentes, todosLosCobros)
   const gastado = estado.gastado
   const cobrado = estado.cobrado
   const utilidad = utilidadReal(cobrado, gastado)
@@ -480,7 +488,7 @@ export function ResumenServicio() {
   // Índices del valor ganado: el mismo SPI/EV/PV que muestra la Curva S, para
   // que Resumen y Curva S nunca lean distinto el ritmo de la obra.
   const curva = curvaServicio({
-    servicio,
+    servicio: servicioVig,
     tareas,
     registros: registrosVigentes,
     hoy: hoyISO(),
@@ -614,13 +622,17 @@ export function ResumenServicio() {
         <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-300 p-4 text-center sm:grid-cols-2 xl:grid-cols-5">
           <div>
             <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Presupuesto inicial
+              Presupuesto vigente
             </p>
             <p className="mt-1 text-xl font-bold text-slate-900 tabular-nums">
               {formatearMoneda(estado.presupuesto)}
             </p>
             <p className="mt-0.5 truncate text-xs text-slate-500">
-              Cliente: {servicio.cliente}
+              {variacionPresupuesto !== 0
+                ? `Original ${formatearMoneda(servicioVig.presupuesto_original)} (${
+                    variacionPresupuesto > 0 ? '+' : '−'
+                  }${formatearMoneda(Math.abs(variacionPresupuesto))})`
+                : `Cliente: ${servicio.cliente}`}
             </p>
           </div>
           <div>

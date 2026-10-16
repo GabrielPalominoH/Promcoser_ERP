@@ -17,6 +17,8 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `cobros` | `id` | Ingresos (módulo Ingresos en UI): servicio, fecha, monto, concepto, documento? |
 | `facturas` | `id` | Facturación: servicio, número, emisión, vencimiento, importes, estado, saldo |
 | `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN y meta de ingreso (`meta_ingreso`) |
+| `modificaciones` | `id` | Adicional/deductivo contractual: servicio, tipo, número, fecha, descripción, estado, documento, partidas (metrado × PU) e historial de estados |
+| `ampliaciones_plazo` | `id` | Ampliación de plazo: servicio, número, fecha de solicitud, días solicitados/aprobados/aplicados, motivo, estado, documento e historial |
 
 
 ## Relaciones
@@ -33,6 +35,9 @@ asignaciones 1──N registros_servicio (asignacion_id; meses devengados autom�
 personal 1──N costos_oficina (personal_id; gasto general, sin servicio)
 servicios 1──N cobros (servicio_id)
 servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id, opcional)
+servicios 1──N modificaciones (servicio_id; adicional/deductivo)
+servicios 1──N ampliaciones_plazo (servicio_id)
+modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partidas se materializan como tareas hoja marcadas con modificacion_id)
 
 ```
 
@@ -43,7 +48,7 @@ servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id,
 - **Días reales = fechas distintas con registros de personal propios + descendientes** (`diasRealesTarea`). Desviación = reales − estimados (`desviacionDias`, % `null` sin estimado).
 - **Valorizado = monto × avance efectivo** (`valorizadoTarea`). Sin metrados.
 - **Costo de fila = propio + descendientes** (`costoSubarbol`). Costos sin tarea van al aviso, nunca se pierden.
-- **Borrados** (`DataContext ELIMINAR_ITEM`): servicio arrastra registros, tareas, asignaciones, facturas y cobros; tarea arrastra subtareas y deja costos sin tarea; asignación arrastra sus meses automáticos.
+- **Borrados** (`DataContext ELIMINAR_ITEM`): servicio arrastra registros, tareas, asignaciones, facturas, cobros, modificaciones y ampliaciones de plazo; tarea arrastra subtareas y deja costos sin tarea; asignación arrastra sus meses automáticos.
 - **Personal**: costo directo automático desde asignaciones (`diferenciaPersonalAuto` + `proyeccionAsignaciones`); el devengado hasta hoy vive en registros mensuales (`modalidad: 'mensual'` para que siempre cuente). Baja = `fecha_fin`; lo devengado se conserva.
 - **Equipos**: el costo es el uso registrado por servicio; sin proyección.
 - **Cobros (= Ingresos en UI)**: cobrado y utilidad real (cobrado − gastado). Las facturas son registro documental con saldo y estado propios. En Partidas, el margen por tarea (valorizado − costo) se conserva como medida de avance.
@@ -51,6 +56,7 @@ servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id,
 - **Sin módulo de pagos, de presupuestos ni de cierre mensual**: no hay `pagos`, `presupuestos` ni `generarCierre`; el panel gerencial no tiene un Resultado del mes contable, solo una evolución de caja real vs proyectada (ver `src/utils/gerencial.js`).
 - **Resultado empresa** = utilidad de servicios − gasto de oficina.
 - **Registros diarios viejos en domingo no cuentan** (`cuentaComoManoDeObra`); mensuales siempre.
+- **Modificaciones contractuales** (`src/utils/modificaciones.js`): presupuesto vigente = original + adicionales aprobados − deductivos aprobados; solo el estado `aprobado` altera el contrato (con historial fechado). Al aprobar un adicional, sus partidas se materializan como tareas hoja (monto = metrado × PU) y entran al cronograma, Curva S, EVM y valorizaciones. Al aprobar una ampliación se desplaza `fecha_fin_estimada` por los días aprobados y se recalcula el cronograma con CPM. `servicioConPresupuestoVigente` inyecta el vigente en Resumen, Curva S, Valorizaciones y Dashboard, conservando el original.
 
 ## Migraciones guardadas
 
@@ -65,8 +71,10 @@ servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id,
   `siguienteId`). Los componentes no tocan `localStorage` (salvo preferencia
   visual del sidebar). Si el guardado falla, `Layout` muestra alerta y pide
   exportar respaldo.
-- Versión de esquema `_v: 8`; respaldos de versión mayor se rechazan; lo
-  inválido no destruye lo guardado.
+- Versión de esquema `_v: 11`; respaldos de versión mayor se rechazan; lo
+  inválido no destruye lo guardado. Los respaldos v10 (u anteriores) se
+  rellenan con las colecciones nuevas vacías (`modificaciones`,
+  `ampliaciones_plazo`).
 - Finanzas centralizadas en `src/utils/finanzas.js` (resultado/margen bruto,
   saldos, flujo, vigencia, periodos). Política: PEN,
   céntimos, resultado = cobrado − gastado.

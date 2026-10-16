@@ -13,6 +13,7 @@ import { CronogramaServicio } from './pages/servicio/CronogramaServicio'
 import { CurvaSServicio } from './pages/servicio/CurvaSServicio'
 import { LineaBaseServicio } from './pages/servicio/LineaBaseServicio'
 import { ValorizacionesServicio } from './pages/servicio/ValorizacionesServicio'
+import { ModificacionesServicio } from './pages/servicio/ModificacionesServicio'
 import { PartidasServicio } from './pages/servicio/PartidasServicio'
 import { OpcionesServicio } from './pages/servicio/OpcionesServicio'
 import { Personal } from './pages/Personal'
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="linea-base" element={<LineaBaseServicio />} />
           <Route path="partidas" element={<PartidasServicio />} />
           <Route path="valorizaciones" element={<ValorizacionesServicio />} />
+          <Route path="modificaciones" element={<ModificacionesServicio />} />
           <Route path="opciones" element={<OpcionesServicio />} />
         </Route>
         <Route path="personal" element={<Personal />} />

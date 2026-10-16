@@ -839,6 +839,67 @@ export const lecturas_avance = []
 export const valorizaciones = []
 export const adelantos = []
 
+// ------------------------------------------------------------
+//  5. Modificaciones contractuales (adicionales, deductivos y ampliaciones de
+//     plazo). Los adicionales/deductivos guardan sus partidas (metrado ×
+//     precio unitario) y el historial de estados; las ampliaciones, los días
+//     solicitados/aprobados y su motivo. Solo los APROBADOS alteran el
+//     presupuesto vigente y el plazo (los ejemplos sembrados están sin aprobar
+//     a propósito, para no mover las cifras de la línea base).
+// ------------------------------------------------------------
+
+export const modificaciones = [
+  {
+    id: 1,
+    servicio_id: 6,
+    tipo: 'adicional',
+    numero: 1,
+    fecha: '2026-09-15',
+    descripcion: 'Mayor metrado de excavación por suelo rocoso no previsto.',
+    estado: 'presentado',
+    documento: 'CARTA-001-2026',
+    partidas: [
+      { nombre: 'Excavación adicional en roca', unidad: 'm³', metrado: 120, precio_unitario: 95 },
+    ],
+    historial: [
+      { estado: 'borrador', fecha: '2026-09-10' },
+      { estado: 'presentado', fecha: '2026-09-15' },
+    ],
+  },
+  {
+    id: 2,
+    servicio_id: 6,
+    tipo: 'deductivo',
+    numero: 1,
+    fecha: '2026-09-20',
+    descripcion: 'Menor metrado de reposición de veredas por tramo anulado.',
+    estado: 'borrador',
+    documento: '',
+    partidas: [
+      { nombre: 'Reposición de veredas (tramo anulado)', unidad: 'm²', metrado: 40, precio_unitario: 50 },
+    ],
+    historial: [{ estado: 'borrador', fecha: '2026-09-20' }],
+  },
+]
+
+export const ampliaciones_plazo = [
+  {
+    id: 1,
+    servicio_id: 6,
+    numero: 1,
+    fecha_solicitud: '2026-10-01',
+    dias_solicitados: 20,
+    dias_aprobados: 0,
+    motivo: 'Retraso por lluvias no previstas en la programación de obra.',
+    estado: 'presentado',
+    documento: 'CARTA-002-2026',
+    historial: [
+      { estado: 'borrador', fecha: '2026-09-28' },
+      { estado: 'presentado', fecha: '2026-10-01' },
+    ],
+  },
+]
+
 export const ESTADO_INICIAL = {
   cargos,
   personal,
@@ -855,6 +916,8 @@ export const ESTADO_INICIAL = {
   lecturas_avance,
   valorizaciones,
   adelantos,
+  modificaciones,
+  ampliaciones_plazo,
 }
 
 

@@ -75,6 +75,21 @@ import {
 } from '../src/utils/horasHombre'
 import { programar } from '../src/utils/cpm'
 import { controlCPMCartera, evmCartera } from '../src/utils/cartera'
+import {
+  aplicarTransicion,
+  desplazarFechaFin,
+  diasAmpliados,
+  diasAplicados,
+  esAprobada,
+  importeModificacion,
+  importePartida,
+  partidasATareas,
+  presupuestoVigente,
+  resumenModificaciones,
+  servicioConPresupuestoVigente,
+  siguienteNumero as siguienteNumeroModificacion,
+  totalAprobado,
+} from '../src/utils/modificaciones'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
 import { RedPERT } from '../src/pages/servicio/RedPERT'
@@ -682,10 +697,23 @@ comprobar(
   normV9?.lineas_base.length === ESTADO_INICIAL.lineas_base.length &&
     Array.isArray(normV9?.valorizaciones),
 )
-// Un respaldo del esquema actual (v10) incompleto sí se rechaza.
+// Un respaldo de un esquema anterior (v10, sin modificaciones) se acepta y el
+// semilla rellena las colecciones nuevas vacías.
 const respaldoV10 = { ...JSON.parse(serial), _v: 10 }
-delete respaldoV10.cargos
-comprobar('K respaldo v10 incompleto se rechaza', validarRespaldo(respaldoV10).ok === false)
+delete respaldoV10.modificaciones
+delete respaldoV10.ampliaciones_plazo
+comprobar('K respaldo v10 sin modificaciones se acepta', validarRespaldo(respaldoV10).ok)
+const normV10 = normalizarRespaldo(respaldoV10)
+comprobar(
+  'K respaldo v10 rellena modificaciones vacías',
+  Array.isArray(normV10?.modificaciones) &&
+    normV10.modificaciones.length === ESTADO_INICIAL.modificaciones.length &&
+    Array.isArray(normV10?.ampliaciones_plazo),
+)
+// Un respaldo del esquema actual (v11) incompleto sí se rechaza.
+const respaldoV11 = { ...JSON.parse(serial), _v: 11 }
+delete respaldoV11.cargos
+comprobar('K respaldo v11 incompleto se rechaza', validarRespaldo(respaldoV11).ok === false)
 
 // ============================================================
 //  6. Personal automático y facturas (sin pagos ni cierre mensual)
@@ -1339,6 +1367,179 @@ comprobar(
 )
 
 // ============================================================
+//  7.12b Modificaciones contractuales (adicionales, deductivos y
+//        ampliaciones de plazo)
+// ============================================================
+
+console.log('\n[ modificaciones ]')
+
+comprobar(
+  'modificaciones: importe de partida = metrado × PU; 0 sin base (nunca NaN)',
+  importePartida({ metrado: 120, precio_unitario: 95 }) === 11400 &&
+    importePartida({}) === 0 &&
+    importePartida({ metrado: 5 }) === 0 &&
+    Number.isFinite(importePartida({ metrado: 'x', precio_unitario: 1 })),
+)
+comprobar(
+  'modificaciones: importe total = suma de partidas',
+  importeModificacion({
+    partidas: [
+      { metrado: 2, precio_unitario: 10 },
+      { metrado: 3, precio_unitario: 10 },
+    ],
+  }) === 50,
+)
+
+const servMod = { id: 500, presupuesto_asignado: 100000, fecha_fin_estimada: '2026-12-20' }
+const modAdic = {
+  id: 900,
+  servicio_id: 500,
+  tipo: 'adicional',
+  numero: 1,
+  fecha: '2026-05-01',
+  estado: 'aprobado',
+  partidas: [{ nombre: 'Extra', unidad: 'm³', metrado: 10, precio_unitario: 100 }],
+  historial: [],
+}
+const modDed = {
+  id: 910,
+  servicio_id: 500,
+  tipo: 'deductivo',
+  numero: 1,
+  fecha: '2026-05-02',
+  estado: 'aprobado',
+  partidas: [{ nombre: 'Menos', unidad: 'm²', metrado: 5, precio_unitario: 100 }],
+  historial: [],
+}
+const modBorrador = { ...modAdic, id: 920, numero: 2, estado: 'borrador' }
+
+comprobar('modificaciones: esAprobada solo con estado aprobado', esAprobada(modAdic) && !esAprobada(modBorrador))
+comprobar(
+  'modificaciones: totalAprobado ignora no aprobados y filtra servicio/tipo',
+  totalAprobado([modAdic, modBorrador], 500, 'adicional') === 1000 &&
+    totalAprobado([modAdic, modBorrador], 500, 'deductivo') === 0,
+)
+comprobar(
+  'modificaciones: presupuesto vigente = original + adic. − ded.',
+  presupuestoVigente(servMod, [modAdic, modDed]) === 100500 &&
+    presupuestoVigente(servMod, [modBorrador]) === 100000,
+)
+const servVigMod = servicioConPresupuestoVigente(servMod, [modAdic, modDed])
+comprobar(
+  'modificaciones: servicio vigente conserva el original aparte',
+  servVigMod.presupuesto_asignado === 100500 && servVigMod.presupuesto_original === 100000,
+)
+
+// Adicional aprobado → tareas hoja valorizables (metrado × PU), con la marca
+// que permite reconciliarlas. Un deductivo o un no aprobado no materializa.
+const tareasAdic = partidasATareas({ servicio: servMod, modificacion: modAdic })
+comprobar(
+  'modificaciones: adicional aprobado materializa una tarea hoja',
+  tareasAdic.length === 1 &&
+    tareasAdic[0].monto === 1000 &&
+    tareasAdic[0].metrado === 10 &&
+    tareasAdic[0].precio_unitario === 100 &&
+    tareasAdic[0].modificacion_id === 900,
+)
+comprobar(
+  'modificaciones: deductivo y no aprobado no materializan tareas',
+  partidasATareas({ servicio: servMod, modificacion: modDed }).length === 0 &&
+    partidasATareas({ servicio: servMod, modificacion: modBorrador }).length === 0,
+)
+const tareasValMod = [
+  { id: 1, servicio_id: 500, nombre: 'Base', monto: 100000, avance: 0 },
+  { ...tareasAdic[0], id: 2, avance: 100 },
+]
+const valMod = calcularValorizacion({
+  servicio: servMod,
+  tareas: tareasValMod,
+  valorizaciones: [],
+  adelantos: [],
+})
+comprobar(
+  'modificaciones: la partida adicional aprobada se valoriza',
+  valMod.bruta === 1000 && partidasValorizables(tareasValMod, 500).length === 2,
+)
+
+// Plazo: solo las ampliaciones aprobadas suman y desplazan la fecha fin.
+const ampAprobada = {
+  id: 1,
+  servicio_id: 500,
+  numero: 1,
+  dias_solicitados: 20,
+  dias_aprobados: 15,
+  dias_aplicados: 15,
+  estado: 'aprobado',
+  historial: [],
+}
+const ampPresentada = {
+  id: 2,
+  servicio_id: 500,
+  numero: 2,
+  dias_solicitados: 10,
+  dias_aprobados: 10,
+  estado: 'presentado',
+  historial: [],
+}
+comprobar(
+  'modificaciones: días ampliados = solo aprobadas',
+  diasAmpliados([ampAprobada, ampPresentada], 500) === 15,
+)
+comprobar(
+  'modificaciones: días aplicados y desplazamiento de la fecha fin',
+  diasAplicados([ampAprobada, ampPresentada], 500) === 15 &&
+    desplazarFechaFin('2026-12-20', 15) === '2027-01-04',
+)
+
+const resumenMod = resumenModificaciones({
+  servicio: { ...servMod, fecha_fin_estimada: '2027-01-04' },
+  modificaciones: [modAdic, modDed, modBorrador],
+  ampliaciones: [ampAprobada, ampPresentada],
+})
+comprobar(
+  'modificaciones: resumen compone importes, variación y plazo',
+  resumenMod.original === 100000 &&
+    resumenMod.vigente === 100500 &&
+    resumenMod.variacion === 500 &&
+    resumenMod.adicionales === 1000 &&
+    resumenMod.deductivos === 500 &&
+    resumenMod.plazoAprobado === 15 &&
+    resumenMod.aprobados === 2 &&
+    resumenMod.borradores === 1,
+)
+comprobar(
+  'modificaciones: resumen reconstruye la fecha fin original restando lo aplicado',
+  resumenMod.fechaFinVigente === '2027-01-04' && resumenMod.fechaFinOriginal === '2026-12-20',
+)
+
+// Numeración correlativa por servicio y transiciones con historial.
+comprobar(
+  'modificaciones: siguiente número = max + 1 del servicio',
+  siguienteNumeroModificacion([modAdic, modDed, modBorrador], 500) === 3 &&
+    siguienteNumeroModificacion([], 500) === 1,
+)
+const trans1 = aplicarTransicion(
+  { id: 1, estado: 'borrador', historial: [{ estado: 'borrador', fecha: '2026-01-01' }] },
+  'aprobado',
+  '2026-02-01',
+)
+comprobar(
+  'modificaciones: la transición agrega el estado al historial',
+  trans1.estado === 'aprobado' && trans1.historial.length === 2 && trans1.historial[1].fecha === '2026-02-01',
+)
+comprobar(
+  'modificaciones: repetir el mismo estado no duplica el historial',
+  aplicarTransicion(trans1, 'aprobado', '2026-03-01').historial.length === 2,
+)
+
+// Los ejemplos sembrados están sin aprobar a propósito: no mueven la línea base.
+comprobar(
+  'modificaciones: la semilla sin aprobar no altera el presupuesto del servicio 6',
+  presupuestoVigente(servicio6, ESTADO_INICIAL.modificaciones) === 335000 &&
+    diasAplicados(ESTADO_INICIAL.ampliaciones_plazo, 6) === 0,
+)
+
+// ============================================================
 //  7.13 Horas-hombre (HH): planificadas vs reales
 // ============================================================
 
@@ -1713,6 +1914,7 @@ const rutas = [
   { ruta: '/servicios/6/linea-base', etiqueta: 'Panel línea base', monto: true },
   { ruta: '/servicios/6/partidas', etiqueta: 'Panel partidas', monto: true },
   { ruta: '/servicios/6/valorizaciones', etiqueta: 'Panel valorizaciones', monto: true },
+  { ruta: '/servicios/6/modificaciones', etiqueta: 'Panel modificaciones', monto: true },
   { ruta: '/servicios/6/opciones', etiqueta: 'Panel opciones', monto: false },
   { ruta: '/servicios/999', etiqueta: 'Detalle id inexistente', monto: false },
   { ruta: '/personal', etiqueta: 'Personal', monto: true },

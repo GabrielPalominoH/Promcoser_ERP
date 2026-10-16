@@ -34,6 +34,7 @@ const ICONOS = {
   caja: 'M3 8h18v11H3zM3 8l2-4h14l2 4M10 12h4',
   barras: 'M4 20V10m6 10V4m6 16v-7',
   bandera: 'M6 21V4m0 0 11 3-11 3',
+  enmienda: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 12v5M9.5 14.5h5',
   // Controles del propio sidebar (antes vivían en el header).
   hamburguesa: 'M4 7h16M4 12h16M4 17h16',
   cerrar: 'M6 6l12 12M18 6L6 18',

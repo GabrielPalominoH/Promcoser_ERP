@@ -87,6 +87,12 @@ export function dataReducer(estado, accion) {
           adelantos: (estado.adelantos ?? []).filter(
             (adelanto) => adelanto.servicio_id !== payload.id,
           ),
+          modificaciones: (estado.modificaciones ?? []).filter(
+            (modificacion) => modificacion.servicio_id !== payload.id,
+          ),
+          ampliaciones_plazo: (estado.ampliaciones_plazo ?? []).filter(
+            (ampliacion) => ampliacion.servicio_id !== payload.id,
+          ),
         }
       }
 

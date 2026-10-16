@@ -16,7 +16,7 @@ redes de agua potable – Sector Muyuna*— y están verificados contra la suite
 ## 1. Modelo de datos
 
 Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
-(sin `presupuestos`, `pagos`, `partidas`, `valorizaciones`):
+(sin `presupuestos`, `pagos` ni `partidas`):
 
 | Colección | Qué guarda |
 |---|---|
@@ -30,13 +30,20 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 | `facturas` | Documentos de cobro: número, emisión, vencimiento, base/impuestos/total, estado, `notas_credito` |
 | `costos_oficina` | Gasto general: persona de ámbito Oficina, `mes`, monto |
 | `config` | Documento único (id 1): empresa, moneda, `meta_ingreso` |
+| `lineas_base` | Versión congelada del plan de un servicio (PV de la Curva S) |
+| `lecturas_avance` | Lecturas de avance del EV con corte y valor ganado |
+| `valorizaciones` | Valorizaciones de cobro del servicio (metrado, retenciones, adelantos, IGV) |
+| `adelantos` | Adelantos directos/por materiales entregados al servicio |
+| `modificaciones` | Adicional/deductivo contractual: tipo, número, fecha, estado, partidas (metrado × PU), historial |
+| `ampliaciones_plazo` | Ampliación de plazo: días solicitados/aprobados/aplicados, motivo, estado, historial |
 
 ### Relaciones que importan para el cálculo
 - `servicio 1──N tareas` y `tareas 1──N tareas` (árbol multinivel vía `padre_id`).
 - `tarea 1──N registros_servicio` (`tarea_id`; **`null` = sin tarea asignada**, se cuenta aparte).
 - `servicio 1──N cobros` y `servicio 1──N facturas`; `factura 1──N cobros` (aplicaciones).
 - `personal 1──N asignaciones` → generan **registros mensuales automáticos** de tipo `personal` con `asignacion_id` (ver §4).
-- `borrar servicio` arrastra registros, tareas, asignaciones, facturas y cobros (cascada en `DataContext`).
+- `servicio 1──N modificaciones` (adicional/deductivo) y `servicio 1──N ampliaciones_plazo`; al aprobar un adicional sus partidas se materializan como tareas hoja.
+- `borrar servicio` arrastra registros, tareas, asignaciones, facturas, cobros, modificaciones y ampliaciones (cascada en `DataContext`).
 
 ---
 
@@ -612,6 +619,32 @@ Orden real de la pantalla:
 Mismo árbol del Cronograma con columnas: Monto (sumable), Valorizado, Avance,
 Costo (subárbol), Margen (valorizado − costo), Días est., Días reales, Desv.
 Más "sin tarea asignada" en el total para que nada se pierda.
+
+### Modificaciones (`/servicios/:id/modificaciones`)
+Sección **Contrato**. Gestiona adicionales, deductivos y ampliaciones de plazo
+(`src/utils/modificaciones.js`, colecciones `modificaciones` y
+`ampliaciones_plazo`).
+
+1. **Cabecera**: presupuesto original, presupuesto vigente (original + adicionales
+   aprobados − deductivos aprobados), variación y plazo ampliado (días
+   aprobados) con la fecha fin vigente.
+2. **Adicionales y deductivos**: N°, tipo, fecha, descripción, importe
+   (metrado × PU), estado (`borrador`/`presentado`/`aprobado`/`rechazado`) y
+   documento de sustento. Alta/edición con modal y editor de partidas;
+   búsqueda + filtro por estado.
+3. **Ampliaciones de plazo**: N°, fecha de solicitud, motivo, días
+   solicitados/aprobados y estado.
+4. **Efecto de aprobar**: un **adicional** materializa sus partidas como tareas
+   hoja (entran al Cronograma, Curva S, EVM y Valorizaciones); una **ampliación**
+   desplaza `fecha_fin_estimada` por los días aprobados y recalcula el cronograma
+   con el motor CPM. Salir de aprobado revierte el efecto (las tareas generadas
+   se retiran y los costos quedan sin tarea, nunca se borran).
+5. **Historial** de cambios de estado con fecha en el detalle de cada registro.
+
+El presupuesto vigente se refleja en Resumen, Curva S, Valorizaciones y
+Dashboard vía `servicioConPresupuestoVigente`, conservando el original para
+mostrar la variación. Los ejemplos sembrados están **sin aprobar** a propósito
+para no mover las cifras de la línea base.
 
 ### 9.1 Datos exactos de cada gráfico del Resumen (servicio 6)
 

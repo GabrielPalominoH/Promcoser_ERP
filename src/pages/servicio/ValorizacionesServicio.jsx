@@ -28,6 +28,7 @@ import {
   resumenValorizaciones,
   saldoAdelantos,
 } from '../../utils/valorizaciones'
+import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
 
 function Dato({ etiqueta, valor, tono = 'text-slate-900', nota }) {
   return (
@@ -284,6 +285,7 @@ export function ValorizacionesServicio() {
   )
 
   const cfg = configValorizacion(servicio)
+  const servicioVig = servicioConPresupuestoVigente(servicio, estado.modificaciones)
   const resumen = resumenValorizaciones({ servicio, valorizaciones, adelantos })
   const saldos = saldoAdelantos({ servicio, valorizaciones, adelantos })
   const ver = verId ? valorizaciones.find((v) => v.id === verId) : null
@@ -514,8 +516,13 @@ export function ValorizacionesServicio() {
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Dato
-              etiqueta="Presupuesto (contrato)"
-              valor={formatearMoneda(servicio.presupuesto_asignado)}
+              etiqueta="Presupuesto vigente"
+              valor={formatearMoneda(servicioVig.presupuesto_asignado)}
+              nota={
+                servicioVig.presupuesto_asignado !== servicio.presupuesto_asignado
+                  ? `Original ${formatearMoneda(servicio.presupuesto_asignado)}`
+                  : null
+              }
             />
             <Dato
               etiqueta="Fondo retenido acumulado"
@@ -528,7 +535,7 @@ export function ValorizacionesServicio() {
 
       {modal === 'nueva' && (
         <ModalNuevaValorizacion
-          servicio={servicio}
+          servicio={servicioVig}
           tareas={tareas}
           valorizaciones={valorizaciones}
           adelantos={adelantos}

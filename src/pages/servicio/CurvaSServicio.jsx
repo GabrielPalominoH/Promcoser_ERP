@@ -7,6 +7,7 @@ import { formatearMoneda } from '../../utils/formatters'
 import { cuentaComoManoDeObra } from '../../utils/calculadora'
 import { curvaServicio } from '../../utils/curvaS'
 import { lineaBaseVigente } from '../../utils/lineaBase'
+import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
 
 // Colores de las tres variables del valor ganado (mismos que el resto del
 // panel: plan azul, costo real rojo, valor ganado verde).
@@ -322,7 +323,7 @@ export function CurvaSServicio() {
 
   const registrosVigentes = (estado.registros_servicio ?? []).filter(cuentaComoManoDeObra)
   const curva = curvaServicio({
-    servicio,
+    servicio: servicioConPresupuestoVigente(servicio, estado.modificaciones),
     tareas: estado.tareas ?? [],
     registros: registrosVigentes,
     granularidad,

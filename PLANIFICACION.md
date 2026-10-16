@@ -81,6 +81,27 @@ consolidado separados.
 - Filtro por responsable (requiere ese dato en M1).
 **Aceptación:** Caso J (sin datos: ceros y N/D, sin NaN) ya en suite; filtros recalculan todo lo por servicio; números exactos del servicio 6 verificados en la sección `[ gerencial ]`.
 
+## M11. Modificaciones contractuales (hecho — Fase 1)
+**Existe:** sección **Modificaciones** en el panel de servicio
+(`/servicios/:id/modificaciones`, grupo *Contrato*) con:
+- Adicionales y deductivos con número correlativo, fecha, descripción, partidas
+  (metrado × precio unitario), estado (`borrador`/`presentado`/`aprobado`/
+  `rechazado`) y documento de sustento.
+- Ampliaciones de plazo con días solicitados/aprobados, motivo, estado.
+- Presupuesto vigente = original + adicionales aprobados − deductivos aprobados,
+  reflejado en Resumen, Curva S, Valorizaciones y Dashboard
+  (`servicioConPresupuestoVigente`), conservando el original y mostrando la
+  variación.
+- Al aprobar un adicional, sus partidas se materializan como tareas hoja (entran
+  al Cronograma, Curva S, EVM y valorizaciones); al aprobar una ampliación se
+  desplaza `fecha_fin_estimada` y se recalcula el cronograma con CPM.
+- Historial de cambios de estado con fecha.
+**Falta:**
+- Reporte imprimible/PDF del expediente de la modificación (Fase 3).
+**Aceptación:** sección `[ modificaciones ]` en la suite (importes, presupuesto
+vigente, materialización y valorización del adicional, plazo, historial,
+migración v10 → v11).
+
 ## Orden de ejecución sugerido
 
 M7 → M5/M6 → M3/M4 → M1/M10.
@@ -97,6 +118,7 @@ del sistema iguale a la del control al céntimo.
 - [ ] Registrar cobro con y sin factura (tope de saldo, autocreación, adelanto).
 - [ ] Montos, avance y horas estimadas en Cronograma/Partidas; desviación de horas visible.
 - [ ] Resumen cuadra: presupuesto, gastado, saldo, cobrado, utilidad, productividad, SPI.
+- [ ] Un adicional aprobado sube el presupuesto vigente y su partida se valoriza; una ampliación aprobada mueve la fecha fin.
 - [ ] Dashboard cuadra: resultado, caja por mes, utilidad por cliente, gasto y ranking.
 - [ ] Exportar → Vaciar todo → Importar: totales idénticos tras el round-trip.
 - [ ] Suite verde (`npm run verificar`) + build OK + tag de release en git.

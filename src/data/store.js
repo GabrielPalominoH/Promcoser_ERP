@@ -17,6 +17,8 @@
 //   9 = + cargos (catálogo maestro de cargos; el personal se vincula por nombre)
 //  10 = + lineas_base, lecturas_avance, valorizaciones, adelantos (control de
 //       obra: línea base del PV, lecturas del EV y valorizaciones del cobro)
+//  11 = + modificaciones, ampliaciones_plazo (adicionales/deductivos y
+//       ampliaciones de plazo; los respaldos v10 se rellenan vacíos)
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -26,7 +28,7 @@ import {
   migrarPresupuestoATareas,
 } from './mockData'
 
-export const VERSION_ESQUEMA = 10
+export const VERSION_ESQUEMA = 11
 
 const memoria = {}
 const backendMemoria = {

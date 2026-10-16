@@ -49,6 +49,7 @@ import { GraficoComboCartera } from '../components/charts/GraficoComboCartera'
 import { GraficoCurvaSCartera, GraficoHistogramaHH } from '../components/charts/GraficosControl'
 import { controlCPMCartera, evmCartera } from '../utils/cartera'
 import { serieHorasHombre } from '../utils/horasHombre'
+import { servicioConPresupuestoVigente } from '../utils/modificaciones'
 
 function descargarCSV(nombre, filas) {
   const contenido = filas.map((fila) => fila.join(',')).join('\n')
@@ -226,10 +227,17 @@ export function Dashboard() {
   const tareasF = (todasLasTareas ?? []).filter((t) => idsF.has(t.servicio_id))
   const asigF = (todasLasAsignaciones ?? []).filter((a) => idsF.has(a.servicio_id))
 
+  // Presupuesto contractual vigente: los adicionales/deductivos aprobados
+  // ajustan el presupuesto que alimenta el control de cartera. El original se
+  // conserva en `presupuesto_original`.
+  const serviciosVig = serviciosF.map((s) =>
+    servicioConPresupuestoVigente(s, estado.modificaciones),
+  )
+
   // --- Indicadores gerenciales (todo compuesto desde utils) ---
-  const analisis = analizarServicios({ servicios: serviciosF, registros: registrosF, cobros: cobrosF })
+  const analisis = analizarServicios({ servicios: serviciosVig, registros: registrosF, cobros: cobrosF })
   const kpis = kpisEmpresa({
-    servicios: serviciosF,
+    servicios: serviciosVig,
     registros: registrosF,
     cobros: cobrosF,
     costosOficina,
@@ -263,7 +271,7 @@ export function Dashboard() {
   // (cuenta como mano de obra), igual que la Curva S de cada servicio.
   const registrosCurva = registrosF.filter(cuentaComoManoDeObra)
   const carteraEVM = evmCartera({
-    servicios: serviciosF,
+    servicios: serviciosVig,
     tareas: tareasF,
     registros: registrosCurva,
     lineasBase: estado.lineas_base ?? [],
