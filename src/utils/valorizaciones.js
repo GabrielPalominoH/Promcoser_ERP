@@ -88,6 +88,22 @@ export function valorizacionesQueUsanTareas(valorizaciones = [], tareaIds = []) 
   )
 }
 
+// Aviso (para la UI) cuando el metrado de las partidas de un parte ya se
+// valorizó: el avance se ajusta igual, pero la valorización emitida no se
+// recalcula sola. Devuelve `{ tipo, mensaje }` o `null` si no hay nada que
+// avisar. Función pura para poder probarla sin montar el componente.
+export function avisoMetradoValorizado(valorizaciones = [], partidas = []) {
+  const ids = (partidas ?? []).map((f) => f?.tarea_id).filter((x) => x != null)
+  if (ids.length === 0) return null
+  const usadas = valorizacionesQueUsanTareas(valorizaciones, ids)
+  if (usadas.length === 0) return null
+  const numeros = usadas.map((v) => v.numero).filter((x) => x != null).join(', ')
+  return {
+    tipo: 'warning',
+    mensaje: `Este metrado ya se incluyó en la valorización N° ${numeros || '—'}. El avance se ajusta, pero esa valorización no se recalcula sola.`,
+  }
+}
+
 // Total de adelantos registrados de un tipo: 'directo' | 'materiales'.
 export function totalAdelantos(adelantos = [], servicioId, tipo) {
   return r2(

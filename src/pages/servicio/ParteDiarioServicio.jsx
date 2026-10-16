@@ -44,7 +44,7 @@ import {
   resumenParte,
   resumenPeriodo,
 } from '../../utils/partesDiario'
-import { valorizacionesQueUsanTareas } from '../../utils/valorizaciones'
+import { avisoMetradoValorizado } from '../../utils/valorizaciones'
 import { htmlParteDiario, imprimirHTML } from '../../utils/reportes'
 import {
   CALIDAD_FOTO,
@@ -1240,7 +1240,7 @@ export function ParteDiarioServicio() {
       agregarItem('partes_diario', { servicio_id: servicio.id, ...datos })
     }
 
-    const avisoValorizado = avisoMetradoValorizado(datos.partidas)
+    const avisoValorizado = avisoMetradoValorizado(estado.valorizaciones, datos.partidas)
     setAviso(
       avisoValorizado ?? {
         tipo: 'exito',
@@ -1254,25 +1254,11 @@ export function ParteDiarioServicio() {
     eliminarItem('partes_diario', parte.id)
     // El avance retrocede solo (lo recalcula el reducer); lo ya valorizado no.
     setAviso(
-      avisoMetradoValorizado(parte.partidas) ?? {
+      avisoMetradoValorizado(estado.valorizaciones, parte.partidas) ?? {
         tipo: 'info',
         mensaje: `Parte del ${formatearFecha(parte.fecha)} eliminado.`,
       },
     )
-  }
-
-  // Avisa (sin bloquear) cuando el metrado que toca este parte ya se valorizó:
-  // el avance se ajusta igual, pero la valorización emitida no se rehace sola.
-  const avisoMetradoValorizado = (partidas) => {
-    const ids = (partidas ?? []).map((f) => f?.tarea_id).filter((x) => x != null)
-    if (ids.length === 0) return null
-    const usadas = valorizacionesQueUsanTareas(estado.valorizaciones, ids)
-    if (usadas.length === 0) return null
-    const numeros = usadas.map((v) => v.numero).filter((x) => x != null).join(', ')
-    return {
-      tipo: 'warning',
-      mensaje: `Este metrado ya se incluyó en la valorización N° ${numeros || '—'}. El avance se ajusta, pero esa valorización no se recalcula sola.`,
-    }
   }
 
   const moverMes = (delta) => {

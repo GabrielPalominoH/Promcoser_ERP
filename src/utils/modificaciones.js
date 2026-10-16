@@ -173,7 +173,8 @@ export function partidasATareas({ servicio, modificacion } = {}) {
     nombre: p.nombre || `Adicional ${modificacion.numero} – partida ${i + 1}`,
     fecha_inicio: modificacion.fecha,
     fecha_fin: modificacion.fecha,
-    avance: 0,
+    // `avance` no se fija aquí: lo deriva `recalcularAvances` al entrar al
+    // estado (única fuente), igual que cualquier otra tarea nueva.
     monto: importePartida(p),
     unidad: p.unidad ?? null,
     metrado: p.metrado ?? null,

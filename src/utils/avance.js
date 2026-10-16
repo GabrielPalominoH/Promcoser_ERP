@@ -228,14 +228,14 @@ export function recalcularAvances(estado, hoy = hoyISO()) {
       hoy,
       calendario: calendarioPorServicio.get(t.servicio_id),
     })
-    if (n(t.avance) === nuevo) return t
+    if (typeof t.avance === 'number' && t.avance === nuevo) return t
     cambio = true
     return { ...t, avance: nuevo }
   })
   const finales = conHojas.map((t) => {
     if (esHojaTarea(t, tareas)) return t
     const nuevo = acotarAvance(avanceEfectivo(t, conHojas))
-    if (n(t.avance) === nuevo) return t
+    if (typeof t.avance === 'number' && t.avance === nuevo) return t
     cambio = true
     return { ...t, avance: nuevo }
   })

@@ -56,6 +56,7 @@ import {
   siguienteVersionLineaBase,
 } from '../src/utils/lineaBase'
 import {
+  avisoMetradoValorizado,
   basePrecio,
   calcularValorizacion,
   configValorizacion,
@@ -63,6 +64,7 @@ import {
   resumenValorizaciones,
   saldoAdelantos,
   siguienteNumero,
+  valorizacionesQueUsanTareas,
 } from '../src/utils/valorizaciones'
 import {
   desviacionHoras,
@@ -3487,6 +3489,271 @@ comprobar(
     htmlDash.includes('Histograma de horas-hombre') &&
     htmlDash.includes('Look-ahead') &&
     htmlDash.includes('Ruta crítica'),
+)
+
+// ============================================================
+//  7.20 Avance derivado (Fase C): `recalcularAvances` es el ÚNICO escritor
+// ============================================================
+// Reglas que se prueban aquí:
+//   - cada modo de medición solo se mueve ante SU evento;
+//   - `metrado_previo` + partes reproduce el avance anterior;
+//   - el demo sigue en 47 % y ningún avance global se mueve al migrar;
+//   - recalcular es idempotente (misma referencia);
+//   - el modo `manual` nunca se pisa;
+//   - los padres siguen ponderando como `avanceEfectivo`;
+//   - un respaldo v14 migra a v15 sin perder datos;
+//   - editar o borrar un parte hace retroceder el avance;
+//   - editar/borrar un parte ya valorizado dispara el aviso.
+
+console.log('\n[ fase C: avance derivado ]')
+
+// --- Cada modo de medición se recalcula SOLO ante su propio evento ---
+// Una hoja por modo + un registro de costo. Cada prueba muta UN tipo de evento
+// y comprueba que únicamente la hoja de ese modo cambia de avance.
+const baseEventos = {
+  servicios: [{ id: 900, fecha_inicio: '2026-01-01' }],
+  registros_servicio: [{ id: 1, servicio_id: 900, tarea_id: 30, monto_calculado: 2500 }],
+  partes_diario: [],
+  tareas: [
+    { id: 30, servicio_id: 900, modo_medicion: 'costo', monto: 10000 },
+    { id: 31, servicio_id: 900, modo_medicion: 'metrado', metrado: 100 },
+    {
+      id: 32,
+      servicio_id: 900,
+      modo_medicion: 'hitos',
+      pasos: [{ id: 1, peso: 100, estado: 'pendiente', fecha_cumplimiento: null }],
+    },
+    { id: 33, servicio_id: 900, modo_medicion: 'tiempo', fecha_inicio: '2026-01-01', fecha_fin: '2026-01-31' },
+    { id: 34, servicio_id: 900, modo_medicion: 'manual', avance: 42, nota_justificacion: 'x' },
+  ],
+}
+const avanceBase = Object.fromEntries(
+  recalcularAvances(baseEventos, '2026-01-15').tareas.map((t) => [t.id, t.avance]),
+)
+const idsQueCambian = (estado, hoy = '2026-01-15') =>
+  recalcularAvances(estado, hoy)
+    .tareas.filter((t) => t.avance !== avanceBase[t.id])
+    .map((t) => t.id)
+    .join(',')
+
+comprobar(
+  'fase C: el evento de metrado (parte) mueve solo la hoja de metrado',
+  idsQueCambian({
+    ...baseEventos,
+    partes_diario: [{ id: 1, servicio_id: 900, fecha: '2026-01-10', partidas: [{ tarea_id: 31, metrado_dia: 10 }] }],
+  }) === '31',
+)
+comprobar(
+  'fase C: el evento de costo (registro) mueve solo la hoja de costo',
+  idsQueCambian({
+    ...baseEventos,
+    registros_servicio: [
+      ...baseEventos.registros_servicio,
+      { id: 2, servicio_id: 900, tarea_id: 30, monto_calculado: 2500 },
+    ],
+  }) === '30',
+)
+comprobar(
+  'fase C: el evento de hitos (paso cumplido) mueve solo la hoja de hitos',
+  idsQueCambian({
+    ...baseEventos,
+    tareas: baseEventos.tareas.map((t) =>
+      t.id === 32
+        ? { ...t, pasos: [{ id: 1, peso: 100, estado: 'cumplido', fecha_cumplimiento: '2026-01-05' }] }
+        : t,
+    ),
+  }) === '32',
+)
+comprobar(
+  'fase C: el evento de tiempo (avanzar la fecha de corte) mueve solo la hoja de tiempo',
+  idsQueCambian(baseEventos, '2026-01-20') === '33',
+)
+comprobar(
+  'fase C: la hoja manual solo cambia al editarla a mano; recalcular no la pisa',
+  (() => {
+    const conManual = recalcularAvances({
+      ...baseEventos,
+      tareas: baseEventos.tareas.map((t) => (t.id === 34 ? { ...t, avance: 77 } : t)),
+    })
+    // Recalcular otra vez conserva el 77 (el modo manual manda).
+    const otra = recalcularAvances(conManual)
+    return (
+      conManual.tareas.find((t) => t.id === 34).avance === 77 &&
+      otra.tareas.find((t) => t.id === 34).avance === 77
+    )
+  })(),
+)
+comprobar(
+  'fase C: un evento de metrado no mueve las hojas de costo, hitos, tiempo ni manual',
+  (() => {
+    const rec = recalcularAvances(
+      {
+        ...baseEventos,
+        partes_diario: [{ id: 1, servicio_id: 900, fecha: '2026-01-10', partidas: [{ tarea_id: 31, metrado_dia: 10 }] }],
+      },
+      '2026-01-15',
+    )
+    return (
+      rec.tareas.find((t) => t.id === 30).avance === avanceBase[30] &&
+      rec.tareas.find((t) => t.id === 32).avance === avanceBase[32] &&
+      rec.tareas.find((t) => t.id === 33).avance === avanceBase[33] &&
+      rec.tareas.find((t) => t.id === 34).avance === avanceBase[34]
+    )
+  })(),
+)
+
+// --- metrado_previo + partes cuadra con el avance anterior ---
+comprobar(
+  'fase C: `metrado_previo` reproduce el avance anterior de cada hoja de metrado',
+  (() => {
+    const hojas = ESTADO_INICIAL.tareas.filter(
+      (t) => t.servicio_id === 6 && t.modo_medicion === 'metrado' && (t.metrado ?? 0) > 0,
+    )
+    const migrado = migrarAvancePrevio(ESTADO_INICIAL)
+    const rec = recalcularAvances(migrado)
+    return (
+      hojas.length > 0 &&
+      hojas.every((h) => {
+        const antes = Number(h.avance) || 0
+        const derivado = rec.tareas.find((t) => t.id === h.id).avance
+        const previo = migrado.tareas.find((t) => t.id === h.id).metrado_previo
+        return derivado === antes && Math.abs((previo * 100) / h.metrado - antes) < 0.01
+      })
+    )
+  })(),
+)
+comprobar(
+  'fase C: `metrado_previo` + partes cuadra con el avance anterior (85 % → +5 %)',
+  (() => {
+    // Tarea 18 del seed: avance 85 %, metrado 800 → previo 680.
+    const antes = Number(ESTADO_INICIAL.tareas.find((t) => t.id === 18).avance) || 0
+    const migrado = migrarAvancePrevio(ESTADO_INICIAL)
+    const previo = migrado.tareas.find((t) => t.id === 18).metrado_previo
+    const conParte = recalcularAvances({
+      ...migrado,
+      partes_diario: [
+        { id: 1, servicio_id: 6, fecha: '2026-10-05', partidas: [{ tarea_id: 18, metrado_dia: 40 }] },
+      ],
+    })
+    const sinParte = recalcularAvances(migrado)
+    return (
+      antes === 85 &&
+      previo === 680 &&
+      sinParte.tareas.find((t) => t.id === 18).avance === 85 &&
+      conParte.tareas.find((t) => t.id === 18).avance === 90
+    )
+  })(),
+)
+
+// --- El demo se mantiene en 47 % y ningún avance global se mueve ---
+const serviciosSeed = [...new Set(ESTADO_INICIAL.tareas.map((t) => t.servicio_id))]
+const globalAntes = Object.fromEntries(
+  serviciosSeed.map((s) => [
+    s,
+    metricasCronograma(ESTADO_INICIAL.tareas.filter((t) => t.servicio_id === s)).avanceGlobal,
+  ]),
+)
+const globalDespues = Object.fromEntries(
+  serviciosSeed.map((s) => [
+    s,
+    metricasCronograma(seedDerivado.tareas.filter((t) => t.servicio_id === s)).avanceGlobal,
+  ]),
+)
+comprobar(
+  'fase C: el demo se mantiene en 47 % y migrar+recalcular no mueve ningún avance global',
+  globalDespues[6] === 47 && serviciosSeed.every((s) => globalDespues[s] === globalAntes[s]),
+)
+
+// --- Recalcular es idempotente sobre la semilla ---
+comprobar(
+  'fase C: recalcular la semilla es idempotente (devuelve la misma referencia)',
+  recalcularAvances(seedDerivado) === seedDerivado,
+)
+
+// --- Los padres siguen ponderando como avanceEfectivo ---
+comprobar(
+  'fase C: los padres conservan la ponderación por monto de avanceEfectivo',
+  (() => {
+    const tareas = seedDerivado.tareas
+    const padres = tareas.filter((t) => tareas.some((h) => h.padre_id === t.id))
+    return (
+      padres.length > 0 &&
+      padres.every((p) => p.avance === avanceEfectivo(p, tareas))
+    )
+  })(),
+)
+
+// --- Editar o borrar un parte hace retroceder el avance ---
+const retroParte = (() => {
+  const base = {
+    servicios: [{ id: 900 }],
+    registros_servicio: [],
+    tareas: [{ id: 31, servicio_id: 900, modo_medicion: 'metrado', metrado: 100 }],
+    partes_diario: [{ id: 1, servicio_id: 900, fecha: '2026-01-10', partidas: [{ tarea_id: 31, metrado_dia: 40 }] }],
+  }
+  const conParte = recalcularAvances(base).tareas[0].avance
+  const sinParte = recalcularAvances({ ...base, partes_diario: [] }).tareas[0].avance
+  const editado = recalcularAvances({
+    ...base,
+    partes_diario: [{ ...base.partes_diario[0], partidas: [{ tarea_id: 31, metrado_dia: 20 }] }],
+  }).tareas[0].avance
+  return { conParte, sinParte, editado }
+})()
+comprobar(
+  'fase C: borrar un parte hace retroceder el avance y editar el metrado lo ajusta',
+  retroParte.conParte === 40 && retroParte.sinParte === 0 && retroParte.editado === 20,
+  JSON.stringify(retroParte),
+)
+
+// --- Aviso cuando el metrado del parte ya se valorizó ---
+const valorizacionesDemo = [
+  { id: 1, numero: 3, servicio_id: 900, items: [{ tarea_id: 31, metrado_periodo: 25 }] },
+]
+comprobar(
+  'fase C: el aviso de valorización aparece al tocar un metrado ya valorizado',
+  (() => {
+    const aviso = avisoMetradoValorizado(valorizacionesDemo, [{ tarea_id: 31, metrado_dia: 10 }])
+    const ajeno = avisoMetradoValorizado(valorizacionesDemo, [{ tarea_id: 99 }])
+    const vacio = avisoMetradoValorizado(valorizacionesDemo, [])
+    return (
+      aviso?.tipo === 'warning' &&
+      aviso.mensaje.includes('valorización') &&
+      aviso.mensaje.includes('3') &&
+      ajeno === null &&
+      vacio === null
+    )
+  })(),
+)
+comprobar(
+  'fase C: `valorizacionesQueUsanTareas` detecta solo las que usaron ese metrado',
+  valorizacionesQueUsanTareas(valorizacionesDemo, [31]).length === 1 &&
+    valorizacionesQueUsanTareas(valorizacionesDemo, [99]).length === 0 &&
+    valorizacionesQueUsanTareas([{ id: 2, numero: 4, items: [{ tarea_id: 31, metrado_periodo: 0 }] }], [31]).length === 0,
+)
+
+// --- Restaurar un respaldo v14 migra a v15 sin perder datos ---
+// Un respaldo v14 trae `modo_medicion` (Fase A/B) pero NO `metrado_previo` ni
+// `costo_previo` (Fase C, v15). Al normalizarlo, la migración los fija y el
+// avance ya registrado se conserva.
+comprobar(
+  'K respaldo v14 se acepta y migra a v15 sin perder datos ni avance',
+  (() => {
+    const respaldoV14 = { ...JSON.parse(serial), _v: 14 }
+    if (!validarRespaldo(respaldoV14).ok) return false
+    const normV14 = normalizarRespaldo(respaldoV14)
+    if (!normV14) return false
+    const conserva = COLECCIONES.every((c) => normV14[c].length === ESTADO_INICIAL[c].length)
+    const t18 = normV14.tareas.find((t) => t.id === 18)
+    const t13 = normV14.tareas.find((t) => t.id === 13)
+    return (
+      conserva &&
+      metricasCronograma(normV14.tareas.filter((t) => t.servicio_id === 6)).avanceGlobal === 47 &&
+      t18.avance === 85 &&
+      t18.metrado_previo === 680 &&
+      t13.avance === 100 &&
+      t13.costo_previo === 3700
+    )
+  })(),
 )
 
 // ============================================================

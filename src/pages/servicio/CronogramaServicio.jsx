@@ -194,8 +194,8 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
               tipo: p.tipo ?? 'FS',
               lag: Number(p.lag) || 0,
             })),
-      // Con hijas, el avance se calcula solo desde las subtareas.
-      avance,
+      // `avance` NO se envía aquí: fuera del modo manual es un valor derivado y
+      // lo escribe `recalcularAvances` (única escritura, más el modo manual).
     }
 
     // El modo de medición solo aplica a las hojas. Al cambiar de modo se
@@ -208,6 +208,9 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
       const cambiaModo = enEdicion && modoPrevio !== modo
       cambios.modo_medicion = modo
       cambios.nota_justificacion = modo === 'manual' ? String(valores.nota_justificacion ?? '').trim() : ''
+
+      // Única escritura directa del avance permitida: el modo `manual`.
+      if (modo === 'manual') cambios.avance = avance
 
       if (modo === 'hitos') {
         const lista = pasos.length > 0 ? pasos : pasosQueReproducenAvance(avance)
