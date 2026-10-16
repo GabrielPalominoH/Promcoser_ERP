@@ -74,6 +74,19 @@ import {
   serieHorasHombre,
 } from '../src/utils/horasHombre'
 import { programar } from '../src/utils/cpm'
+import {
+  SEMANAS_LOOKAHEAD,
+  cambiosDeArrastre,
+  conflictosDependencia,
+  desviacionLineaBase,
+  histogramaRecursosSemanal,
+  lunesDe,
+  moverTarea,
+  redimensionarTarea,
+  resumenDesviacionLineaBase,
+  semanasEntre,
+  ventanaLookahead,
+} from '../src/utils/cronograma'
 import { controlCPMCartera, evmCartera } from '../src/utils/cartera'
 import {
   aplicarTransicion,
@@ -2022,8 +2035,143 @@ comprobar(
 )
 
 // ============================================================
-//  7.15 Cartera: valor ganado y control agregados
+//  7.16 Cronograma: look-ahead, arrastre y recursos
 // ============================================================
+
+console.log('\n[ cronograma ]')
+
+// Semanas y look-ahead (calendario por defecto, sin feriados).
+comprobar('cronograma: lunes de viernes 2026-10-16 = 2026-10-12', lunesDe('2026-10-16') === '2026-10-12', lunesDe('2026-10-16'))
+comprobar('cronograma: lunes de lunes no cambia', lunesDe('2026-10-12') === '2026-10-12', lunesDe('2026-10-12'))
+comprobar('cronograma: lunes de domingo = lunes anterior', lunesDe('2026-10-18') === '2026-10-12', lunesDe('2026-10-18'))
+
+const sem4 = semanasEntre('2026-10-16', '2026-11-08')
+comprobar('cronograma: 4 semanas en el rango', sem4.length === 4, String(sem4.length))
+comprobar('cronograma: primera semana empieza el lunes', sem4[0].inicio === '2026-10-12' && sem4[0].fin === '2026-10-18', JSON.stringify(sem4[0]))
+comprobar('cronograma: última semana termina el domingo', sem4[3].inicio === '2026-11-02' && sem4[3].fin === '2026-11-08', JSON.stringify(sem4[3]))
+
+const la4 = ventanaLookahead({ hoy: '2026-10-16', semanas: 4 })
+comprobar('cronograma: look-ahead arranca el lunes de hoy', la4.inicio === '2026-10-12', la4.inicio)
+comprobar('cronograma: look-ahead de 4 semanas termina 2026-11-08', la4.fin === '2026-11-08', la4.fin)
+comprobar('cronograma: look-ahead tiene 4 buckets', la4.semanas.length === 4, String(la4.semanas.length))
+comprobar('cronograma: SEMANAS_LOOKAHEAD = 3..6', JSON.stringify(SEMANAS_LOOKAHEAD) === JSON.stringify([3, 4, 5, 6]), JSON.stringify(SEMANAS_LOOKAHEAD))
+
+// Mover y redimensionar respetando el calendario laborable (lunes a sábado).
+const tRef = { id: 1, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' }
+const mov = moverTarea({ tarea: tRef, deltaDias: 3 })
+comprobar('cronograma: mover +3 conserva la duración laborable', mov.fecha_inicio === '2026-10-15' && mov.fecha_fin === '2026-10-20', JSON.stringify(mov))
+const mov0 = moverTarea({ tarea: tRef, deltaDias: 0 })
+comprobar('cronograma: mover 0 no cambia nada', mov0.fecha_inicio === '2026-10-12' && mov0.fecha_fin === '2026-10-16', JSON.stringify(mov0))
+const movDom = moverTarea({ tarea: tRef, deltaDias: 6 })
+comprobar('cronograma: caer en domingo salta al lunes', movDom.fecha_inicio === '2026-10-19', movDom.fecha_inicio)
+const hito = moverTarea({ tarea: { id: 2, hito: true, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-12' }, deltaDias: 2 })
+comprobar('cronograma: el hito mantiene inicio = fin', hito.fecha_inicio === hito.fecha_fin && hito.fecha_inicio === '2026-10-14', JSON.stringify(hito))
+
+const amp = redimensionarTarea({ tarea: tRef, borde: 'fin', deltaDias: 1 })
+comprobar('cronograma: alargar el fin +1 día', amp.fecha_inicio === '2026-10-12' && amp.fecha_fin === '2026-10-17', JSON.stringify(amp))
+const rec = redimensionarTarea({ tarea: tRef, borde: 'fin', deltaDias: -2 })
+comprobar('cronograma: recortar el fin -2 días', rec.fecha_fin === '2026-10-14', rec.fecha_fin)
+const ampi = redimensionarTarea({ tarea: { id: 3, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' }, borde: 'inicio', deltaDias: -1 })
+comprobar('cronograma: adelantar el inicio -1 día (domingo → sábado)', ampi.fecha_inicio === '2026-10-10', ampi.fecha_inicio)
+const tope = redimensionarTarea({ tarea: tRef, borde: 'fin', deltaDias: -99 })
+comprobar('cronograma: el fin no puede quedar antes del inicio', tope.fecha_fin === '2026-10-12', tope.fecha_fin)
+
+// Grupo: mover un padre arrastra a sus hijas.
+const tareasGrupo = [
+  { id: 10, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' },
+  { id: 11, padre_id: 10, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-14' },
+  { id: 12, padre_id: 11, fecha_inicio: '2026-10-13', fecha_fin: '2026-10-13' },
+  { id: 13, fecha_inicio: '2026-11-01', fecha_fin: '2026-11-05' },
+]
+const cambiosGrupo = cambiosDeArrastre({ tarea: tareasGrupo[0], tareas: tareasGrupo, deltaDias: 7 })
+comprobar('cronograma: mover el grupo toca padre y 2 descendientes', cambiosGrupo.length === 3, String(cambiosGrupo.length))
+comprobar('cronograma: la tarea ajena no se mueve', !cambiosGrupo.some((c) => c.id === 13))
+comprobar('cronograma: la hija se mueve +7 días', cambiosGrupo.find((c) => c.id === 11)?.fecha_inicio === '2026-10-19', JSON.stringify(cambiosGrupo.find((c) => c.id === 11)))
+const sinCambio = cambiosDeArrastre({ tarea: tareasGrupo[0], tareas: tareasGrupo, deltaDias: 0 })
+comprobar('cronograma: sin desplazamiento no hay cambios', sinCambio.length === 0, String(sinCambio.length))
+
+// Desvío contra la línea base.
+const desv = desviacionLineaBase({ tarea: { fecha_inicio: '2026-10-14', fecha_fin: '2026-10-20' }, base: { fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' } })
+comprobar('cronograma: desvío de inicio = +2 días', desv.inicio === 2, String(desv.inicio))
+comprobar('cronograma: desvío de fin = +4 días', desv.fin === 4, String(desv.fin))
+comprobar('cronograma: desvío de duración = +2 días', desv.duracion === 2, String(desv.duracion))
+comprobar('cronograma: sin línea base no hay desvío', desviacionLineaBase({ tarea: tRef, base: null }) === null)
+
+const resDesv = resumenDesviacionLineaBase({
+  tareas: [
+    { id: 1, fecha_inicio: '2026-10-14', fecha_fin: '2026-10-20' },
+    { id: 2, fecha_inicio: '2026-10-10', fecha_fin: '2026-10-14' },
+    { id: 3, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' },
+  ],
+  basePorId: new Map([
+    [1, { fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' }],
+    [2, { fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' }],
+    [3, { fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' }],
+  ]),
+})
+comprobar('cronograma: resumen = 2 con desvío (1 adelanto, 1 atraso)', resDesv.conDesvio === 2 && resDesv.adelanto === 1 && resDesv.atraso === 1, JSON.stringify(resDesv))
+comprobar('cronograma: resumen marca el máximo retraso (+4)', resDesv.maxAtraso === 4, String(resDesv.maxAtraso))
+comprobar('cronograma: resumen marca el máximo adelanto (-2)', resDesv.maxAdelanto === -2, String(resDesv.maxAdelanto))
+
+// Dependencias: mover no puede romper el FS con una predecesora.
+const tareasDep = [
+  { id: 1, nombre: 'Predecesora', fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16' },
+  { id: 2, nombre: 'Sucesora', fecha_inicio: '2026-10-19', fecha_fin: '2026-10-23', predecesoras: [{ id: 1, tipo: 'FS', lag: 0 }] },
+]
+const cambiosOk = cambiosDeArrastre({ tarea: tareasDep[1], tareas: tareasDep, deltaDias: 1 })
+comprobar('cronograma: mover la sucesora +1 día es válido', conflictosDependencia({ cambios: cambiosOk, tareas: tareasDep }).length === 0)
+const cambiosMalos = cambiosDeArrastre({ tarea: tareasDep[1], tareas: tareasDep, deltaDias: -3 })
+const conflictos = conflictosDependencia({ cambios: cambiosMalos, tareas: tareasDep })
+comprobar('cronograma: mover la sucesora -3 días choca con su predecesora', conflictos.length === 1, JSON.stringify(conflictos))
+comprobar('cronograma: el conflicto indica la tarea implicada', conflictos[0]?.con === 1, JSON.stringify(conflictos[0]))
+comprobar('cronograma: sin cambios no hay conflictos', conflictosDependencia({ cambios: [], tareas: tareasDep }).length === 0)
+
+// Histograma semanal de recursos.
+const semanaUna = [{ inicio: '2026-10-12', fin: '2026-10-18' }]
+const hist = histogramaRecursosSemanal({
+  semanas: semanaUna,
+  servicio: { id: 6 },
+  asignaciones: [{ id: 1, servicio_id: 6, personal_id: 1, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16', horas_por_dia: 8 }],
+  registros: [],
+  personal: [{ id: 1, nombre: 'Ada', apellido: 'Lovelace', cargo: 'Oficial' }],
+  equipos: [],
+})
+comprobar('cronograma: capacidad semanal (6 días laborables × 8 h) = 48', hist.capacidad[0] === 48, String(hist.capacidad[0]))
+comprobar('cronograma: 5 días de asignación = 40 h', hist.personal[0].valores[0] === 40, String(hist.personal[0].valores[0]))
+comprobar('cronograma: una sola asignación no sobreasigna', hist.personal[0].excede === false && hist.totalAlertas === 0)
+comprobar('cronograma: el nombre del recurso une nombre y apellido', hist.personal[0].nombre === 'Ada Lovelace', hist.personal[0].nombre)
+
+const histDoble = histogramaRecursosSemanal({
+  semanas: semanaUna,
+  servicio: { id: 6 },
+  asignaciones: [
+    { id: 1, servicio_id: 6, personal_id: 1, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16', horas_por_dia: 8 },
+    { id: 2, servicio_id: 6, personal_id: 1, fecha_inicio: '2026-10-12', fecha_fin: '2026-10-16', horas_por_dia: 8 },
+  ],
+  registros: [],
+  personal: [{ id: 1, nombre: 'Ada', apellido: 'Lovelace', cargo: 'Oficial' }],
+  equipos: [],
+})
+comprobar('cronograma: dos asignaciones solapadas = 80 h', histDoble.personal[0].valores[0] === 80, String(histDoble.personal[0].valores[0]))
+comprobar('cronograma: 80 h > 48 h sobreasigna al recurso', histDoble.personal[0].excede === true && histDoble.totalAlertas === 1, JSON.stringify(histDoble.alertas))
+comprobar('cronograma: la alerta guarda la semana y la capacidad', histDoble.alertas[0].semana === 0 && histDoble.alertas[0].capacidad === 48, JSON.stringify(histDoble.alertas[0]))
+
+const histEquipo = histogramaRecursosSemanal({
+  semanas: semanaUna,
+  servicio: { id: 6 },
+  asignaciones: [],
+  registros: [
+    { id: 1, servicio_id: 6, tipo_registro: 'equipo', referencia_id: 1, fecha: '2026-10-13', cantidad_o_horas: 30 },
+    { id: 2, servicio_id: 7, tipo_registro: 'equipo', referencia_id: 1, fecha: '2026-10-13', cantidad_o_horas: 20 },
+  ],
+  personal: [],
+  equipos: [{ id: 1, nombre: 'Camioneta BSI-922' }],
+})
+comprobar('cronograma: el equipo del servicio suma 30 h', histEquipo.equipos[0].valores[0] === 30, String(histEquipo.equipos[0].valores[0]))
+comprobar('cronograma: el mismo equipo en 2 servicios = cruce', histEquipo.equipos[0].cruce === true, JSON.stringify(histEquipo.equipos[0]))
+comprobar('cronograma: el cruce genera alerta', histEquipo.alertas.some((a) => a.cruce === true), JSON.stringify(histEquipo.alertas))
+
+
 
 console.log('\n[ cartera ]')
 
@@ -2658,6 +2806,20 @@ comprobar(
   'cronograma: muestra el metrado de la partida',
   htmlCronograma.includes('Metrado de la partida (m³)') &&
     htmlCronograma.includes('>600<!-- --> <!-- -->m³<!-- --> · <!-- -->100<!-- -->%'),
+)
+// Fase 4: look-ahead, histograma de recursos y ayudas de arrastre.
+comprobar(
+  'cronograma: look-ahead y su selector de semanas',
+  htmlCronograma.includes('Look-ahead') && htmlCronograma.includes('sem.'),
+)
+comprobar(
+  'cronograma: histograma de recursos por semana',
+  htmlCronograma.includes('Recursos por semana') &&
+    (htmlCronograma.includes('Personal (plan)') || htmlCronograma.includes('Sin personal ni equipos')),
+)
+comprobar(
+  'cronograma: pista de arrastre y banda de días no laborables',
+  htmlCronograma.includes('Arrastra una barra') && htmlCronograma.includes('No laborable'),
 )
 
 // Asignar personal con botón + modal (como "Registrar ingreso"): el panel

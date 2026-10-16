@@ -16,8 +16,18 @@ import {
   CALENDARIO_POR_DEFECTO,
   DIAS_SEMANA,
   calendarioDe,
+  esLaborable,
   normalizarCalendario,
 } from '../../utils/calendario'
+import {
+  SEMANAS_LOOKAHEAD,
+  cambiosDeArrastre,
+  conflictosDependencia,
+  desviacionLineaBase,
+  histogramaRecursosSemanal,
+  resumenDesviacionLineaBase,
+  ventanaLookahead,
+} from '../../utils/cronograma'
 import { normalizar } from '../../components/ui/ComboBox'
 import { Buscador, textoCoincide } from '../../components/ui/FiltroBusqueda'
 import { libroCronograma } from '../../utils/exportaciones'
@@ -48,11 +58,18 @@ function sumarMeses(fechaISO, n) {
   return `${fecha.getFullYear()}-${mes}-${dia}`
 }
 
+// Fecha ISO (YYYY-MM-DD) de un objeto Date local.
+function isoDe(fecha) {
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0')
+  const dia = String(fecha.getDate()).padStart(2, '0')
+  return `${fecha.getFullYear()}-${mes}-${dia}`
+}
+
 const COLORES_BARRA = {
-  completada: 'bg-emerald-500',
-  atrasada: 'bg-red-500',
-  'en curso': 'bg-blue-700',
-  pendiente: 'bg-slate-400',
+  completada: 'bg-emerald-600',
+  atrasada: 'bg-red-700',
+  'en curso': 'bg-blue-800',
+  pendiente: 'bg-slate-500',
 }
 
 const COLORES_ETIQUETA = {
@@ -588,6 +605,39 @@ function FlechasDependencia({ filas, geometria, rango, diaVista, criticas }) {
   )
 }
 
+// Celda del histograma de recursos: mini-barra vertical con la línea de
+// capacidad (días laborables × 8 h). Se pinta en rojo al sobreasignar.
+function CeldaHistograma({ horas, capacidad, maxHoras, tono }) {
+  const excede = horas > capacidad + 1e-9
+  const alto = Math.max(0, Math.min(100, (horas / maxHoras) * 100))
+  const tope = Math.max(0, Math.min(100, (capacidad / maxHoras) * 100))
+  return (
+    <td className="px-1.5 py-1 align-bottom">
+      <div
+        className="relative mx-auto h-10 w-6 rounded-sm bg-slate-100 ring-1 ring-inset ring-slate-200"
+        title={`${horas} h comprometidas · capacidad ${capacidad} h`}
+      >
+        <span
+          className={`absolute bottom-0 left-0 w-full rounded-sm ${excede ? 'bg-red-600' : tono}`}
+          style={{ height: `${alto}%` }}
+        />
+        <span
+          className="absolute left-0 w-full border-t border-dashed border-slate-400"
+          style={{ bottom: `${tope}%` }}
+          title="Capacidad semanal"
+        />
+      </div>
+      <span
+        className={`mt-0.5 block text-center text-[10px] tabular-nums ${
+          excede ? 'font-semibold text-red-700' : 'text-slate-500'
+        }`}
+      >
+        {horas}
+      </span>
+    </td>
+  )
+}
+
 export function CronogramaServicio() {
   const { servicio } = useOutletContext()
   const { estado, agregarItem, actualizarItem, eliminarItem, reemplazarColeccion } = useData()
@@ -600,6 +650,9 @@ export function CronogramaServicio() {
   const [colapsadas, setColapsadas] = useState({})
   const [busqueda, setBusqueda] = useState('')
   const [zoomManual, setZoomManual] = useState(null) // px por día elegido con +/−; null = ajuste automático
+  const [lookahead, setLookahead] = useState(false) // ventana de 3–6 semanas
+  const [semanasLA, setSemanasLA] = useState(4)
+  const [arrastre, setArrastre] = useState(null) // arrastre/redimensionado activo
   const PASOS_ZOOM = [6, 10, 16, 28, 48, 80, 130]
   const indicePaso = (valor, direccion) => {
     if (direccion < 0) {
@@ -744,33 +797,48 @@ export function CronogramaServicio() {
     setAviso({ tipo: 'exito', mensaje: 'Calendario laboral actualizado.' })
   }
 
+  // Ventana de look-ahead (próximas 3–6 semanas desde hoy). Cuando está activa,
+  // el Gantt se recorta a esa ventana y las barras se atenúan fuera de ella.
+  const ventana = useMemo(
+    () => (lookahead ? ventanaLookahead({ hoy, semanas: semanasLA }) : null),
+    [lookahead, hoy, semanasLA],
+  )
+
   const rango = useMemo(() => {
     if (tareas.length === 0) return null
-    const inicios = tareas.map((t) => t.fecha_inicio)
-    const fines = tareas.map((t) => t.fecha_fin)
-    let minimo = inicios.reduce((a, b) => (a < b ? a : b))
-    let maximo = fines.reduce((a, b) => (a > b ? a : b))
-    if (servicio.fecha_inicio && servicio.fecha_inicio < minimo) minimo = servicio.fecha_inicio
-    if (servicio.fecha_fin_estimada && servicio.fecha_fin_estimada > maximo) {
-      maximo = servicio.fecha_fin_estimada
+    let minimo
+    let maximo
+    if (ventana) {
+      minimo = ventana.inicio
+      maximo = ventana.fin
+    } else {
+      const inicios = tareas.map((t) => t.fecha_inicio)
+      const fines = tareas.map((t) => t.fecha_fin)
+      minimo = inicios.reduce((a, b) => (a < b ? a : b))
+      maximo = fines.reduce((a, b) => (a > b ? a : b))
+      if (servicio.fecha_inicio && servicio.fecha_inicio < minimo) minimo = servicio.fecha_inicio
+      if (servicio.fecha_fin_estimada && servicio.fecha_fin_estimada > maximo) {
+        maximo = servicio.fecha_fin_estimada
+      }
+      if (hoy < minimo) minimo = hoy
+      // Horizonte acotado: el cronograma continúa 12 meses más allá de hoy
+      // (cruza de año sin problemas) en vez de cortarse en diciembre.
+      const horizonte = sumarMeses(hoy, 12)
+      if (horizonte > maximo) maximo = horizonte
     }
-    if (hoy < minimo) minimo = hoy
-    // Horizonte acotado: el cronograma continúa 12 meses más allá de hoy
-    // (cruza de año sin problemas) en vez de cortarse en diciembre.
-    const horizonte = sumarMeses(hoy, 12)
-    if (horizonte > maximo) maximo = horizonte
     // Un día de aire al inicio.
     const base = parsearFecha(minimo).getTime() - DIA_MS
-    const totalDias = diasEntre(
-      new Date(base).getFullYear() +
-        '-' +
-        String(new Date(base).getMonth() + 1).padStart(2, '0') +
-        '-' +
-        String(new Date(base).getDate()).padStart(2, '0'),
-      maximo,
-    ) + 1
+    const totalDias =
+      diasEntre(
+        new Date(base).getFullYear() +
+          '-' +
+          String(new Date(base).getMonth() + 1).padStart(2, '0') +
+          '-' +
+          String(new Date(base).getDate()).padStart(2, '0'),
+        maximo,
+      ) + 1
     return { inicioMs: base, totalDias }
-  }, [tareas, servicio.fecha_inicio, servicio.fecha_fin_estimada, hoy])
+  }, [tareas, servicio.fecha_inicio, servicio.fecha_fin_estimada, hoy, ventana])
 
   const dias = useMemo(() => {
     if (!rango) return []
@@ -1030,6 +1098,190 @@ export function CronogramaServicio() {
     [baseVigente],
   )
 
+  // Resumen del desvío contra la línea base (encabezado del Gantt).
+  const resumenBase = useMemo(
+    () => resumenDesviacionLineaBase({ tareas, basePorId }),
+    [tareas, basePorId],
+  )
+
+  // En look-ahead solo se muestran las tareas que caen en la ventana, con sus
+  // ancestros para no perder la jerarquía.
+  const filasVisibles = useMemo(() => {
+    if (!ventana) return filasFiltradas
+    const padreDe = new Map(tareas.map((t) => [t.id, t.padre_id ?? null]))
+    const incluir = new Set()
+    for (const fila of filasFiltradas) {
+      const t = fila.tarea
+      if (!(t.fecha_inicio <= ventana.fin && t.fecha_fin >= ventana.inicio)) continue
+      let actual = t.id
+      while (actual != null && !incluir.has(actual)) {
+        incluir.add(actual)
+        actual = padreDe.get(actual) ?? null
+      }
+    }
+    return filasFiltradas.filter((f) => incluir.has(f.tarea.id))
+  }, [filasFiltradas, ventana, tareas])
+
+  // Límites de semana (lunes) y bandas de semana para el look-ahead.
+  const limitesSemana = useMemo(() => {
+    if (!rango || !ventana) return []
+    const lista = []
+    dias.forEach((d, i) => {
+      if (i === 0) return
+      if (d.getDay() === 1) lista.push({ indice: i, pos: (i / rango.totalDias) * 100 })
+    })
+    return lista
+  }, [dias, rango, ventana])
+
+  const bandasSemana = useMemo(() => {
+    if (!rango || !ventana) return []
+    const total = rango.totalDias
+    const cortes = [0, ...limitesSemana.map((l) => l.indice), total]
+    const lista = []
+    for (let k = 0; k < cortes.length - 1; k += 1) {
+      const i0 = cortes[k]
+      const i1 = cortes[k + 1]
+      lista.push({
+        clave: k,
+        inicio: (i0 / total) * 100,
+        ancho: ((i1 - i0) / total) * 100,
+        desde: isoDe(dias[i0]),
+        hasta: isoDe(dias[i1 - 1]),
+      })
+    }
+    return lista
+  }, [rango, dias, limitesSemana, ventana])
+
+  // Columnas de días no laborables (domingos y feriados): sombreado gerencial.
+  const bandasNoLaborable = useMemo(() => {
+    if (!rango) return []
+    const lista = []
+    let inicio = null
+    dias.forEach((d, i) => {
+      const laborable = esLaborable(isoDe(d), calendario)
+      if (!laborable && inicio === null) inicio = i
+      const ultimo = i === dias.length - 1
+      if ((laborable || ultimo) && inicio !== null) {
+        const fin = laborable ? i - 1 : i
+        lista.push({
+          clave: `${inicio}-${fin}`,
+          izq: (inicio / rango.totalDias) * 100,
+          ancho: ((fin - inicio + 1) / rango.totalDias) * 100,
+        })
+        inicio = null
+      }
+    })
+    return lista
+  }, [dias, rango, calendario])
+
+  // Fechas de vista previa mientras se arrastra o redimensiona una barra.
+  const previewPorId = useMemo(() => {
+    if (!arrastre) return null
+    const cambios = cambiosDeArrastre({
+      tarea: arrastre.tarea,
+      tareas,
+      deltaDias: arrastre.delta,
+      modo: arrastre.modo,
+      borde: arrastre.borde,
+      calendario,
+    })
+    return new Map(cambios.map((c) => [c.id, c]))
+  }, [arrastre, tareas, calendario])
+
+  // Semanas del histograma: la ventana look-ahead o las próximas 6 semanas.
+  const semanasRecursos = useMemo(
+    () => ventanaLookahead({ hoy, semanas: lookahead ? semanasLA : 6 }).semanas,
+    [hoy, lookahead, semanasLA],
+  )
+  const histograma = useMemo(
+    () =>
+      histogramaRecursosSemanal({
+        semanas: semanasRecursos,
+        servicio,
+        asignaciones: estado.asignaciones ?? [],
+        registros: estado.registros_servicio ?? [],
+        personal: estado.personal ?? [],
+        equipos: estado.equipos ?? [],
+        calendario,
+      }),
+    [semanasRecursos, servicio, estado.asignaciones, estado.registros_servicio, estado.personal, estado.equipos, calendario],
+  )
+
+  // --- Arrastre / redimensionado de barras ------------------------------
+  // Se usan refs para que los listeners (registrados al iniciar el gesto) lean
+  // siempre el estado más reciente sin re-suscribirse en cada movimiento.
+  const diaVistaRef = useRef(diaVista)
+  diaVistaRef.current = diaVista
+  const arrastreRef = useRef(null)
+  arrastreRef.current = arrastre
+
+  const finalizarArrastre = (a) => {
+    setArrastre(null)
+    if (!a || !a.delta) return
+    const cambios = cambiosDeArrastre({
+      tarea: a.tarea,
+      tareas,
+      deltaDias: a.delta,
+      modo: a.modo,
+      borde: a.borde,
+      calendario,
+    })
+    if (cambios.length === 0) return
+    const conflictos = conflictosDependencia({ cambios, tareas, calendario })
+    if (conflictos.length > 0) {
+      setAviso({
+        tipo: 'error',
+        mensaje: `Movimiento bloqueado por dependencias: ${conflictos[0].motivo}. Reprograma con CPM si corresponde.`,
+      })
+      return
+    }
+    registrarPaso()
+    cambios.forEach((c) =>
+      actualizarItem('tareas', { id: c.id, fecha_inicio: c.fecha_inicio, fecha_fin: c.fecha_fin }),
+    )
+    setAviso({
+      tipo: 'exito',
+      mensaje:
+        a.modo === 'mover'
+          ? `Tarea reprogramada ${a.delta > 0 ? '+' : ''}${a.delta} día(s) (puedes deshacerlo).`
+          : 'Duración ajustada en el diagrama (puedes deshacerlo).',
+    })
+  }
+
+  const iniciarArrastre = (evento, tarea, modo, borde = 'fin') => {
+    if (evento.button != null && evento.button !== 0) return
+    if (tarea.hito && modo === 'redimensionar') return
+    evento.preventDefault()
+    evento.stopPropagation()
+    setArrastre({
+      id: tarea.id,
+      tarea,
+      modo,
+      borde,
+      x0: evento.clientX,
+      delta: 0,
+    })
+  }
+
+  useEffect(() => {
+    if (!arrastre) return undefined
+    const mover = (evento) => {
+      const delta = Math.round((evento.clientX - arrastre.x0) / diaVistaRef.current)
+      setArrastre((a) => (a && a.delta !== delta ? { ...a, delta } : a))
+    }
+    const soltar = () => finalizarArrastre(arrastreRef.current)
+    window.addEventListener('pointermove', mover)
+    window.addEventListener('pointerup', soltar)
+    window.addEventListener('pointercancel', soltar)
+    return () => {
+      window.removeEventListener('pointermove', mover)
+      window.removeEventListener('pointerup', soltar)
+      window.removeEventListener('pointercancel', soltar)
+    }
+    // Solo se re-suscribe al empezar/terminar el gesto (arrastre?.id).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrastre?.id])
+
   // Reprogramar con CPM: solo se aplica cuando el usuario lo pide (asesor).
   const reprogramar = () => {
     if (!cpm.valido) {
@@ -1087,7 +1339,7 @@ export function CronogramaServicio() {
         ? previo
         : mapa,
     )
-  }, [filasFiltradas, diaVista, baseVigente])
+  }, [filasVisibles, diaVista, baseVigente])
 
   return (
     <div className="space-y-6">
@@ -1101,6 +1353,26 @@ export function CronogramaServicio() {
               ? 'Planifica las tareas del servicio en el tiempo.'
               : `${tareas.length} tareas · ${completadas} completadas · ${atrasadas} atrasadas · avance global ${avanceGlobal}%`}
           </p>
+          {tareas.length > 0 && baseVigente && (
+            <p className="mt-1 text-xs text-slate-500">
+              Línea base v{baseVigente.version}:{' '}
+              {resumenBase.conDesvio > 0 ? (
+                <>
+                  <span className="font-semibold text-red-700">
+                    {resumenBase.atraso} con retraso
+                  </span>
+                  {resumenBase.adelanto > 0 && (
+                    <span className="text-emerald-700"> · {resumenBase.adelanto} con adelanto</span>
+                  )}
+                  {resumenBase.maxAtraso > 0 && (
+                    <span> · máx. +{resumenBase.maxAtraso} d</span>
+                  )}
+                </>
+              ) : (
+                <span className="text-emerald-700">sin desvíos frente al plan</span>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {tareas.length > 0 && (
@@ -1268,6 +1540,34 @@ export function CronogramaServicio() {
               ›
             </button>
           </div>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setLookahead((v) => !v)}
+              aria-pressed={lookahead}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                lookahead ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Ver solo las próximas semanas"
+            >
+              Look-ahead
+            </button>
+            <select
+              value={semanasLA}
+              onChange={(e) => {
+                setSemanasLA(Number(e.target.value))
+                setLookahead(true)
+              }}
+              aria-label="Semanas del look-ahead"
+              className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs font-semibold text-slate-600"
+            >
+              {SEMANAS_LOOKAHEAD.map((n) => (
+                <option key={n} value={n}>
+                  {n} sem.
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -1288,17 +1588,34 @@ export function CronogramaServicio() {
       ) : (
         <div>
           <section ref={envolturaRef} className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-4 shadow-sm">
-          <div ref={scrollRef} className="overflow-x-auto">
+          <div ref={scrollRef} className={`overflow-x-auto ${arrastre ? 'cursor-grabbing select-none' : ''}`}>
             <div style={{ width: ANCHO_ETIQUETA + rango.totalDias * diaVista }}>
-              {/* Encabezado de altura fija: no se mueve al cambiar de vista */}
-              <div className="mb-1 flex h-[60px] border-b border-slate-200">
+              {/* Encabezado: no se mueve al cambiar de vista. Con look-ahead se
+                  agrega una fila con el número/rango de cada semana. */}
+              <div className={`mb-1 flex border-b border-slate-200 ${lookahead ? 'h-[84px]' : 'h-[60px]'}`}>
                 <div
-                  className="sticky left-0 z-20 shrink-0 bg-white px-3 py-2 text-xs font-semibold text-slate-500"
+                  className="sticky left-0 z-20 flex shrink-0 items-center bg-slate-50 px-3 text-xs font-semibold tracking-wide text-slate-500 uppercase"
                   style={{ width: ANCHO_ETIQUETA }}
                 >
                   Tarea
                 </div>
                 <div className="relative flex-1">
+                  {lookahead && (
+                    <div className="relative h-6 border-b border-slate-200 bg-slate-50">
+                      {bandasSemana.map((b, bi) => (
+                        <span
+                          key={b.clave}
+                          className={`absolute inset-y-0 flex items-center justify-center overflow-hidden border-l text-[10px] font-semibold whitespace-nowrap text-slate-600 ${
+                            bi === 0 ? 'border-l-0' : 'border-slate-200'
+                          }`}
+                          style={{ left: `${b.inicio}%`, width: `${b.ancho}%` }}
+                          title={`Semana del ${formatearFecha(b.desde)} al ${formatearFecha(b.hasta)}`}
+                        >
+                          Sem {bi + 1} · {formatearFecha(b.desde).slice(0, 5)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {esTrimestre ? (
                     <>
                       <div className="relative h-8 border-b border-slate-100">
@@ -1349,7 +1666,11 @@ export function CronogramaServicio() {
                         {dias.map((d, i) => (
                           <div
                             key={i}
-                            className="flex shrink-0 items-center justify-center text-center text-xs text-slate-500 tabular-nums"
+                            className={`flex shrink-0 items-center justify-center text-center text-xs tabular-nums ${
+                              esLaborable(isoDe(d), calendario)
+                                ? 'text-slate-500'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}
                             style={{ width: diaVista }}
                           >
                             {d.getDate()}
@@ -1369,33 +1690,55 @@ export function CronogramaServicio() {
               </div>
 
               {/* Filas agrupadas: tareas y subtareas multinivel */}
-              {termino && filasFiltradas.length === 0 && (
+              {filasVisibles.length === 0 && (termino || ventana) && (
                 <div className="flex h-16 items-center px-4 text-sm text-slate-500">
-                  Ninguna tarea coincide con el filtro.
+                  {ventana && !termino
+                    ? 'Ninguna tarea cae en la ventana del look-ahead.'
+                    : 'Ninguna tarea coincide con el filtro.'}
                 </div>
               )}
               <div className="relative">
+                {/* Sombreado de domingos y feriados: una sola capa de fondo. */}
+                <div
+                  className="pointer-events-none absolute inset-y-0 z-0"
+                  style={{ left: ANCHO_ETIQUETA, right: 0 }}
+                  aria-hidden="true"
+                >
+                  {bandasNoLaborable.map((b) => (
+                    <span
+                      key={b.clave}
+                      className="absolute inset-y-0 bg-slate-100/70"
+                      style={{ left: `${b.izq}%`, width: `${b.ancho}%` }}
+                    />
+                  ))}
+                </div>
                 <FlechasDependencia
-                  filas={filasFiltradas}
+                  filas={filasVisibles}
                   geometria={alturaFila}
                   rango={rango}
                   diaVista={diaVista}
                   criticas={rutaCritica}
                 />
-              {filasFiltradas.map(({ tarea: t, nivel, numero, hijas }) => {
+              {filasVisibles.map(({ tarea: t, nivel, numero, hijas }) => {
                 const pct = avanceEfectivo(t, tareas)
                 const estado = estadoTarea({ ...t, avance: pct }, hoy)
                 const esPadre = hijas.length > 0
                 const colapsada = esPadre && colapsadas[t.id]
-                const tonoBarra = nivel === 0 ? COLORES_BARRA[estado] : nivel === 1 ? 'bg-violet-500' : 'bg-teal-500'
+                const tonoBarra = COLORES_BARRA[estado]
                 const altoBarra = nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'
                 const v = cpm.porTarea[t.id]
                 const esCritica = rutaCritica.has(t.id)
                 const preds = t.predecesoras ?? []
                 const base = basePorId.get(t.id)
-                const desvioBase = Boolean(
-                  base && (base.fecha_inicio !== t.fecha_inicio || base.fecha_fin !== t.fecha_fin),
-                )
+                const desvio = base ? desviacionLineaBase({ tarea: t, base }) : null
+                const desvioBase = Boolean(desvio && (desvio.inicio !== 0 || desvio.fin !== 0))
+                const vista = previewPorId?.get(t.id)
+                const iniVista = vista?.fecha_inicio ?? t.fecha_inicio
+                const finVista = vista?.fecha_fin ?? t.fecha_fin
+                const arrastrando = arrastre?.id === t.id
+                const enVentana = !ventana || (t.fecha_fin >= ventana.inicio && t.fecha_inicio <= ventana.fin)
+                const puedeArrastrar =
+                  !arrastrando || arrastre.modo !== 'redimensionar' || !esPadre
                 return (
                   <div
                     key={t.id}
@@ -1403,7 +1746,7 @@ export function CronogramaServicio() {
                     className={`flex items-stretch border-b border-slate-100 last:border-0 ${nivel >= 1 ? 'bg-slate-50/70' : ''} ${esPadre ? 'border-t-2 border-t-slate-200 first:border-t-0' : ''}`}
                   >
                     <div
-                      className={`sticky left-0 z-20 flex min-w-0 shrink-0 items-center gap-1 bg-white px-2 py-1 ${nivel >= 1 ? 'border-l-2 border-l-violet-300' : ''}`}
+                      className={`sticky left-0 z-20 flex min-w-0 shrink-0 items-center gap-1 bg-white px-2 py-1 ${nivel >= 1 ? 'border-l-2 border-l-slate-300' : ''}`}
                       style={{ width: ANCHO_ETIQUETA, paddingLeft: 8 + nivel * 16 }}
                     >
                       {esPadre ? (
@@ -1452,6 +1795,23 @@ export function CronogramaServicio() {
                       )}
                         <span className="mt-0.5 inline-flex items-center gap-1.5">
                           <Badge variante={COLORES_ETIQUETA[estado]}>{estado}</Badge>
+                          {desvio && desvio.fin !== 0 && (
+                            <span
+                              className={`rounded px-1 text-[10px] font-semibold tabular-nums ${
+                                desvio.fin > 0
+                                  ? 'bg-red-50 text-red-700'
+                                  : 'bg-emerald-50 text-emerald-700'
+                              }`}
+                              title={`Fin ${desvio.fin > 0 ? 'retrasado' : 'adelantado'} ${Math.abs(
+                                desvio.fin,
+                              )} día(s) frente a la línea base${
+                                baseVigente?.version ? ` v${baseVigente.version}` : ''
+                              }`}
+                            >
+                              {desvio.fin > 0 ? '+' : '−'}
+                              {Math.abs(desvio.fin)} d
+                            </span>
+                          )}
                           {esPadre && (
                             <span className="text-[11px] text-slate-400 tabular-nums">
                               {hijas.length} subt.
@@ -1515,6 +1875,14 @@ export function CronogramaServicio() {
                           style={{ left: `${izq}%` }}
                         />
                       ))}
+                      {ventana &&
+                        limitesSemana.map((l, li) => (
+                          <span
+                            key={`sem-${li}`}
+                            className="pointer-events-none absolute inset-y-0 w-px bg-slate-400/70"
+                            style={{ left: `${l.pos}%` }}
+                          />
+                        ))}
                       {esTrimestre &&
                         limitesTrimestre.map((izq, li) => (
                           <span
@@ -1525,16 +1893,19 @@ export function CronogramaServicio() {
                         ))}
                       {t.hito ? (
                         <span
-                          className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-white bg-amber-500 shadow-sm ring-1 ring-black/20"
-                          style={{ left: `${pos(t.fecha_inicio)}%` }}
-                          title={`Hito · ${formatearFecha(t.fecha_inicio)}`}
+                          className={`absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-grab border-2 border-white bg-amber-500 shadow-sm ring-1 ring-black/20 ${
+                            arrastrando ? 'ring-2 ring-primary-600' : ''
+                          } ${enVentana ? '' : 'opacity-40'}`}
+                          style={{ left: `${pos(iniVista)}%` }}
+                          onPointerDown={(e) => iniciarArrastre(e, t, 'mover')}
+                          title={`Hito · ${formatearFecha(t.fecha_inicio)} — arrastra para reprogramar`}
                         />
                       ) : (
-                        <span className={`relative block w-full overflow-hidden rounded-full bg-slate-200 ring-1 ring-inset ring-slate-300 ${nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'}`}>
+                        <span className={`relative block w-full rounded-sm bg-slate-200 ring-1 ring-inset ring-slate-300 ${nivel === 0 ? 'h-6' : nivel === 1 ? 'h-4' : 'h-3'} ${enVentana ? '' : 'opacity-40'}`}>
                           {/* Fantasma de la línea base (plan congelado) */}
                           {base && (
                             <span
-                              className={`absolute inset-y-0 rounded-full border border-dashed ${desvioBase ? 'border-amber-500' : 'border-slate-400'}`}
+                              className={`pointer-events-none absolute inset-y-0 rounded-sm border border-dashed ${desvioBase ? 'border-amber-500' : 'border-slate-400'}`}
                               style={{
                                 left: `${pos(base.fecha_inicio)}%`,
                                 width: `${ancho(base.fecha_inicio, base.fecha_fin)}%`,
@@ -1542,17 +1913,21 @@ export function CronogramaServicio() {
                               title={`Línea base v${baseVigente?.version}: ${formatearFecha(base.fecha_inicio)} → ${formatearFecha(base.fecha_fin)}`}
                             />
                           )}
-                          {/* Rango planificado */}
+                          {/* Rango planificado (arrastrable) */}
                           <span
-                            className={`absolute inset-y-0 rounded-full transition-[left,width] duration-300 ease-out ${nivel === 0 ? 'bg-slate-400' : 'bg-violet-300'}`}
-                            style={{ left: `${pos(t.fecha_inicio)}%`, width: `${ancho(t.fecha_inicio, t.fecha_fin)}%` }}
+                            className={`absolute inset-y-0 rounded-sm transition-[left,width] duration-200 ease-out ${
+                              arrastrando ? 'bg-primary-300' : 'cursor-grab bg-slate-300'
+                            }`}
+                            style={{ left: `${pos(iniVista)}%`, width: `${ancho(iniVista, finVista)}%` }}
+                            onPointerDown={(e) => iniciarArrastre(e, t, 'mover')}
+                            title={`${formatearFecha(iniVista)} → ${formatearFecha(finVista)} — arrastra para mover; usa los extremos para cambiar la duración`}
                           />
                           {/* Avance real */}
                           <span
-                            className={`absolute inset-y-0 flex items-center justify-end overflow-hidden rounded-full shadow-sm ring-1 ring-inset ring-black/20 transition-[left,width] duration-300 ease-out ${tonoBarra}`}
+                            className={`pointer-events-none absolute inset-y-0 flex items-center justify-end overflow-hidden rounded-sm shadow-sm ring-1 ring-inset ring-black/10 transition-[left,width] duration-200 ease-out ${tonoBarra}`}
                             style={{
-                              left: `${pos(t.fecha_inicio)}%`,
-                              width: `${(ancho(t.fecha_inicio, t.fecha_fin) * pct) / 100}%`,
+                              left: `${pos(iniVista)}%`,
+                              width: `${(ancho(iniVista, finVista) * pct) / 100}%`,
                             }}
                           >
                             {pct > 0 && (
@@ -1564,10 +1939,35 @@ export function CronogramaServicio() {
                           {/* Ruta crítica: contorno rojo sobre el rango planificado */}
                           {esCritica && (
                             <span
-                              className="pointer-events-none absolute inset-y-0 rounded-full ring-2 ring-inset ring-red-600"
-                              style={{ left: `${pos(t.fecha_inicio)}%`, width: `${ancho(t.fecha_inicio, t.fecha_fin)}%` }}
+                              className="pointer-events-none absolute inset-y-0 rounded-sm ring-2 ring-inset ring-red-600"
+                              style={{ left: `${pos(iniVista)}%`, width: `${ancho(iniVista, finVista)}%` }}
                               title="Actividad en la ruta crítica"
                             />
+                          )}
+                          {/* Asas de redimensionado (solo en hojas) */}
+                          {!esPadre && (
+                            <>
+                              <span
+                                className="absolute inset-y-0 z-10 w-1.5 cursor-ew-resize hover:bg-primary-600/50"
+                                style={{ left: `${pos(iniVista)}%` }}
+                                onPointerDown={(e) => iniciarArrastre(e, t, 'redimensionar', 'inicio')}
+                                title="Ajustar fecha de inicio"
+                              />
+                              <span
+                                className="absolute inset-y-0 z-10 w-1.5 cursor-ew-resize hover:bg-primary-600/50"
+                                style={{ left: `calc(${pos(finVista)}% - 6px)` }}
+                                onPointerDown={(e) => iniciarArrastre(e, t, 'redimensionar', 'fin')}
+                                title="Ajustar fecha de fin"
+                              />
+                            </>
+                          )}
+                          {arrastrando && arrastre.delta !== 0 && (
+                            <span
+                              className="pointer-events-none absolute -top-6 z-20 -translate-x-1/2 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-white shadow"
+                              style={{ left: `${pos(iniVista)}%` }}
+                            >
+                              {formatearFecha(iniVista)} → {formatearFecha(finVista)}
+                            </span>
                           )}
                         </span>
                       )}
@@ -1589,25 +1989,22 @@ export function CronogramaServicio() {
 
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-blue-700" /> En curso
+              <span className="size-2.5 rounded-sm bg-blue-800" /> En curso
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-slate-400" /> Pendiente
+              <span className="size-2.5 rounded-sm bg-slate-500" /> Pendiente
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-emerald-500" /> Completada
+              <span className="size-2.5 rounded-sm bg-emerald-600" /> Completada
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-red-500" /> Atrasada
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-violet-500" /> Subtarea
+              <span className="size-2.5 rounded-sm bg-red-700" /> Atrasada
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-px w-4 bg-red-400" /> Hoy
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full ring-2 ring-red-600 ring-inset" /> Ruta crítica
+              <span className="size-2.5 rounded-sm ring-2 ring-red-600 ring-inset" /> Ruta crítica
             </span>
             <span className="flex items-center gap-1.5">
               <span className="size-2.5 rotate-45 bg-amber-500" /> Hito
@@ -1618,9 +2015,145 @@ export function CronogramaServicio() {
             <span className="flex items-center gap-1.5">
               <span className="h-px w-4 border-t border-dashed border-slate-400" /> Dependencia
             </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-slate-100" /> No laborable
+            </span>
           </div>
+          <p className="mt-2 text-xs text-slate-400">
+            Arrastra una barra para reprogramarla y sus extremos para cambiar la duración;
+            los movimientos que rompen una dependencia se bloquean y todo se puede deshacer.
+          </p>
           </section>
         </div>
+      )}
+
+      {/* Histograma semanal de recursos: personal planificado y equipos usados. */}
+      {tareas.length > 0 && (
+        <Card
+          className="mt-4"
+          titulo="Recursos por semana"
+          descripcion={`Horas planificadas de personal y horas usadas de equipos · ${
+            lookahead ? `${semanasLA} semanas (look-ahead)` : 'próximas 6 semanas'
+          }`}
+        >
+          {histograma.totalAlertas > 0 ? (
+            <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <span className="font-semibold">
+                {histograma.totalAlertas} alerta{histograma.totalAlertas === 1 ? '' : 's'} de recursos
+              </span>
+              :{' '}
+              {histograma.alertas
+                .slice(0, 3)
+                .map((a) =>
+                  a.cruce ? `${a.nombre} (cruce de servicios)` : `${a.nombre} · sem. ${a.semana + 1}`,
+                )
+                .join(' · ')}
+              {histograma.alertas.length > 3 ? ` y ${histograma.alertas.length - 3} más` : ''}
+            </div>
+          ) : (
+            <p className="mb-3 text-sm text-slate-500">
+              Sin sobreasignaciones en el periodo: cada recurso tiene horas dentro de su capacidad
+              semanal (días laborables × 8 h).
+            </p>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[620px] border-collapse text-sm">
+              <thead>
+                <tr className="text-xs text-slate-500">
+                  <th className="px-2 py-1 text-left font-semibold">Recurso</th>
+                  {histograma.semanas.map((s, i) => (
+                    <th key={i} className="px-2 py-1 text-center font-semibold">
+                      <span className="block">Sem {i + 1}</span>
+                      <span className="block text-[10px] font-normal text-slate-400">
+                        {formatearFecha(s.inicio).slice(0, 5)}
+                      </span>
+                    </th>
+                  ))}
+                  <th className="px-2 py-1 text-right font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {histograma.personal.length === 0 && histograma.equipos.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={histograma.semanas.length + 2}
+                      className="px-2 py-3 text-center text-sm text-slate-500"
+                    >
+                      Sin personal ni equipos con horas en el periodo.
+                    </td>
+                  </tr>
+                )}
+                {histograma.personal.length > 0 && (
+                  <tr>
+                    <td
+                      colSpan={histograma.semanas.length + 2}
+                      className="pt-2 pb-1 text-[11px] font-semibold tracking-wide text-slate-500 uppercase"
+                    >
+                      Personal (plan)
+                    </td>
+                  </tr>
+                )}
+                {histograma.personal.map((f) => (
+                  <tr key={`p-${f.id}`} className={f.excede ? 'bg-red-50/60' : ''}>
+                    <td className="max-w-[220px] px-2 py-1">
+                      <span className="block truncate font-medium text-slate-700">{f.nombre}</span>
+                      {f.excede && (
+                        <span className="text-[10px] font-semibold text-red-700">sobreasignado</span>
+                      )}
+                    </td>
+                    {f.valores.map((h, i) => (
+                      <CeldaHistograma
+                        key={i}
+                        horas={h}
+                        capacidad={histograma.capacidad[i]}
+                        maxHoras={histograma.maxHoras}
+                        tono="bg-slate-500"
+                      />
+                    ))}
+                    <td className="px-2 py-1 text-right font-semibold text-slate-700 tabular-nums">
+                      {f.total} h
+                    </td>
+                  </tr>
+                ))}
+                {histograma.equipos.length > 0 && (
+                  <tr>
+                    <td
+                      colSpan={histograma.semanas.length + 2}
+                      className="pt-2 pb-1 text-[11px] font-semibold tracking-wide text-slate-500 uppercase"
+                    >
+                      Equipos (uso real)
+                    </td>
+                  </tr>
+                )}
+                {histograma.equipos.map((f) => (
+                  <tr key={`e-${f.id}`} className={f.excede || f.cruce ? 'bg-red-50/60' : ''}>
+                    <td className="max-w-[220px] px-2 py-1">
+                      <span className="block truncate font-medium text-slate-700">{f.nombre}</span>
+                      {f.cruce && (
+                        <span className="text-[10px] font-semibold text-red-700">
+                          cruce de servicios
+                        </span>
+                      )}
+                    </td>
+                    {f.valores.map((h, i) => (
+                      <CeldaHistograma
+                        key={i}
+                        horas={h}
+                        capacidad={histograma.capacidad[i]}
+                        maxHoras={histograma.maxHoras}
+                        tono="bg-blue-800"
+                      />
+                    ))}
+                    <td className="px-2 py-1 text-right font-semibold text-slate-700 tabular-nums">
+                      {f.total} h
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {modal && (
