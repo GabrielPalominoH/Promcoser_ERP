@@ -24,6 +24,10 @@
 //  13 = + modo_medicion en cada tarea hoja (cómo se mide su avance: metrado,
 //       hitos, tiempo, costo o manual con justificación). Los respaldos v12 y
 //       anteriores se normalizan al cargar sin tocar ningún avance guardado.
+//  14 = parte diario con METRADO ejecutado (`metrado_dia`) en lugar del avance
+//       diario en %; el parte también marca pasos cumplidos (hitos) y guarda
+//       quién y cuándo. Los `avance_dia` de tareas con metrado se migran a
+//       metrado (pérdida cero); el flag `avance_por_partes` desaparece.
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -33,8 +37,15 @@ import {
   migrarPresupuestoATareas,
 } from './mockData'
 import { normalizarModoMedicion } from '../utils/avance'
+import { migrarPartesAMetrado } from '../utils/partesDiario'
 
-export const VERSION_ESQUEMA = 13
+export const VERSION_ESQUEMA = 14
+
+// Normalización al cargar/importar: primero el modo de medición de cada hoja,
+// luego la migración del parte diario (metrado). Ambas son idempotentes.
+function normalizarEstado(estado) {
+  return migrarPartesAMetrado(normalizarModoMedicion(estado))
+}
 
 const memoria = {}
 const backendMemoria = {
@@ -99,7 +110,7 @@ export function cargarEstado() {
     if (raw) {
       const combinado = combinarEstado(migrarPresupuestoATareas(JSON.parse(raw)))
       if (combinado) {
-        const normalizado = normalizarModoMedicion(combinado)
+        const normalizado = normalizarEstado(combinado)
         guardarEstado(normalizado)
         return normalizado
       }
@@ -109,15 +120,15 @@ export function cargarEstado() {
     if (rawAnterior) {
       const combinado = combinarEstado(migrarEstadoV1(JSON.parse(rawAnterior)))
       if (combinado) {
-        const normalizado = normalizarModoMedicion(combinado)
+        const normalizado = normalizarEstado(combinado)
         guardarEstado(normalizado)
         return normalizado
       }
     }
 
-    return normalizarModoMedicion(ESTADO_INICIAL)
+    return normalizarEstado(ESTADO_INICIAL)
   } catch {
-    return normalizarModoMedicion(ESTADO_INICIAL)
+    return normalizarEstado(ESTADO_INICIAL)
   }
 }
 
@@ -176,7 +187,7 @@ export function validarRespaldo(datos) {
 export function normalizarRespaldo(datos) {
   const { ok } = validarRespaldo(datos)
   if (!ok) return null
-  return normalizarModoMedicion(combinarEstado(datos))
+  return normalizarEstado(combinarEstado(datos))
 }
 
 export function serializarRespaldo(estado) {

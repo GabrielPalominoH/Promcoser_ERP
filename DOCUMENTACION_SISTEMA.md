@@ -36,6 +36,7 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 | `adelantos` | Adelantos directos/por materiales entregados al servicio |
 | `modificaciones` | Adicional/deductivo contractual: tipo, número, fecha, estado, partidas (metrado × PU), historial |
 | `ampliaciones_plazo` | Ampliación de plazo: días solicitados/aprobados/aplicados, motivo, estado, historial |
+| `partes_diario` | Jornada de obra: fecha, clima, responsable, personal y equipos presentes, partidas con su `metrado_dia` (o `hitos`), `tolerancia_metrado`/`nota_exceso`, incidencias, observaciones y fotos |
 
 ### Relaciones que importan para el cálculo
 - `servicio 1──N tareas` y `tareas 1──N tareas` (árbol multinivel vía `padre_id`).
@@ -43,6 +44,7 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 - `servicio 1──N cobros` y `servicio 1──N facturas`; `factura 1──N cobros` (aplicaciones).
 - `personal 1──N asignaciones` → generan **registros mensuales automáticos** de tipo `personal` con `asignacion_id` (ver §4).
 - `servicio 1──N modificaciones` (adicional/deductivo) y `servicio 1──N ampliaciones_plazo`; al aprobar un adicional sus partidas se materializan como tareas hoja.
+- `servicio 1──N partes_diario`; sus filas referencian `tarea_id` (el metrado ejecutado del día) y el avance de la tarea se deriva de la suma de sus partes (ver §5.2).
 - `borrar servicio` arrastra registros, tareas, asignaciones, facturas, cobros, modificaciones y ampliaciones (cascada en `DataContext`).
 
 ---
@@ -527,6 +529,41 @@ Fase C. La UI ofrece el modo en el modal de tarea (selector con búsqueda, solo
 hojas), la justificación obligatoria en modo `manual`, la insignia `manual` en
 el Gantt y la columna "Modo" en Partidas.
 
+### 5.2 Captura del avance en el parte diario (Fase B)
+
+El parte diario deja de teclear el avance en %: cada fila de partida registra el
+**metrado ejecutado del día** (`metrado_dia`) con la unidad de la tarea, o los
+pasos cumplidos si la partida se mide por `hitos`. La lógica pura vive en
+`src/utils/partesDiario.js`:
+
+| Cálculo | Función | Qué devuelve |
+|---|---|---|
+| Acumulado | `metradoEjecutadoAcumulado(partes, tareaId)` | suma de los `metrado_dia` de todos los partes (sin tope) |
+| Estado de la fila | `estadoFilaMetrado({tarea, metradoDia, acumuladoOtros, tolerancia})` | contratado, acumulado, saldo por ejecutar, % resultante, rendimiento del día y tope |
+| Validación en vivo | `evaluarFilasMetrado({filas, tareas, partes, parteId, tolerancia})` | una evaluación por fila (al editar un parte pasado excluye el propio parte para no contar dos veces) |
+| Derivado de la tarea | `avanceDePartes({tarea, partes})` | metrado ÷ contratado, o los pesos de los pasos cumplidos, o el `avance_dia` legado |
+| Sincronización | `recalcularAvanceTareas({partes, tareas, servicioId})` | cambios de `tarea.avance` de las tareas que aparecen en algún parte |
+
+Reglas:
+
+- El **acumulado no debe superar el metrado contratado + tolerancia** (5 % por
+  defecto, editable en el parte y guardada en `tolerancia_metrado`). Si lo
+  supera, el formulario avisa y exige una `nota_exceso` para poder guardar.
+- Solo se pueden elegir **partidas hoja**: en modo `metrado` para el metrado y
+  en modo `hitos` para marcar pasos (`partidasMedibles`).
+- Marcar un paso guarda **quién y cuándo** (`cumplido_por`, `fecha_cumplimiento`)
+  en la tarea; es idempotente (un paso ya cumplido no se re-fecha).
+- Se pueden **ver y editar partes de fechas pasadas**: los acumulados se
+  recalculan y `tarea.avance` se resincroniza al guardar.
+- **Migración** (`migrarPartesAMetrado`, idempotente): los `avance_dia` de una
+  tarea con metrado pasan a `metrado_dia = % × metrado ÷ 100` (el % se reproduce
+  exacto); los de tareas sin metrado quedan como registro legado de solo lectura.
+- El flag `avance_por_partes` queda **deprecado**: `normalizarModoMedicion` lo
+  retira y deja la tarea en `metrado` (si tiene metrado) o en `manual` con nota.
+- La semilla demo **no trae partes**, así que el avance global del servicio 6
+  (47 %) no cambia al normalizar ni al registrar un parte de otra partida. La
+  versión de esquema sube a `_v: 14` por el cambio de forma del parte.
+
 ---
 
 ## 6. Productividad: días estimados vs. reales
@@ -843,11 +880,11 @@ materiales`, `gastos`, `equipos`, `personal`, `ingresos`, `partidas`,
 ## 11. Verificación (cómo reproducir todo este documento)
 
 ```
-npm run verificar   # 268 pruebas: reducer, calculadora, asignaciones, cobros,
+npm run verificar   # 650 pruebas: reducer, calculadora, asignaciones, cobros,
                     # gerencial, combo de cartera, montos por tareas,
                     # productividad, proyección financiera, formato,
-                    # persistencias, rutas SSR, filtros de listas y modal
-                    # de asignación de personal
+                    # persistencias, rutas SSR, filtros de listas, modal
+                    # de asignación de personal y parte diario
 npm run build       # build cliente
 ```
 

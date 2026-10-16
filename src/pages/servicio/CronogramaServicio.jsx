@@ -310,11 +310,9 @@ function ModalTarea({ servicio, tarea, padre, costos, tieneHijos, avanceDerivado
                 label="Avance (%)"
                 error={errors.avance?.message}
                 hint={
-                  tarea?.avance_por_partes
-                    ? 'Este avance lo gobiernan los partes diarios: se recalcula al guardarlos.'
-                    : modoActual === 'manual'
-                      ? 'Avance fijado a mano: obligatorio justificar el dato.'
-                      : ORIGEN_AVANCE[modoActual]
+                  modoActual === 'manual'
+                    ? 'Avance fijado a mano: obligatorio justificar el dato.'
+                    : ORIGEN_AVANCE[modoActual]
                 }
                 htmlFor="tarea-avance"
               >

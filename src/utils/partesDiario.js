@@ -1,19 +1,32 @@
-// Parte diario de obra (Fase 2).
+// Parte diario de obra (Fase 2; metrado ejecutado desde la Fase B).
 //
 // Un parte registra una jornada: clima, responsable, personal presente,
-// equipos usados, partidas ejecutadas con su avance DEL DÍA, incidencias,
-// observaciones y fotos (solo metadata; los archivos viven en IndexedDB).
+// equipos usados, partidas ejecutadas con su METRADO DEL DÍA (o los pasos
+// cumplidos, si la partida se mide por hitos), incidencias, observaciones y
+// fotos (solo metadata; los archivos viven en IndexedDB).
 //
 // "Sin duplicar datos": el parte referencia personas y equipos por id (los
 // nombres se resuelven al pintar) y el avance de una tarea se DERIVA de la suma
-// de los avances diarios de sus partes (`avanceAcumulado`). Así el parte es el
-// único punto donde se teclea el progreso diario y `tarea.avance` queda
-// sincronizado por `recalcularAvanceTareas`.
+// de los metrados ejecutados de sus partes (`metradoEjecutadoAcumulado`). Así el
+// parte es el único punto donde se teclea el progreso diario y `tarea.avance`
+// queda sincronizado por `recalcularAvanceTareas`.
+//
+// Los partes anteriores a la Fase B (avance diario en %) se migran con
+// `migrarPartesAMetrado` cuando la tarea tiene metrado contratado; los de
+// tareas sin metrado se conservan como registro legado de solo lectura.
 //
 // Módulo puro: no toca localStorage, IndexedDB ni el estado de React.
 
+import { avancePorHitos, avancePorMetrado, esHojaTarea } from './avance'
+
 const n = (x) => Number(x) || 0
 const clamp01a100 = (x) => Math.min(100, Math.max(0, x))
+// Dos decimales: el metrado es una cantidad de obra, no dinero.
+const dosDecimales = (x) => Math.round((Number(x) || 0) * 100) / 100
+
+// Tolerancia por defecto (en %) sobre el metrado contratado antes de exigir
+// una nota que justifique el exceso de metrado ejecutado.
+export const TOLERANCIA_METRADO_DEFECTO = 5
 
 export const CLIMAS = [
   'Soleado',
@@ -82,7 +95,9 @@ export function agruparPartesPorMes(partes = []) {
   return porMes
 }
 
-// Suma de los avances del día registrados para una tarea (sin tope).
+// Suma de los avances del día registrados para una tarea (sin tope). Vía
+// LEGADO (%), conservada para los partes anteriores a la Fase B en tareas sin
+// metrado contratado.
 export function avanceDiarioPorTarea(partes = [], tareaId) {
   let total = 0
   for (const p of partes ?? []) {
@@ -94,8 +109,171 @@ export function avanceDiarioPorTarea(partes = [], tareaId) {
 }
 
 // Avance acumulado de una tarea = suma de sus avances diarios, acotado a 0–100.
+// Es la vía LEGADO (partes anteriores a la Fase B, en %): solo se usa para
+// tareas sin metrado contratado.
 export function avanceAcumulado(partes = [], tareaId) {
   return clamp01a100(avanceDiarioPorTarea(partes, tareaId))
+}
+
+// ------------------------------------------------------------
+//  Metrado ejecutado (Fase B)
+// ------------------------------------------------------------
+
+// Metrado del día de una fila (null = la fila no es de metrado: legado o hito).
+export function metradoDeFila(fila) {
+  if (fila?.metrado_dia == null || fila.metrado_dia === '') return null
+  const valor = Number(fila.metrado_dia)
+  return Number.isFinite(valor) ? valor : null
+}
+
+// Suma del metrado ejecutado de una tarea en los partes dados (sin tope).
+export function metradoEjecutadoAcumulado(partes = [], tareaId) {
+  let total = 0
+  for (const p of partes ?? []) {
+    for (const x of p.partidas ?? []) {
+      if (x.tarea_id !== tareaId) continue
+      const metrado = metradoDeFila(x)
+      if (metrado != null) total += metrado
+    }
+  }
+  return dosDecimales(total)
+}
+
+// Estado de una fila de metrado: acumulado (otros partes + hoy), saldo por
+// ejecutar, % resultante, rendimiento del día y tope con tolerancia. Nunca
+// devuelve NaN; sin metrado contratado el % es 0 y no hay tope que exceder.
+export function estadoFilaMetrado({
+  tarea,
+  metradoDia = 0,
+  acumuladoOtros = 0,
+  tolerancia = TOLERANCIA_METRADO_DEFECTO,
+} = {}) {
+  const contratado = Number(tarea?.metrado) > 0 ? Number(tarea.metrado) : 0
+  const delDia = Number(metradoDia) || 0
+  const tol = Number(tolerancia) || 0
+  const acumulado = dosDecimales(n(acumuladoOtros) + delDia)
+  const tope = dosDecimales(contratado * (1 + tol / 100))
+  const excedente = dosDecimales(Math.max(0, acumulado - contratado))
+  return {
+    tarea_id: tarea?.id ?? null,
+    unidad: tarea?.unidad ?? '',
+    contratado,
+    delDia,
+    acumulado,
+    saldo: dosDecimales(Math.max(0, contratado - acumulado)),
+    excedente,
+    porcentaje: avancePorMetrado({ metrado: contratado, ejecutado: acumulado }),
+    rendimiento: delDia,
+    rendimientoPct: contratado > 0 ? dosDecimales((delDia / contratado) * 100) : 0,
+    tolerancia: tol,
+    tope,
+    excede: contratado > 0 && acumulado > tope,
+    excedeContratado: contratado > 0 && acumulado > contratado,
+  }
+}
+
+// Evalúa las filas de metrado de un parte contra el metrado contratado de su
+// tarea, sumando lo ejecutado en los DEMÁS partes (editar un parte pasado
+// recalcula su acumulado sin contarse dos veces).
+export function evaluarFilasMetrado({
+  filas = [],
+  tareas = [],
+  partes = [],
+  parteId = null,
+  tolerancia = TOLERANCIA_METRADO_DEFECTO,
+} = {}) {
+  const otros = (partes ?? []).filter((p) => parteId == null || p.id !== parteId)
+  return (filas ?? []).map((fila) => {
+    const tarea = (tareas ?? []).find((t) => t.id === fila?.tarea_id) ?? null
+    return {
+      tarea,
+      tipo: 'metrado',
+      ...estadoFilaMetrado({
+        tarea,
+        metradoDia: metradoDeFila(fila) ?? 0,
+        acumuladoOtros: metradoEjecutadoAcumulado(otros, fila?.tarea_id),
+        tolerancia,
+      }),
+    }
+  })
+}
+
+// Avance de una tarea derivado de sus partes, según su modo de medición:
+// `metrado` → metrado ejecutado ÷ contratado; `hitos` → pesos de los pasos
+// cumplidos; el resto (legado en %) → suma de los avances diarios.
+export function avanceDePartes({ tarea, partes = [] } = {}) {
+  if (!tarea) return 0
+  if (tarea.modo_medicion === 'metrado') {
+    return avancePorMetrado({
+      metrado: tarea.metrado,
+      ejecutado: metradoEjecutadoAcumulado(partes, tarea.id),
+    })
+  }
+  if (tarea.modo_medicion === 'hitos') return avancePorHitos(tarea.pasos)
+  return avanceAcumulado(partes, tarea.id)
+}
+
+// Partidas hoja que se pueden medir en un parte con el modo indicado.
+export function partidasMedibles(tareas = [], modo) {
+  return (tareas ?? []).filter(
+    (t) => t?.modo_medicion === modo && esHojaTarea(t, tareas),
+  )
+}
+
+// Marca pasos como cumplidos (idempotente): un paso ya cumplido conserva su
+// fecha y su responsable. Devuelve `{ pasos, cambio }` con la MISMA referencia
+// cuando no hay nada que marcar.
+export function marcarPasosCumplidos(pasos, ids, { fecha = null, por = null } = {}) {
+  const lista = Array.isArray(pasos) ? pasos : []
+  const objetivo = new Set(ids ?? [])
+  let cambio = false
+  const salida = lista.map((paso) => {
+    if (!objetivo.has(paso?.id) || paso.estado === 'cumplido') return paso
+    cambio = true
+    return {
+      ...paso,
+      estado: 'cumplido',
+      fecha_cumplimiento: fecha ?? paso.fecha_cumplimiento ?? null,
+      cumplido_por: por ?? paso.cumplido_por ?? null,
+    }
+  })
+  return { pasos: cambio ? salida : lista, cambio }
+}
+
+// Migración Fase B (idempotente): los `avance_dia` guardados pasan a
+// `metrado_dia = % × metrado ÷ 100` cuando la tarea tiene metrado contratado
+// (pérdida cero: el % se reproduce exacto). Los de tareas sin metrado se
+// conservan tal cual como registro legado de solo lectura.
+export function migrarPartesAMetrado(estado) {
+  if (!estado || typeof estado !== 'object' || !Array.isArray(estado.partes_diario)) {
+    return estado
+  }
+  const tareas = Array.isArray(estado.tareas) ? estado.tareas : []
+  const metradoDeTarea = (tareaId) => {
+    const tarea = tareas.find((t) => t.id === tareaId)
+    return Number(tarea?.metrado) > 0 ? Number(tarea.metrado) : 0
+  }
+
+  let cambio = false
+  const partes = estado.partes_diario.map((parte) => {
+    if (!Array.isArray(parte?.partidas) || parte.partidas.length === 0) return parte
+    let cambioParte = false
+    const partidas = parte.partidas.map((fila) => {
+      if (!fila || metradoDeFila(fila) != null) return fila // ya migrada
+      const avance = Number(fila.avance_dia)
+      if (!Number.isFinite(avance)) return fila
+      const metrado = metradoDeTarea(fila.tarea_id)
+      if (metrado <= 0) return fila // legado: solo lectura
+      cambioParte = true
+      const { avance_dia, ...resto } = fila
+      return { ...resto, metrado_dia: dosDecimales((avance * metrado) / 100) }
+    })
+    if (!cambioParte) return parte
+    cambio = true
+    return { ...parte, partidas }
+  })
+
+  return cambio ? { ...estado, partes_diario: partes } : estado
 }
 
 // Horas de personal / equipos de un parte.
@@ -107,9 +285,21 @@ export function horasEquipos(parte = {}) {
   return (parte.equipos ?? []).reduce((s, x) => s + n(x.horas), 0)
 }
 
-export function resumenParte(parte = {}) {
+// Resumen de una jornada. `avanceTotal` es el aporte del día en %: suma el %
+// de cada fila de metrado (metrado del día ÷ contratado) y conserva la suma de
+// los avances diarios de las filas legado.
+export function resumenParte(parte = {}, { tareas = [] } = {}) {
   const partidas = parte.partidas ?? []
-  const avanceTotal = partidas.reduce((s, x) => s + n(x.avance_dia), 0)
+  const avanceTotal = dosDecimales(
+    partidas.reduce((s, x) => {
+      const metrado = metradoDeFila(x)
+      if (metrado == null) return s + n(x.avance_dia)
+      const tarea = (tareas ?? []).find((t) => t.id === x.tarea_id)
+      const contratado = Number(tarea?.metrado) || 0
+      if (contratado <= 0) return s
+      return s + (metrado / contratado) * 100
+    }, 0),
+  )
   return {
     personal: (parte.personal ?? []).length,
     equipos: (parte.equipos ?? []).length,
@@ -165,9 +355,10 @@ export function personalPresenteSugerido({
     })
 }
 
-// Recalcula `tarea.avance` desde los partes diarios. Solo toca tareas
-// "gobernadas por partes": las que aparecen en algún parte o las que ya traen
-// `avance_por_partes: true` (aunque sus partes se hayan borrado, vuelven a 0).
+// Recalcula `tarea.avance` desde los partes diarios. Solo toca las tareas que
+// aparecen en algún parte (las demás conservan su avance: la semilla demo
+// arranca sin partes y no se mueve). El valor sale de `avanceDePartes`, que
+// respeta el modo: metrado, hitos o el % legado de los partes anteriores.
 // Devuelve la lista de cambios a aplicar con `actualizarItem('tareas', ...)`.
 export function recalcularAvanceTareas({ partes = [], tareas = [], servicioId } = {}) {
   const delServicio = (partes ?? []).filter(
@@ -183,13 +374,10 @@ export function recalcularAvanceTareas({ partes = [], tareas = [], servicioId } 
   const cambios = []
   for (const t of tareas ?? []) {
     if (servicioId != null && t.servicio_id !== servicioId) continue
-    const gobernada = referenciadas.has(t.id) || t.avance_por_partes === true
-    if (!gobernada) continue
+    if (!referenciadas.has(t.id)) continue
 
-    const nuevo = avanceAcumulado(delServicio, t.id)
-    if (n(t.avance) !== nuevo || t.avance_por_partes !== true) {
-      cambios.push({ id: t.id, avance: nuevo, avance_por_partes: true })
-    }
+    const nuevo = avanceDePartes({ tarea: t, partes: delServicio })
+    if (n(t.avance) !== nuevo) cambios.push({ id: t.id, avance: nuevo })
   }
   return cambios
 }

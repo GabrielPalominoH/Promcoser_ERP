@@ -105,15 +105,24 @@ import {
 } from '../src/utils/modificaciones'
 import {
   CLIMAS,
+  TOLERANCIA_METRADO_DEFECTO,
   agruparPartesPorMes,
   avanceAcumulado,
+  avanceDePartes,
   avanceDiarioPorTarea,
   diasDelMes,
+  estadoFilaMetrado,
+  evaluarFilasMetrado,
   horasEquipos,
   horasPersonal,
+  marcarPasosCumplidos,
   matrizCalendario,
   mesDeFecha,
+  metradoDeFila,
+  metradoEjecutadoAcumulado,
+  migrarPartesAMetrado,
   parteDeFecha,
+  partidasMedibles,
   partesDeServicio,
   personalPresenteSugerido,
   recalcularAvanceTareas,
@@ -133,6 +142,7 @@ import { escalarDimensiones } from '../src/data/fotos'
 import { filtrarOpciones, normalizar } from '../src/components/ui/ComboBox'
 import { resolverFacturaIngreso } from '../src/pages/servicio/IngresosServicio'
 import { RedPERT } from '../src/pages/servicio/RedPERT'
+import { FilaPartida } from '../src/pages/servicio/ParteDiarioServicio'
 import { CALENDARIO_POR_DEFECTO, calendarioDe } from '../src/utils/calendario'
 import {
   MODOS_MEDICION,
@@ -774,24 +784,73 @@ comprobar(
   'K respaldo v11 rellena partes vacíos',
   Array.isArray(normV11?.partes_diario) && normV11.partes_diario.length === 0,
 )
-// Un respaldo del esquema actual (v13) incompleto también se rechaza.
+// Un respaldo del esquema actual (v14) incompleto también se rechaza.
+const respaldoV14 = { ...JSON.parse(serial), _v: 14 }
+delete respaldoV14.cargos
+comprobar('K respaldo del esquema actual incompleto se rechaza', validarRespaldo(respaldoV14).ok === false)
+// Un respaldo v13 completo (parte diario en % y el flag `avance_por_partes`)
+// se acepta: el parte migra a metrado y el flag desaparece, sin perder avance.
+const tarea15 = ESTADO_INICIAL.tareas.find((t) => t.id === 15)
 const respaldoV13 = { ...JSON.parse(serial), _v: 13 }
-delete respaldoV13.cargos
-comprobar('K respaldo del esquema actual incompleto se rechaza', validarRespaldo(respaldoV13).ok === false)
-// Un respaldo v12 completo (sin `modo_medicion`) se acepta y la normalización
-// agrega el modo de medición a cada hoja sin tocar ningún avance.
-const respaldoV12Ok = { ...JSON.parse(serial), _v: 12 }
-respaldoV12Ok.tareas = respaldoV12Ok.tareas.map(
-  ({ modo_medicion, pasos, nota_justificacion, ...resto }) => resto,
+respaldoV13.tareas = respaldoV13.tareas.map(({ modo_medicion, pasos, nota_justificacion, ...resto }) => resto)
+respaldoV13.tareas = respaldoV13.tareas.map((t) =>
+  t.id === 15 ? { ...t, avance_por_partes: true } : t,
 )
-comprobar('K respaldo v12 completo se acepta', validarRespaldo(respaldoV12Ok).ok)
-const normV12 = normalizarRespaldo(respaldoV12Ok)
+respaldoV13.partes_diario = [
+  {
+    id: 1,
+    servicio_id: 6,
+    fecha: '2026-10-01',
+    responsable: 'Ing. A',
+    partidas: [{ tarea_id: 15, avance_dia: 10, nota: null }],
+  },
+]
+comprobar('K respaldo v13 completo se acepta', validarRespaldo(respaldoV13).ok)
+const normV13 = normalizarRespaldo(respaldoV13)
+const parteMigrado = normV13?.partes_diario?.[0]
+const tarea15Migrada = normV13?.tareas.find((t) => t.id === 15)
+comprobar(
+  'K respaldo v13 migra el parte a metrado sin perder el %',
+  Math.abs(metradoDeFila(parteMigrado?.partidas[0]) - 0.1 * tarea15.metrado) < 0.01 &&
+    parteMigrado.partidas.every((p) => p.avance_dia === undefined) &&
+    avanceDePartes({ tarea: tarea15Migrada, partes: [parteMigrado] }) === 10,
+)
+comprobar(
+  'K respaldo v13 suelta el flag avance_por_partes',
+  tarea15Migrada?.avance_por_partes === undefined && tarea15Migrada?.modo_medicion === 'metrado',
+)
+comprobar(
+  'K respaldo v13 conserva legado la fila de una tarea sin metrado',
+  (() => {
+    const respaldo = {
+      ...JSON.parse(serial),
+      _v: 13,
+      partes_diario: [
+        { id: 1, servicio_id: 6, fecha: '2026-10-01', partidas: [{ tarea_id: 999, avance_dia: 25 }] },
+      ],
+    }
+    const norm = normalizarRespaldo(respaldo)
+    return (
+      norm?.partes_diario?.[0]?.partidas?.[0]?.avance_dia === 25 &&
+      norm.partes_diario[0].partidas[0].metrado_dia === undefined
+    )
+  })(),
+)
 comprobar(
   'K respaldo v12 se normaliza con modo_medicion',
-  Array.isArray(normV12?.tareas) &&
-    normV12.tareas.length === ESTADO_INICIAL.tareas.length &&
-    normV12.tareas.filter((t) => t.modo_medicion).length ===
-      ESTADO_INICIAL.tareas.filter((t) => t.modo_medicion).length,
+  (() => {
+    const respaldoV12Ok = { ...JSON.parse(serial), _v: 12 }
+    respaldoV12Ok.tareas = respaldoV12Ok.tareas.map(
+      ({ modo_medicion, pasos, nota_justificacion, ...resto }) => resto,
+    )
+    const normV12 = normalizarRespaldo(respaldoV12Ok)
+    return (
+      Array.isArray(normV12?.tareas) &&
+      normV12.tareas.length === ESTADO_INICIAL.tareas.length &&
+      normV12.tareas.filter((t) => t.modo_medicion).length ===
+        ESTADO_INICIAL.tareas.filter((t) => t.modo_medicion).length
+    )
+  })(),
 )
 
 // ============================================================
@@ -1754,18 +1813,272 @@ const cambiosRec = recalcularAvanceTareas({
 const cambio10 = cambiosRec.find((c) => c.id === 10)
 comprobar(
   'parte diario: recalcular deriva el avance de las tareas con partes y no toca las demás',
-  cambio10?.avance === 50 &&
-    cambio10?.avance_por_partes === true &&
-    cambiosRec.find((c) => c.id === 12) === undefined,
+  cambio10?.avance === 50 && cambiosRec.find((c) => c.id === 12) === undefined,
 )
+// Una tarea sin metrado sigue la vía legado; sin partes no se gobierna (la
+// semilla demo no se mueve al guardar un parte de otra partida).
 const cambioSinPartes = recalcularAvanceTareas({
   partes: [],
-  tareas: [{ id: 10, servicio_id: 500, avance: 50, avance_por_partes: true }],
+  tareas: [{ id: 10, servicio_id: 500, avance: 50, modo_medicion: 'metrado', metrado: 100 }],
   servicioId: 500,
 })
 comprobar(
-  'parte diario: sin partes, la tarea gobernada por partes vuelve a 0',
-  cambioSinPartes.length === 1 && cambioSinPartes[0].avance === 0,
+  'parte diario: sin partes la tarea no se gobierna (conserva su avance)',
+  cambioSinPartes.length === 0,
+)
+
+// --- Fase B: metrado ejecutado en el parte ---
+
+const tareaMetrado = { id: 20, servicio_id: 500, nombre: 'Excavación', unidad: 'm3', metrado: 500, modo_medicion: 'metrado' }
+const tareaHitos = {
+  id: 21,
+  servicio_id: 500,
+  nombre: 'Pruebas',
+  modo_medicion: 'hitos',
+  pasos: [
+    { id: 1, nombre: 'Paso A', peso: 40, estado: 'pendiente', fecha_cumplimiento: null },
+    { id: 2, nombre: 'Paso B', peso: 60, estado: 'pendiente', fecha_cumplimiento: null },
+  ],
+}
+const partesMetrado = [
+  { id: 1, servicio_id: 500, fecha: '2026-10-01', partidas: [{ tarea_id: 20, metrado_dia: 100 }] },
+  { id: 2, servicio_id: 500, fecha: '2026-10-02', partidas: [{ tarea_id: 20, metrado_dia: 50 }] },
+]
+comprobar(
+  'parte diario: metradoDeFila distingue metrado de legado',
+  metradoDeFila({ metrado_dia: 12.5 }) === 12.5 &&
+    metradoDeFila({ metrado_dia: '' }) === null &&
+    metradoDeFila({ avance_dia: 20 }) === null &&
+    metradoDeFila(undefined) === null,
+)
+comprobar(
+  'parte diario: metrado acumulado suma los partes de la tarea',
+  metradoEjecutadoAcumulado(partesMetrado, 20) === 150 &&
+    metradoEjecutadoAcumulado(partesMetrado, 21) === 0,
+)
+const estadoMetrado = estadoFilaMetrado({
+  tarea: tareaMetrado,
+  metradoDia: 50,
+  acumuladoOtros: 100,
+})
+comprobar(
+  'parte diario: estado de la fila de metrado (acumulado, saldo, %, rendimiento)',
+  estadoMetrado.acumulado === 150 &&
+    estadoMetrado.saldo === 350 &&
+    estadoMetrado.porcentaje === 30 &&
+    estadoMetrado.rendimiento === 50 &&
+    estadoMetrado.rendimientoPct === 10 &&
+    estadoMetrado.unidad === 'm3' &&
+    estadoMetrado.excede === false,
+)
+comprobar(
+  'parte diario: la tolerancia marca el tope (5 % por defecto)',
+  TOLERANCIA_METRADO_DEFECTO === 5 &&
+    estadoMetrado.tope === 525 &&
+    estadoFilaMetrado({ tarea: tareaMetrado, metradoDia: 425, acumuladoOtros: 100 }).excede === false &&
+    estadoFilaMetrado({ tarea: tareaMetrado, metradoDia: 430, acumuladoOtros: 100 }).excede === true &&
+    estadoFilaMetrado({ tarea: tareaMetrado, metradoDia: 430, acumuladoOtros: 100, tolerancia: 0 }).tope === 500,
+)
+comprobar(
+  'parte diario: sin metrado contratado no hay % ni tope que exceder',
+  (() => {
+    const e = estadoFilaMetrado({
+      tarea: { id: 30, unidad: 'm2', metrado: 0 },
+      metradoDia: 999,
+      acumuladoOtros: 0,
+    })
+    return e.contratado === 0 && e.porcentaje === 0 && e.tope === 0 && e.excede === false
+  })(),
+)
+comprobar(
+  'parte diario: el exceso reporta el sobrante sobre el contratado',
+  estadoFilaMetrado({ tarea: tareaMetrado, metradoDia: 600, acumuladoOtros: 0 }).excedente === 100 &&
+    estadoFilaMetrado({ tarea: tareaMetrado, metradoDia: 600, acumuladoOtros: 0 }).saldo === 0,
+)
+// Editar un parte pasado: el acumulado del propio parte no se cuenta dos veces.
+const evaluadasMetrado = evaluarFilasMetrado({
+  filas: [{ tarea_id: 20, metrado_dia: 80 }],
+  tareas: [tareaMetrado],
+  partes: partesMetrado,
+  parteId: 1,
+})
+comprobar(
+  'parte diario: editar un parte pasado recalcula sin contar el propio parte',
+  evaluadasMetrado[0].acumulado === 130 &&
+    evaluadasMetrado[0].porcentaje === 26 &&
+    evaluadasMetrado[0].saldo === 370,
+)
+comprobar(
+  'parte diario: cada fila de metrado se evalúa contra su tarea',
+  evaluarFilasMetrado({
+    filas: [{ tarea_id: 20, metrado_dia: 500 }],
+    tareas: [tareaMetrado],
+    partes: [],
+    tolerancia: 0,
+  })[0].excede === false,
+)
+comprobar(
+  'parte diario: avanceDePartes respeta el modo (metrado/hitos/legado)',
+  avanceDePartes({ tarea: tareaMetrado, partes: partesMetrado }) === 30 &&
+    avanceDePartes({
+      tarea: { ...tareaHitos, pasos: [{ id: 1, peso: 40, estado: 'cumplido' }] },
+      partes: [],
+    }) === 40 &&
+    avanceDePartes({ tarea: { id: 10, servicio_id: 500 }, partes: partesMetrado }) === 0,
+)
+// Marcar pasos: idempotente y sin re-fechar lo ya cumplido.
+const sinMarcar = marcarPasosCumplidos(tareaHitos.pasos, [1], { fecha: '2026-10-05', por: 'Ing. A' })
+comprobar(
+  'parte diario: marcar un paso guarda quién y cuándo',
+  sinMarcar.cambio === true &&
+    sinMarcar.pasos[0].estado === 'cumplido' &&
+    sinMarcar.pasos[0].fecha_cumplimiento === '2026-10-05' &&
+    sinMarcar.pasos[0].cumplido_por === 'Ing. A' &&
+    sinMarcar.pasos[1].estado === 'pendiente',
+)
+const remarcado = marcarPasosCumplidos(sinMarcar.pasos, [1], { fecha: '2026-10-09', por: 'Ing. B' })
+comprobar(
+  'parte diario: remarcar un paso cumplido no lo re-fecha (idempotente)',
+  remarcado.cambio === false &&
+    remarcado.pasos === sinMarcar.pasos &&
+    remarcado.pasos[0].fecha_cumplimiento === '2026-10-05' &&
+    remarcado.pasos[0].cumplido_por === 'Ing. A',
+)
+// Migración del parte: % × metrado ÷ 100, sin pérdida.
+const estadoConParte = {
+  tareas: [tareaMetrado, { id: 31, servicio_id: 500, nombre: 'Sin metrado', unidad: 'kg' }],
+  partes_diario: [
+    {
+      id: 1,
+      servicio_id: 500,
+      fecha: '2026-10-01',
+      partidas: [
+        { tarea_id: 20, avance_dia: 20, nota: null },
+        { tarea_id: 31, avance_dia: 25, nota: 'legado' },
+      ],
+    },
+  ],
+}
+const estadoMigrado = migrarPartesAMetrado(estadoConParte)
+const filaMigrada = estadoMigrado.partes_diario[0].partidas[0]
+comprobar(
+  'parte diario: la migración pasa el % a metrado sin pérdida',
+  filaMigrada.metrado_dia === 100 &&
+    filaMigrada.avance_dia === undefined &&
+    avanceDePartes({ tarea: tareaMetrado, partes: estadoMigrado.partes_diario }) === 20,
+)
+comprobar(
+  'parte diario: la fila de una tarea sin metrado se conserva legado',
+  estadoMigrado.partes_diario[0].partidas[1].avance_dia === 25 &&
+    estadoMigrado.partes_diario[0].partidas[1].metrado_dia === undefined,
+)
+comprobar(
+  'parte diario: la migración es idempotente y devuelve el mismo objeto sin cambios',
+  migrarPartesAMetrado(estadoMigrado) === estadoMigrado &&
+    migrarPartesAMetrado({ tareas: [] }).tareas.length === 0,
+)
+comprobar(
+  'parte diario: recalcular deriva metrado e hitos de sus partes',
+  (() => {
+    const cambios = recalcularAvanceTareas({
+      partes: [
+        ...partesMetrado,
+        { id: 3, servicio_id: 500, fecha: '2026-10-03', partidas: [{ tarea_id: 21, hitos: [1] }] },
+      ],
+      tareas: [tareaMetrado, { ...tareaHitos, pasos: [{ id: 1, peso: 40, estado: 'cumplido' }] }],
+      servicioId: 500,
+    })
+    return (
+      cambios.find((c) => c.id === 20)?.avance === 30 &&
+      cambios.find((c) => c.id === 21)?.avance === 40
+    )
+  })(),
+)
+comprobar(
+  'parte diario: partidasMedibles solo ofrece hojas con ese modo',
+  (() => {
+    const tareas = [
+      { id: 40, modo_medicion: 'metrado' },
+      { id: 41, modo_medicion: 'metrado', padre_id: 40 },
+      { id: 42, modo_medicion: 'hitos' },
+      { id: 43, modo_medicion: 'costo' },
+    ]
+    return (
+      partidasMedibles(tareas, 'metrado').map((t) => t.id).join(',') === '41' &&
+      partidasMedibles(tareas, 'hitos').map((t) => t.id).join(',') === '42'
+    )
+  })(),
+)
+// El % del día del resumen usa el metrado (y conserva el legado sin tareas).
+const resumenConTareas = resumenParte(
+  { partidas: [{ tarea_id: 20, metrado_dia: 50 }] },
+  { tareas: [tareaMetrado] },
+)
+comprobar(
+  'parte diario: el resumen del parte usa el metrado del día',
+  resumenConTareas.avanceTotal === 10 &&
+    resumenParte({ partidas: [{ tarea_id: 999, avance_dia: 30 }] }).avanceTotal === 30,
+)
+// La fila del formulario se dibuja en sus tres variantes sin NaN ni undefined.
+const propsFila = { i: 0, onCambiar: () => {}, onAlternarHito: () => {}, onQuitar: () => {} }
+const htmlFilaMetrado = renderToString(
+  <FilaPartida
+    {...propsFila}
+    fila={{ tarea_id: 20, metrado_dia: 50, nota: '' }}
+    tipo="metrado"
+    tarea={tareaMetrado}
+    estado={estadoFilaMetrado({ tarea: tareaMetrado, metradoDia: 50, acumuladoOtros: 100 })}
+    opcionesMetrado={[{ valor: 20, etiqueta: 'Excavación (m3)' }]}
+    opcionesHitos={[]}
+  />,
+)
+comprobar(
+  'parte diario: la fila de metrado muestra acumulado, saldo, % y rendimiento',
+  htmlFilaMetrado.includes('Metrado ejecutado hoy') &&
+    htmlFilaMetrado.includes('Acumulado') &&
+    htmlFilaMetrado.includes('Saldo por ejecutar') &&
+    htmlFilaMetrado.includes('% resultante') &&
+    htmlFilaMetrado.includes('Rendimiento del día') &&
+    !htmlFilaMetrado.includes('NaN') &&
+    !htmlFilaMetrado.includes('undefined'),
+)
+const htmlFilaHitos = renderToString(
+  <FilaPartida
+    {...propsFila}
+    fila={{ tarea_id: 21, hitos: [1], nota: '' }}
+    tipo="hitos"
+    tarea={tareaHitos}
+    estado={null}
+    opcionesMetrado={[]}
+    opcionesHitos={[{ valor: 21, etiqueta: 'Pruebas' }]}
+  />,
+)
+comprobar(
+  'parte diario: la fila de hitos lista los pasos con su peso',
+  htmlFilaHitos.includes('Pasos cumplidos hoy') &&
+    htmlFilaHitos.includes('Paso A') &&
+    htmlFilaHitos.replace(/<!-- -->/g, '').includes('40 %') &&
+    !htmlFilaHitos.includes('NaN') &&
+    !htmlFilaHitos.includes('undefined'),
+)
+const htmlFilaLegado = renderToString(
+  <FilaPartida
+    {...propsFila}
+    fila={{ tarea_id: null, avance_dia: 25, nota: 'legado' }}
+    tipo="legado"
+    tarea={null}
+    estado={null}
+    opcionesMetrado={[]}
+    opcionesHitos={[]}
+  />,
+)
+comprobar(
+  'parte diario: la fila legado es de solo lectura y muestra su %',
+  htmlFilaLegado.includes('legado') &&
+    htmlFilaLegado.includes('25 %') &&
+    htmlFilaLegado.includes('disabled') &&
+    !htmlFilaLegado.includes('NaN') &&
+    !htmlFilaLegado.includes('undefined'),
 )
 
 // Personal sugerido = asignaciones vigentes ese día (referenciadas por id).
@@ -2466,6 +2779,28 @@ comprobar(
   'normalización: manual recibe nota de justificación',
   normalizarModoMedicion({ tareas: [{ id: 51, servicio_id: 6, avance: 30 }], registros_servicio: [] })
     .tareas[0].nota_justificacion?.length > 0,
+)
+// El flag `avance_por_partes` (deprecado en la Fase B) desaparece del modelo.
+const conFlagConMetrado = normalizarModoMedicion({
+  tareas: [{ id: 60, servicio_id: 6, avance: 40, metrado: 100, avance_por_partes: true }],
+  registros_servicio: [],
+})
+comprobar(
+  'normalización: el flag avance_por_partes pasa a metrado y desaparece',
+  conFlagConMetrado.tareas[0].avance_por_partes === undefined &&
+    conFlagConMetrado.tareas[0].modo_medicion === 'metrado' &&
+    conFlagConMetrado.tareas[0].avance === 40,
+)
+const conFlagSinMetrado = normalizarModoMedicion({
+  tareas: [{ id: 61, servicio_id: 6, avance: 40, avance_por_partes: true }],
+  registros_servicio: [],
+})
+comprobar(
+  'normalización: el flag sin metrado pasa a manual con nota y desaparece',
+  conFlagSinMetrado.tareas[0].avance_por_partes === undefined &&
+    conFlagSinMetrado.tareas[0].modo_medicion === 'manual' &&
+    conFlagSinMetrado.tareas[0].nota_justificacion?.length > 0 &&
+    conFlagSinMetrado.tareas[0].avance === 40,
 )
 
 // Los seeds del demo ya traen el modo derivado de la regla.

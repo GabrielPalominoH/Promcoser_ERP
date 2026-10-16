@@ -16,7 +16,9 @@
 // `avanceEfectivo` (src/utils/calculadora.js), que no cambia. En la Fase A el
 // número que se muestra sigue siendo `tarea.avance` (la migración no toca
 // ningún avance); estos cálculos se conectan como fuente única de verdad en
-// la Fase C.
+// la Fase C. La Fase B (parte diario) ya captura el metrado ejecutado del día
+// en `metrado_dia` y los pasos cumplidos: `normalizarModoMedicion` también
+// retira el flag `avance_por_partes`, ya deprecado.
 
 import { diasLaborablesRango } from './calendario'
 
@@ -173,15 +175,29 @@ export function pasosQueReproducenAvance(avance) {
 // pasos (si quedó en `hitos`) o la nota de justificación (si quedó en
 // `manual`). Devuelve la MISMA referencia si no falta nada (idempotente).
 function normalizarHoja(tarea, tareas, registros) {
-  if (!esHojaTarea(tarea, tareas)) return tarea // los padres no miden: derivan
+  const conFlag = tarea?.avance_por_partes === true
+  const esHoja = esHojaTarea(tarea, tareas)
+  if (!conFlag && !esHoja) return tarea // los padres no miden: derivan
 
-  const modo = modoMedicionInicial(tarea, { registros })
-  const sinPasos = modo === 'hitos' && !(Array.isArray(tarea.pasos) && tarea.pasos.length > 0)
-  const sinNota = modo === 'manual' && typeof tarea.nota_justificacion !== 'string'
-  if (modo === tarea.modo_medicion && !sinPasos && !sinNota) return tarea
+  // El flag `avance_por_partes` (deprecado en la Fase B) desaparece del modelo:
+  // una tarea que lo traía queda en `metrado` si tiene metrado contratado y en
+  // `manual` (con nota) si no. Los padres solo sueltan el flag.
+  let base = tarea
+  if (conFlag) {
+    const { avance_por_partes, ...resto } = tarea
+    base = esHoja
+      ? { ...resto, modo_medicion: Number(resto.metrado) > 0 ? 'metrado' : 'manual' }
+      : resto
+  }
+  if (!esHoja) return base
 
-  const normalizada = { ...tarea, modo_medicion: modo }
-  if (sinPasos) normalizada.pasos = pasosQueReproducenAvance(tarea.avance)
+  const modo = modoMedicionInicial(base, { registros })
+  const sinPasos = modo === 'hitos' && !(Array.isArray(base.pasos) && base.pasos.length > 0)
+  const sinNota = modo === 'manual' && typeof base.nota_justificacion !== 'string'
+  if (base === tarea && modo === base.modo_medicion && !sinPasos && !sinNota) return tarea
+
+  const normalizada = { ...base, modo_medicion: modo }
+  if (sinPasos) normalizada.pasos = pasosQueReproducenAvance(base.avance)
   if (sinNota) normalizada.nota_justificacion = NOTA_MIGRACION_MANUAL
   return normalizada
 }

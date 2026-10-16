@@ -19,6 +19,7 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 | `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN y meta de ingreso (`meta_ingreso`) |
 | `modificaciones` | `id` | Adicional/deductivo contractual: servicio, tipo, número, fecha, descripción, estado, documento, partidas (metrado × PU) e historial de estados |
 | `ampliaciones_plazo` | `id` | Ampliación de plazo: servicio, número, fecha de solicitud, días solicitados/aprobados/aplicados, motivo, estado, documento e historial |
+| `partes_diario` | `id` | Jornada de obra: servicio, fecha, clima, responsable, personal/equipos presentes (por id), partidas con su **metrado ejecutado del día** (`metrado_dia`, o `hitos` con los pasos marcados; `avance_dia` solo en filas legado), tolerancia de metrado y `nota_exceso`, incidencias, observaciones y fotos (metadata) |
 
 
 ## Relaciones
@@ -38,6 +39,10 @@ servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id,
 servicios 1──N modificaciones (servicio_id; adicional/deductivo)
 servicios 1──N ampliaciones_plazo (servicio_id)
 modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partidas se materializan como tareas hoja marcadas con modificacion_id)
+servicios 1──N partes_diario (servicio_id)
+tareas 1──N partes_diario (tarea_id dentro de `partidas`, nullable)
+personal 1──N partes_diario (personal_id dentro de `personal`)
+equipos 1──N partes_diario (equipo_id dentro de `equipos`)
 
 ```
 
@@ -48,6 +53,7 @@ modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partida
 - **Días reales = fechas distintas con registros de personal propios + descendientes** (`diasRealesTarea`). Desviación = reales − estimados (`desviacionDias`, % `null` sin estimado).
 - **Valorizado = monto × avance efectivo** (`valorizadoTarea`). Sin metrados.
 - **Modo de medición del avance** (`src/utils/avance.js`, solo hojas): cada tarea hoja declara `modo_medicion` — `metrado` (ejecutado ÷ contratado), `hitos` (suma de los pesos de los `pasos` cumplidos; los pesos suman 100), `tiempo` (días laborables transcurridos ÷ duración, con el calendario de obra y corte a "hoy"), `costo` (costo ejecutado ÷ monto de la partida) o `manual` (excepción: el avance se fija a mano y exige `nota_justificacion`). Los padres no llevan modo: su avance se sigue derivando de las hijas (`avanceEfectivo`). La asignación inicial es aditiva y no altera ningún avance: con metrado → `metrado`; hito sin metrado → `hitos`; sin metrado con costos vinculados → `costo`; el resto → `manual`. El número autoritativo sigue siendo `tarea.avance`; los cálculos por modo se conectan como fuente única en la Fase C.
+- **Parte diario = captura del avance** (`src/utils/partesDiario.js`): cada fila de partida guarda el **metrado ejecutado del día** (`metrado_dia`, en la unidad de la tarea) o los `hitos` (ids de los pasos cumplidos ese día, con quién y cuándo). El avance de la tarea se deriva de la suma de todos sus partes (`metradoEjecutadoAcumulado` ÷ metrado contratado; `avanceDePartes` respeta el modo: metrado, hitos o el `avance_dia` legado) y `recalcularAvanceTareas` lo sincroniza al guardar (solo las tareas que aparecen en algún parte). El acumulado no debe superar el metrado contratado más una tolerancia (5 % por defecto, `tolerancia_metrado` en el parte); si lo supera, el parte exige `nota_exceso`. Los partes anteriores a la Fase B (avance diario en %) se migran con pérdida cero a `metrado_dia` cuando la tarea tiene metrado; los de tareas sin metrado quedan como registro legado de solo lectura.
 - **Costo de fila = propio + descendientes** (`costoSubarbol`). Costos sin tarea van al aviso, nunca se pierden.
 - **Borrados** (`DataContext ELIMINAR_ITEM`): servicio arrastra registros, tareas, asignaciones, facturas, cobros, modificaciones y ampliaciones de plazo; tarea arrastra subtareas y deja costos sin tarea; asignación arrastra sus meses automáticos.
 - **Personal**: costo directo automático desde asignaciones (`diferenciaPersonalAuto` + `proyeccionAsignaciones`); el devengado hasta hoy vive en registros mensuales (`modalidad: 'mensual'` para que siempre cuente). Baja = `fecha_fin`; lo devengado se conserva.
@@ -63,6 +69,8 @@ modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partida
 
 - `migrarPresupuestoATareas`: del esquema con `partidas/valorizaciones` al actual (una sola vez al cargar; luego se re-guardia migrado).
 - `migrarEstadoV1`: del esquema `promcoser_mvp_v1` (rellena avance, fin estimada, costo/hora).
+- `migrarPartesAMetrado`: del parte diario en % (`avance_dia`) al metrado del día (`metrado_dia = % × metrado ÷ 100`), idempotente; las filas de tareas sin metrado se conservan como legado.
+- `normalizarModoMedicion`: asigna el `modo_medicion` de cada hoja y retira el flag `avance_por_partes` (deprecado: metrado si la tarea lo tiene, si no `manual` con nota).
 - Se conservan aunque el código ya no use esos campos: protegen navegadores con datos antiguos.
 
 ## Persistencia (Etapa 2)
@@ -72,11 +80,12 @@ modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partida
   `siguienteId`). Los componentes no tocan `localStorage` (salvo preferencia
   visual del sidebar). Si el guardado falla, `Layout` muestra alerta y pide
   exportar respaldo.
-- Versión de esquema `_v: 13`; respaldos de versión mayor se rechazan; lo
+- Versión de esquema `_v: 14`; respaldos de versión mayor se rechazan; lo
   inválido no destruye lo guardado. Los respaldos anteriores se rellenan con
   las colecciones nuevas vacías (`modificaciones`, `ampliaciones_plazo`,
-  `partes_diario`) y se normaliza el `modo_medicion` de cada tarea hoja
-  (`normalizarModoMedicion`, idempotente: no toca ningún avance guardado).
+  `partes_diario`) y se normalizan (idempotente: no toca ningún avance
+  guardado): `modo_medicion` de cada tarea hoja y el metrado del parte diario
+  (`normalizarModoMedicion` + `migrarPartesAMetrado`).
 - Finanzas centralizadas en `src/utils/finanzas.js` (resultado/margen bruto,
   saldos, flujo, vigencia, periodos). Política: PEN,
   céntimos, resultado = cobrado − gastado.

@@ -24,14 +24,21 @@ import {
   Th,
 } from '../../components/ui/Table'
 import { formatearCantidad, formatearFecha, formatearMes } from '../../utils/formatters'
-import { hoyISO, tieneHijas } from '../../utils/calculadora'
+import { hoyISO } from '../../utils/calculadora'
+import { avancePorHitos, avancePorMetrado } from '../../utils/avance'
 import {
   CLIMAS,
+  TOLERANCIA_METRADO_DEFECTO,
   avanceAcumulado,
+  evaluarFilasMetrado,
+  marcarPasosCumplidos,
   matrizCalendario,
   mesDeFecha,
+  metradoDeFila,
+  metradoEjecutadoAcumulado,
   ordenarPartesDesc,
   parteDeFecha,
+  partidasMedibles,
   partesDeServicio,
   personalPresenteSugerido,
   recalcularAvanceTareas,
@@ -118,6 +125,230 @@ function nombrePersona(persona, id) {
   return `${persona.nombre} ${persona.apellido ?? ''}`.trim()
 }
 
+// Una fila de "Partidas ejecutadas": captura el METRADO del día (modo metrado),
+// los pasos cumplidos (modo hitos) o muestra el registro legado (solo lectura).
+export function FilaPartida({
+  i,
+  fila,
+  tipo,
+  tarea,
+  estado,
+  opcionesMetrado,
+  opcionesHitos,
+  onCambiar,
+  onAlternarHito,
+  onQuitar,
+}) {
+  const idPartida = `pd-partida-${i}`
+  const idNota = `pd-nota-${i}`
+  const quitar = (
+    <Button type="button" variante="peligro" tamano="sm" onClick={() => onQuitar(i)}>
+      Quitar
+    </Button>
+  )
+
+  if (tipo === 'hitos') {
+    const pasos = Array.isArray(tarea?.pasos) ? tarea.pasos : []
+    const marcados = fila.hitos ?? []
+    return (
+      <div className="rounded-lg border border-slate-200 p-3">
+        <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-12">
+          <Campo label="Partida (hitos)" className="sm:col-span-4" htmlFor={idPartida}>
+            <ComboBox
+              id={idPartida}
+              opciones={opcionesHitos}
+              value={fila.tarea_id}
+              onChange={(v) => onCambiar(i, 'tarea_id', v)}
+              placeholder="Buscar partida…"
+            />
+          </Campo>
+          <div className="sm:col-span-5">
+            <p className="mb-1.5 text-sm font-medium text-slate-700">Pasos cumplidos hoy</p>
+            {pasos.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                {tarea ? 'Esta partida no tiene pasos definidos.' : 'Elige una partida con hitos.'}
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {pasos.map((paso) => {
+                  const cumplido = paso.estado === 'cumplido'
+                  return (
+                    <li key={paso.id} className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="size-4 shrink-0 accent-primary-600"
+                        checked={cumplido || marcados.includes(paso.id)}
+                        disabled={cumplido}
+                        onChange={() => onAlternarHito(i, paso.id)}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{paso.nombre}</span>
+                      <span className="shrink-0 text-xs text-slate-500 tabular-nums">
+                        {formatearCantidad(paso.peso)} %
+                      </span>
+                      {cumplido && (
+                        <span className="shrink-0 text-xs text-emerald-600">
+                          {paso.fecha_cumplimiento
+                            ? `Cumplido ${formatearFecha(paso.fecha_cumplimiento)}`
+                            : 'Cumplido'}
+                        </span>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+          <Campo label="Nota" className="sm:col-span-2" htmlFor={idNota}>
+            <Input
+              id={idNota}
+              value={fila.nota}
+              onChange={(e) => onCambiar(i, 'nota', e.target.value)}
+            />
+          </Campo>
+          <div className="flex justify-end sm:col-span-1">{quitar}</div>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Al guardar se registra el responsable del parte y la fecha en cada paso marcado.
+        </p>
+      </div>
+    )
+  }
+
+  if (tipo === 'legado') {
+    const metrado = metradoDeFila(fila)
+    const unidad = tarea?.unidad ?? ''
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-12">
+          <Campo label="Partida" className="sm:col-span-5" htmlFor={idPartida}>
+            <ComboBox
+              id={idPartida}
+              opciones={opcionesMetrado}
+              value={fila.tarea_id}
+              onChange={() => {}}
+              disabled
+            />
+          </Campo>
+          <div className="sm:col-span-3">
+            <p className="mb-1.5 text-sm font-medium text-slate-700">Registro del día (legado)</p>
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 tabular-nums">
+              {metrado != null
+                ? `${formatearCantidad(metrado)} ${unidad}`.trim()
+                : `${formatearCantidad(fila.avance_dia)} %`}
+            </div>
+          </div>
+          <Campo label="Nota" className="sm:col-span-2" htmlFor={idNota}>
+            <Input
+              id={idNota}
+              value={fila.nota}
+              onChange={(e) => onCambiar(i, 'nota', e.target.value)}
+            />
+          </Campo>
+          <div className="flex justify-end sm:col-span-2">{quitar}</div>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Registro anterior a la medición por metrado (solo lectura): su partida no se mide por
+          metrado.
+        </p>
+      </div>
+    )
+  }
+
+  const sinTarea = fila.tarea_id === '' || fila.tarea_id == null
+  const sinContratado = !estado || estado.contratado <= 0
+  const excede = Boolean(estado?.excede)
+  return (
+    <div
+      className={`rounded-lg border p-3 ${
+        excede ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200'
+      }`}
+    >
+      <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-12">
+        <Campo label="Partida" className="sm:col-span-4" htmlFor={idPartida}>
+          <ComboBox
+            id={idPartida}
+            opciones={opcionesMetrado}
+            value={fila.tarea_id}
+            onChange={(v) => onCambiar(i, 'tarea_id', v)}
+            placeholder="Buscar partida…"
+          />
+        </Campo>
+        <Campo
+          label="Metrado ejecutado hoy"
+          className="sm:col-span-2"
+          htmlFor={`pd-met-${i}`}
+          hint={estado?.unidad || undefined}
+        >
+          <Input
+            id={`pd-met-${i}`}
+            type="number"
+            min="0"
+            step="any"
+            value={fila.metrado_dia}
+            onChange={(e) => onCambiar(i, 'metrado_dia', e.target.value)}
+          />
+        </Campo>
+        <Campo label="Nota" className="sm:col-span-3" htmlFor={idNota}>
+          <Input
+            id={idNota}
+            value={fila.nota}
+            onChange={(e) => onCambiar(i, 'nota', e.target.value)}
+            placeholder="Frente, sector…"
+          />
+        </Campo>
+        <div className="flex justify-end sm:col-span-3">{quitar}</div>
+      </div>
+      {sinTarea ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Elige la partida para ver su metrado contratado, el acumulado y el %.
+        </p>
+      ) : sinContratado ? (
+        <p className="mt-2 text-xs text-amber-700">
+          Esta partida no tiene metrado contratado: define su metrado en Partidas para poder
+          calcular el %.
+        </p>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+          <span>
+            Contratado:{' '}
+            <b className="tabular-nums">
+              {formatearCantidad(estado.contratado)} {estado.unidad}
+            </b>
+          </span>
+          <span>
+            Acumulado:{' '}
+            <b className="tabular-nums">
+              {formatearCantidad(estado.acumulado)} {estado.unidad}
+            </b>
+          </span>
+          <span>
+            Saldo por ejecutar:{' '}
+            <b className="tabular-nums">
+              {formatearCantidad(estado.saldo)} {estado.unidad}
+            </b>
+          </span>
+          <span>
+            % resultante: <b className="tabular-nums">{formatearCantidad(estado.porcentaje)} %</b>
+          </span>
+          <span>
+            Rendimiento del día:{' '}
+            <b className="tabular-nums">
+              {formatearCantidad(estado.rendimiento)} {estado.unidad} (
+              {formatearCantidad(estado.rendimientoPct)} %)
+            </b>
+          </span>
+        </div>
+      )}
+      {excede && (
+        <p className="mt-1 text-xs font-medium text-amber-700">
+          Supera el tope de {formatearCantidad(estado.tope)} {estado.unidad} (contratado +{' '}
+          {formatearCantidad(estado.tolerancia)} %): justifica el exceso en la nota del parte.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function FormularioParte({
   servicio,
   parte,
@@ -146,16 +377,64 @@ function FormularioParte({
   // cancela o se quitan antes de guardar (evita binarios huérfanos).
   const idsNuevas = useRef(new Set())
 
-  const partidasDisponibles = useMemo(
+  // Solo las hojas con modo `metrado` se capturan por metrado; las de modo
+  // `hitos` se marcan por pasos. El resto queda como registro legado.
+  const opcionesMetrado = useMemo(
     () =>
-      tareasServicio
-        .filter((t) => !tieneHijas(t.id, tareasServicio))
-        .map((t) => ({
-          valor: t.id,
-          etiqueta: `${t.nombre}${t.unidad ? ` (${t.unidad})` : ''}`,
-        })),
+      partidasMedibles(tareasServicio, 'metrado').map((t) => ({
+        valor: t.id,
+        etiqueta: `${t.nombre}${t.unidad ? ` (${t.unidad})` : ''}`,
+      })),
     [tareasServicio],
   )
+  const opcionesHitos = useMemo(
+    () =>
+      partidasMedibles(tareasServicio, 'hitos').map((t) => ({
+        valor: t.id,
+        etiqueta: t.nombre,
+      })),
+    [tareasServicio],
+  )
+
+  const [filasPartidas, setFilasPartidas] = useState(() =>
+    parte?.partidas?.length
+      ? parte.partidas.map((p) => ({
+          tarea_id: p.tarea_id ?? '',
+          metrado_dia: p.metrado_dia ?? '',
+          avance_dia: p.avance_dia ?? '',
+          hitos: Array.isArray(p.hitos) ? p.hitos : [],
+          nota: p.nota ?? '',
+        }))
+      : [],
+  )
+  const [tolerancia, setTolerancia] = useState(
+    parte?.tolerancia_metrado ?? TOLERANCIA_METRADO_DEFECTO,
+  )
+  const [notaExceso, setNotaExceso] = useState(parte?.nota_exceso ?? '')
+
+  const tareaDeFila = (f) => tareasServicio.find((t) => t.id === f.tarea_id) ?? null
+  // Tipo de fila: según el modo de su tarea; una fila nueva conserva el tipo con
+  // el que se agregó y una fila sin tarea (borrada) queda como legado.
+  const tipoDeFila = (f) => {
+    const tarea = tareaDeFila(f)
+    if (tarea) {
+      if (tarea.modo_medicion === 'metrado') return 'metrado'
+      if (tarea.modo_medicion === 'hitos') return 'hitos'
+      return 'legado'
+    }
+    return f.tipo ?? 'metrado'
+  }
+
+  const filasMetrado = filasPartidas.filter((f) => tipoDeFila(f) === 'metrado')
+  const evaluadas = evaluarFilasMetrado({
+    filas: filasMetrado,
+    tareas: tareasServicio,
+    partes: partesServicio,
+    parteId: parte?.id ?? null,
+    tolerancia,
+  })
+  const estadoDeFila = (f) => evaluadas.find((e) => e.tarea_id === f.tarea_id) ?? null
+  const conExceso = evaluadas.filter((e) => e.excede)
 
   const [filasPersonal, setFilasPersonal] = useState(() => {
     const base = personalPresenteSugerido({ asignaciones, personal, servicio, fecha })
@@ -203,22 +482,6 @@ function FormularioParte({
     return filas
   })
 
-  const [filasPartidas, setFilasPartidas] = useState(() =>
-    parte?.partidas?.length
-      ? parte.partidas.map((p) => ({
-          tarea_id: p.tarea_id ?? '',
-          avance_dia: p.avance_dia ?? '',
-          nota: p.nota ?? '',
-        }))
-      : [{ tarea_id: '', avance_dia: '', nota: '' }],
-  )
-
-  const acumuladoDe = (tareaId, avanceDia) => {
-    if (tareaId === '' || tareaId == null) return null
-    const otros = partesServicio.filter((p) => p.id !== parte?.id)
-    return Math.min(100, avanceAcumulado(otros, tareaId) + (Number(avanceDia) || 0))
-  }
-
   const alternarPersonal = (i) =>
     setFilasPersonal((fs) => fs.map((f, j) => (j === i ? { ...f, incluido: !f.incluido } : f)))
   const cambiarPersonal = (i, campo, valor) =>
@@ -229,6 +492,22 @@ function FormularioParte({
     setFilasEquipos((fs) => fs.map((f, j) => (j === i ? { ...f, horas: valor } : f)))
   const cambiarPartida = (i, campo, valor) =>
     setFilasPartidas((fs) => fs.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)))
+  const agregarPartida = (tipo) =>
+    setFilasPartidas((fs) => [
+      ...fs,
+      { tarea_id: '', tipo, metrado_dia: '', avance_dia: '', hitos: [], nota: '' },
+    ])
+  const alternarHito = (i, pasoId) =>
+    setFilasPartidas((fs) =>
+      fs.map((f, j) => {
+        if (j !== i) return f
+        const hitos = f.hitos ?? []
+        return {
+          ...f,
+          hitos: hitos.includes(pasoId) ? hitos.filter((id) => id !== pasoId) : [...hitos, pasoId],
+        }
+      }),
+    )
 
   const agregarFotos = async (lista) => {
     if (!idbDisponible) {
@@ -304,36 +583,71 @@ function FormularioParte({
     const equiposSel = filasEquipos
       .filter((f) => f.incluido && Number(f.horas) > 0)
       .map((f) => ({ equipo_id: f.equipo_id, horas: Number(f.horas) }))
-    const partidasSel = filasPartidas
-      .map((p) => ({
-        tarea_id: p.tarea_id === '' ? null : p.tarea_id,
-        avance_dia: Number(p.avance_dia),
-        nota: (p.nota ?? '').trim() || null,
-      }))
-      .filter((p) => p.tarea_id != null && Number.isFinite(p.avance_dia) && p.avance_dia > 0)
+    const partidasSel = filasPartidas.flatMap((f) => {
+      if (f.tarea_id === '') return []
+      const nota = (f.nota ?? '').trim() || null
+      const tipo = tipoDeFila(f)
+      if (tipo === 'legado') {
+        // Registro anterior a la Fase B: se conserva tal cual (solo lectura).
+        const metrado = metradoDeFila(f)
+        if (metrado != null) return [{ tarea_id: f.tarea_id, metrado_dia: metrado, nota }]
+        const avance = Number(f.avance_dia)
+        if (Number.isFinite(avance)) return [{ tarea_id: f.tarea_id, avance_dia: avance, nota }]
+        return []
+      }
+      if (tipo === 'hitos') {
+        return f.hitos?.length ? [{ tarea_id: f.tarea_id, hitos: f.hitos, nota }] : []
+      }
+      const metrado = Number(f.metrado_dia)
+      if (!Number.isFinite(metrado) || metrado <= 0) return []
+      return [{ tarea_id: f.tarea_id, metrado_dia: metrado, nota }]
+    })
 
     if (partidasSel.length === 0) {
-      setError('Registra al menos una partida ejecutada con su avance del día.')
+      setError('Registra al menos una partida con su metrado ejecutado del día.')
       return
     }
     const ids = partidasSel.map((p) => p.tarea_id)
     if (new Set(ids).size !== ids.length) {
-      setError('Hay partidas repetidas: consolida el avance del día en una sola fila.')
+      setError('Hay partidas repetidas: consolida el metrado del día en una sola fila.')
+      return
+    }
+    if (conExceso.length > 0 && !notaExceso.trim()) {
+      setError(
+        'El metrado acumulado supera el tope con tolerancia: escribe una nota que justifique el exceso.',
+      )
       return
     }
 
-    onGuardar({
-      fecha,
-      clima,
-      temperatura: temperatura === '' ? null : Number(temperatura),
-      responsable: responsable.trim(),
-      personal: personalSel,
-      equipos: equiposSel,
-      partidas: partidasSel,
-      incidencias: incidencias.trim(),
-      observaciones: observaciones.trim(),
-      fotos,
-    })
+    // Pasos cumplidos HOY: se marcan en la tarea (quién y cuándo). Un paso ya
+    // cumplido no se re-fecha.
+    const tareasHitos = []
+    for (const f of filasPartidas) {
+      if (tipoDeFila(f) !== 'hitos' || f.tarea_id === '' || !f.hitos?.length) continue
+      const { pasos, cambio } = marcarPasosCumplidos(tareaDeFila(f)?.pasos, f.hitos, {
+        fecha,
+        por: responsable.trim(),
+      })
+      if (cambio) tareasHitos.push({ id: f.tarea_id, pasos })
+    }
+
+    onGuardar(
+      {
+        fecha,
+        clima,
+        temperatura: temperatura === '' ? null : Number(temperatura),
+        responsable: responsable.trim(),
+        personal: personalSel,
+        equipos: equiposSel,
+        partidas: partidasSel,
+        tolerancia_metrado: Number(tolerancia) || 0,
+        nota_exceso: notaExceso.trim() || null,
+        incidencias: incidencias.trim(),
+        observaciones: observaciones.trim(),
+        fotos,
+      },
+      tareasHitos,
+    )
     // Borra de IndexedDB las fotos que ya no quedan en el parte (quitadas
     // durante la edición o subidas y descartadas antes de guardar).
     const conservar = new Set(fotos.map((f) => f.id))
@@ -352,7 +666,7 @@ function FormularioParte({
       abierto
       ancho="lg"
       titulo={esEdicion ? `Parte diario del ${formatearFecha(fecha)}` : 'Nuevo parte diario'}
-      descripcion="Registra la jornada: personal, equipos, partidas ejecutadas y su avance del día."
+      descripcion="Registra la jornada: personal, equipos, metrado ejecutado de las partidas y pasos cumplidos."
       onCerrar={cancelar}
       pie={
         <>
@@ -490,78 +804,94 @@ function FormularioParte({
           )}
         </div>
 
-        {/* Partidas ejecutadas */}
+        {/* Partidas ejecutadas: metrado del día o pasos cumplidos */}
         <div>
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-slate-700">Partidas ejecutadas</p>
-            <Button
-              type="button"
-              variante="secundario"
-              tamano="sm"
-              onClick={() =>
-                setFilasPartidas((fs) => [...fs, { tarea_id: '', avance_dia: '', nota: '' }])
-              }
-            >
-              Agregar partida
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variante="secundario"
+                tamano="sm"
+                disabled={opcionesMetrado.length === 0}
+                onClick={() => agregarPartida('metrado')}
+              >
+                Agregar partida
+              </Button>
+              <Button
+                type="button"
+                variante="secundario"
+                tamano="sm"
+                disabled={opcionesHitos.length === 0}
+                onClick={() => agregarPartida('hitos')}
+              >
+                Agregar hito
+              </Button>
+            </div>
           </div>
           <p className="mb-2 text-xs text-slate-500">
-            El avance es lo que se sumó HOY sobre la partida; el acumulado se calcula sumando todos
-            los partes.
+            Registra el metrado ejecutado HOY (con la unidad de la partida); el acumulado, el saldo y
+            el % se calculan sumando todos los partes. Las partidas por hitos se marcan por pasos.
           </p>
-          <div className="space-y-2">
-            {filasPartidas.map((f, i) => (
-              <div
-                key={i}
-                className="grid grid-cols-1 items-end gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-12"
+          {filasPartidas.length === 0 ? (
+            <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              Sin partidas en el parte: agrega una partida (metrado) o un hito.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {filasPartidas.map((f, i) => (
+                <FilaPartida
+                  key={i}
+                  i={i}
+                  fila={f}
+                  tipo={tipoDeFila(f)}
+                  tarea={tareaDeFila(f)}
+                  estado={estadoDeFila(f)}
+                  opcionesMetrado={opcionesMetrado}
+                  opcionesHitos={opcionesHitos}
+                  onCambiar={cambiarPartida}
+                  onAlternarHito={alternarHito}
+                  onQuitar={(j) => setFilasPartidas((fs) => fs.filter((_, k) => k !== j))}
+                />
+              ))}
+            </div>
+          )}
+          {filasMetrado.length > 0 && (
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-12">
+              <Campo
+                label="Tolerancia de metrado (%)"
+                className="sm:col-span-3"
+                htmlFor="pd-tolerancia"
+                hint="Margen sobre el metrado contratado."
               >
-                <Campo label="Partida" className="sm:col-span-5" htmlFor={`pd-partida-${i}`}>
-                  <ComboBox
-                    id={`pd-partida-${i}`}
-                    opciones={partidasDisponibles}
-                    value={f.tarea_id}
-                    onChange={(v) => cambiarPartida(i, 'tarea_id', v)}
-                    placeholder="Buscar partida…"
-                  />
-                </Campo>
-                <Campo label="Avance del día (%)" className="sm:col-span-2" htmlFor={`pd-av-${i}`}>
+                <Input
+                  id="pd-tolerancia"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={tolerancia}
+                  onChange={(e) => setTolerancia(e.target.value)}
+                />
+              </Campo>
+              {conExceso.length > 0 && (
+                <Campo
+                  label="Nota de justificación del exceso"
+                  className="sm:col-span-9"
+                  htmlFor="pd-exceso"
+                  error={
+                    notaExceso.trim() ? undefined : 'Obligatoria para guardar con exceso de metrado.'
+                  }
+                >
                   <Input
-                    id={`pd-av-${i}`}
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="any"
-                    value={f.avance_dia}
-                    onChange={(e) => cambiarPartida(i, 'avance_dia', e.target.value)}
+                    id="pd-exceso"
+                    value={notaExceso}
+                    onChange={(e) => setNotaExceso(e.target.value)}
+                    placeholder="Motivo por el que se ejecutó más metrado que el contratado…"
                   />
                 </Campo>
-                <Campo label="Nota" className="sm:col-span-3" htmlFor={`pd-nota-${i}`}>
-                  <Input
-                    id={`pd-nota-${i}`}
-                    value={f.nota}
-                    onChange={(e) => cambiarPartida(i, 'nota', e.target.value)}
-                    placeholder="Frente, sector…"
-                  />
-                </Campo>
-                <div className="sm:col-span-2">
-                  <p className="mb-1 text-xs text-slate-500">
-                    Acumulado:{' '}
-                    <span className="font-medium text-slate-700 tabular-nums">
-                      {acumuladoDe(f.tarea_id, f.avance_dia) ?? '—'}%
-                    </span>
-                  </p>
-                  <Button
-                    type="button"
-                    variante="peligro"
-                    tamano="sm"
-                    onClick={() => setFilasPartidas((fs) => fs.filter((_, j) => j !== i))}
-                  >
-                    Quitar
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Fotos */}
@@ -632,7 +962,7 @@ function FormularioParte({
 }
 
 function ModalVerParte({ parte, personal, equipos, tareasServicio, partesServicio, onCerrar, onImprimir }) {
-  const resumen = resumenParte(parte)
+  const resumen = resumenParte(parte, { tareas: tareasServicio })
   const tareaDe = (id) => tareasServicio.find((t) => t.id === id)
   const personaDe = (id) => personal.find((p) => p.id === id)
   const equipoDe = (id) => equipos.find((e) => e.id === id)
@@ -729,29 +1059,70 @@ function ModalVerParte({ parte, personal, equipos, tareasServicio, partesServici
               <TableRow>
                 <Th>Partida</Th>
                 <Th>UM</Th>
-                <Th alinear="right">Avance del día</Th>
+                <Th alinear="right">Registro del día</Th>
                 <Th alinear="right">Acumulado</Th>
+                <Th alinear="right">%</Th>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(parte.partidas ?? []).map((x, i) => (
-                <TableRow key={i}>
-                  <Td className="font-medium text-slate-800">
-                    {tareaDe(x.tarea_id)?.nombre ?? 'Sin tarea'}
-                    {x.nota ? <span className="block text-xs text-slate-400">{x.nota}</span> : null}
-                  </Td>
-                  <Td className="text-slate-600">{tareaDe(x.tarea_id)?.unidad ?? '—'}</Td>
-                  <Td alinear="right" className="tabular-nums">
-                    {formatearCantidad(x.avance_dia)} %
-                  </Td>
-                  <Td alinear="right" className="tabular-nums">
-                    {formatearCantidad(avanceAcumulado(partesServicio, x.tarea_id))} %
-                  </Td>
-                </TableRow>
-              ))}
+              {(parte.partidas ?? []).map((x, i) => {
+                const tarea = tareaDe(x.tarea_id)
+                const metrado = metradoDeFila(x)
+                const esMetrado = metrado != null
+                const acumulado = esMetrado
+                  ? metradoEjecutadoAcumulado(partesServicio, x.tarea_id)
+                  : avanceAcumulado(partesServicio, x.tarea_id)
+                const pasos = Array.isArray(x.hitos)
+                  ? x.hitos
+                      .map((id) => tarea?.pasos?.find((p) => p.id === id))
+                      .filter(Boolean)
+                  : []
+                return (
+                  <TableRow key={i}>
+                    <Td className="font-medium text-slate-800">
+                      {tarea?.nombre ?? 'Sin tarea'}
+                      {x.nota ? <span className="block text-xs text-slate-400">{x.nota}</span> : null}
+                      {pasos.length > 0 ? (
+                        <span className="block text-xs text-slate-400">
+                          {pasos.map((p) => p.nombre).join(', ')}
+                        </span>
+                      ) : null}
+                    </Td>
+                    <Td className="text-slate-600">{tarea?.unidad ?? '—'}</Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {esMetrado
+                        ? `${formatearCantidad(metrado)} ${tarea?.unidad ?? ''}`.trim()
+                        : pasos.length > 0
+                          ? `${pasos.length} paso(s)`
+                          : `${formatearCantidad(x.avance_dia)} %`}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {esMetrado
+                        ? `${formatearCantidad(acumulado)} ${tarea?.unidad ?? ''}`.trim()
+                        : `${formatearCantidad(acumulado)} %`}
+                    </Td>
+                    <Td alinear="right" className="tabular-nums">
+                      {esMetrado
+                        ? `${formatearCantidad(avancePorMetrado({ metrado: tarea?.metrado, ejecutado: acumulado }))} %`
+                        : tarea?.modo_medicion === 'hitos'
+                          ? `${formatearCantidad(avancePorHitos(tarea?.pasos))} %`
+                          : '—'}
+                    </Td>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
+
+        {parte.nota_exceso ? (
+          <div>
+            <p className="mb-1.5 text-sm font-medium text-slate-700">Exceso de metrado</p>
+            <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {parte.nota_exceso}
+            </p>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -857,15 +1228,25 @@ export function ParteDiarioServicio() {
     }
   }
 
-  const recomputarAvance = (coleccionDePartes) => {
+  const recomputarAvance = (coleccionDePartes, tareasBase = tareasServicio) => {
     recalcularAvanceTareas({
       partes: coleccionDePartes,
-      tareas: tareasServicio,
+      tareas: tareasBase,
       servicioId: servicio.id,
     }).forEach((cambio) => actualizarItem('tareas', cambio))
   }
 
-  const guardarParte = (datos, existente) => {
+  const guardarParte = (datos, existente, tareasHitos = []) => {
+    // Los pasos marcados en el parte se aplican a la tarea (quién y cuándo); el
+    // recálculo usa la tarea ya actualizada para no pintar un avance viejo.
+    const tareasActualizadas = tareasHitos.length
+      ? tareasServicio.map((t) => {
+          const cambio = tareasHitos.find((c) => c.id === t.id)
+          return cambio ? { ...t, pasos: cambio.pasos } : t
+        })
+      : tareasServicio
+    tareasHitos.forEach((cambio) => actualizarItem('tareas', cambio))
+
     let parteFinal
     if (existente) {
       parteFinal = { ...existente, ...datos }
@@ -876,7 +1257,7 @@ export function ParteDiarioServicio() {
     const coleccion = existente
       ? partes.map((p) => (p.id === existente.id ? parteFinal : p))
       : [...partes, parteFinal]
-    recomputarAvance(coleccion)
+    recomputarAvance(coleccion, tareasActualizadas)
     setAviso({
       tipo: 'exito',
       mensaje: `Parte del ${formatearFecha(datos.fecha)} ${existente ? 'actualizado' : 'registrado'}.`,
@@ -1006,7 +1387,7 @@ export function ParteDiarioServicio() {
                     <TableEmpty colSpan={8} mensaje="Ningún parte coincide con el filtro." />
                   ) : (
                     partesFiltrados.map((p) => {
-                      const r = resumenParte(p)
+                      const r = resumenParte(p, { tareas: tareasServicio })
                       return (
                         <TableRow key={p.id}>
                           <Td className="font-medium tabular-nums text-slate-900">
@@ -1139,7 +1520,7 @@ export function ParteDiarioServicio() {
           tareasServicio={tareasServicio}
           asignaciones={asignaciones}
           partesServicio={partes}
-          onGuardar={(datos) => guardarParte(datos, modal.parte ?? null)}
+          onGuardar={(datos, tareasHitos) => guardarParte(datos, modal.parte ?? null, tareasHitos)}
           onCerrar={() => setModal(null)}
         />
       )}

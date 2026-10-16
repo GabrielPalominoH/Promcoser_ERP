@@ -26,7 +26,7 @@ import {
 } from './calculadora'
 import { redondear2 } from './finanzas'
 import { servicioConPresupuestoVigente } from './modificaciones'
-import { avanceAcumulado, horasEquipos, horasPersonal } from './partesDiario'
+import { avanceAcumulado, horasEquipos, horasPersonal, metradoDeFila, metradoEjecutadoAcumulado } from './partesDiario'
 import { formatearCantidad, formatearFecha, formatearMes, formatearMoneda } from './formatters'
 
 export function esc(texto) {
@@ -153,12 +153,17 @@ export function htmlParteDiario({
   ])
   const filasPartidas = (parte.partidas ?? []).map((x) => {
     const t = tareaDe(x.tarea_id)
+    const metrado = metradoDeFila(x)
+    const esMetrado = metrado != null
+    const acumulado = esMetrado
+      ? metradoEjecutadoAcumulado(partes, x.tarea_id)
+      : avanceAcumulado(partes, x.tarea_id)
     return [
       t?.nombre ?? 'Sin tarea',
       t?.unidad ?? '—',
       formatearCantidad(t?.metrado),
-      `${formatearCantidad(x.avance_dia)} %`,
-      `${formatearCantidad(avanceAcumulado(partes, x.tarea_id))} %`,
+      esMetrado ? formatearCantidad(metrado) : `${formatearCantidad(x.avance_dia)} %`,
+      esMetrado ? formatearCantidad(acumulado) : `${formatearCantidad(acumulado)} %`,
     ]
   })
 
@@ -181,7 +186,7 @@ export function htmlParteDiario({
       { t: 'Partida' },
       { t: 'UM' },
       { t: 'Metrado', num: true },
-      { t: 'Avance del día', num: true },
+      { t: 'Metrado del día', num: true },
       { t: 'Acumulado', num: true },
     ],
     filasPartidas,
