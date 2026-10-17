@@ -3,6 +3,7 @@ import { Outlet, useMatch, useParams } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { SidebarServicio } from './SidebarServicio'
 import { ConfiguracionModal } from './ConfiguracionModal'
+import { AlertasCentro } from './AlertasCentro'
 import { PanelProveedor } from '../../pages/servicio/panel'
 import { useData } from '../../context/useData'
 
@@ -106,6 +107,8 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-200">
+      {/* Campana del centro de alertas: presente en todas las pantallas. */}
+      <AlertasCentro />
       {falloGuardado && (
         <p role="alert" className="bg-red-600 px-4 py-2 text-center text-sm font-medium text-white">
           No se pudo guardar en este navegador (almacenamiento lleno o bloqueado). Exporta un

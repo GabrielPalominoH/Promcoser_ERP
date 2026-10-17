@@ -7,6 +7,7 @@ import {
   siguienteId as siguienteIdCentral,
 } from '../data/store'
 import { recalcularAvances } from '../utils/avance'
+import { normalizarEstadoAlertas } from '../utils/alertasCentro'
 
 const DataContext = createContext(null)
 
@@ -170,6 +171,11 @@ export function dataReducer(estado, accion) {
     case 'REEMPLAZAR_COLECCION':
       return reemplazarEnColeccion(estado, payload.coleccion, () => payload.items)
 
+    case 'REEMPLAZAR_ALERTAS_ESTADO':
+      // Estado mínimo del centro de alertas (pospuestas/descartadas). No es
+      // una colección: se reemplaza entero y normalizado.
+      return { ...estado, alertasEstado: normalizarEstadoAlertas(payload.alertasEstado) }
+
     case 'RESTABLECER':
       return ESTADO_INICIAL
 
@@ -227,6 +233,11 @@ export function DataProvider({ children }) {
         dispatch({
           type: 'REEMPLAZAR_COLECCION',
           payload: { coleccion, items },
+        }),
+      actualizarAlertasEstado: (alertasEstado) =>
+        dispatch({
+          type: 'REEMPLAZAR_ALERTAS_ESTADO',
+          payload: { alertasEstado },
         }),
       restablecer: () => dispatch({ type: 'RESTABLECER' }),
     }

@@ -49,7 +49,7 @@ import { GraficoComboCartera } from '../components/charts/GraficoComboCartera'
 import { GraficoCurvaSCartera, GraficoHistogramaHH } from '../components/charts/GraficosControl'
 import { controlCPMCartera, evmCartera } from '../utils/cartera'
 import { serieHorasHombre } from '../utils/horasHombre'
-import { alertasDeCartera } from '../utils/alertas'
+import { alertasCentro, etiquetaAlerta } from '../utils/alertasCentro'
 import { servicioConPresupuestoVigente } from '../utils/modificaciones'
 import { libroFlujoCaja } from '../utils/exportaciones'
 import { descargarLibro } from '../utils/descargas'
@@ -356,16 +356,27 @@ export function Dashboard() {
   const totalPersonal = personal.length
   const totalEquipos = equipos.length
   const enRiesgo = analisis.filter((a) => a.motivos.length > 0)
-  // Alertas de partidas de la cartera (Fase E), con filtro por obra.
+  // Alertas de partidas de la cartera (Tarea 6): misma fuente única que la
+  // campana (`alertasCentro`), filtrada a las alertas de partida. Respeta los
+  // filtros de la cartera (cliente/tipo/estado) y el filtro por obra.
   const [filtroAlertaObra, setFiltroAlertaObra] = useState('')
-  const alertasCartera = alertasDeCartera({
-    servicios: serviciosF,
-    tareas: tareasF,
-    partes: partesF,
+  const alertasCartera = alertasCentro({
+    estado: {
+      servicios: serviciosF,
+      tareas: tareasF,
+      registros_servicio: registrosF,
+      cobros: cobrosF,
+      facturas: estado.facturas ?? [],
+      valorizaciones: estado.valorizaciones ?? [],
+      config: estado.config ?? [],
+      modificaciones: estado.modificaciones ?? [],
+      partes_diario: partesF,
+    },
     hoy: hoyISO(),
-  })
+    alertasEstado: estado.alertasEstado,
+  }).filter((a) => a.tipo.startsWith('partida_'))
   const alertasFiltradas = filtroAlertaObra
-    ? alertasCartera.filter((a) => a.servicio_id === Number(filtroAlertaObra))
+    ? alertasCartera.filter((a) => a.obraId === Number(filtroAlertaObra))
     : alertasCartera
   const serviciosPorGasto = [...analisis].sort((a, b) => b.gastado - a.gastado)
   const maxGasto = Math.max(1, ...serviciosPorGasto.map((a) => a.gastado))
@@ -970,40 +981,36 @@ export function Dashboard() {
             <ul className="space-y-2">
               {alertasFiltradas.slice(0, 15).map((a) => (
                 <li
-                  key={`${a.servicio_id}-${a.tipo}-${a.tarea_id}`}
+                  key={a.id}
                   className={`rounded-lg border px-4 py-2.5 text-sm ${
-                    a.tipo === 'vencida'
+                    a.gravedad === 'alta'
                       ? 'border-red-200 bg-red-50/40'
                       : 'border-amber-200 bg-amber-50/40'
                   }`}
                 >
                   <p className="text-xs text-slate-500">
                     <Link
-                      to={`/servicios/${a.servicio_id}`}
+                      to={`/servicios/${a.obraId}`}
                       className="font-medium text-slate-600 hover:text-primary-700 hover:underline"
                     >
-                      {a.servicio}
+                      {a.obra}
                     </Link>
                     {' · '}
                     <span
                       className={`font-semibold ${
-                        a.tipo === 'vencida' ? 'text-red-700' : 'text-amber-800'
+                        a.gravedad === 'alta' ? 'text-red-700' : 'text-amber-800'
                       }`}
                     >
-                      {a.tipo === 'vencida'
-                        ? 'Vencida'
-                        : a.tipo === 'rendimiento'
-                          ? 'Bajo rendimiento'
-                          : 'Sin partes'}
+                      {etiquetaAlerta(a.tipo)}
                     </span>
                   </p>
                   <Link
-                    to={`/servicios/${a.servicio_id}/partidas?tarea=${a.tarea_id}`}
+                    to={a.enlace}
                     className="font-medium text-slate-900 hover:text-primary-700 hover:underline"
                   >
-                    {a.tarea}
+                    {a.titulo}
                   </Link>
-                  <p className="mt-0.5 text-xs text-slate-600">{a.detalle}</p>
+                  <p className="mt-0.5 text-xs text-slate-600">{a.mensaje}</p>
                 </li>
               ))}
             </ul>

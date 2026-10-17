@@ -51,15 +51,19 @@ import {
 } from '../utils/avance'
 import { hoyISO } from '../utils/calculadora'
 import { migrarPartesAMetrado } from '../utils/partesDiario'
+import { normalizarEstadoAlertas } from '../utils/alertasCentro'
 
 export const VERSION_ESQUEMA = 16
 
 // Normalización al cargar/importar (todo idempotente): modo de medición de
 // cada hoja, migración del parte diario (metrado), fijación del ejecutado
 // previo y de lo ya cobrado, y recálculo final del avance como caché derivado.
+// `alertasEstado` no es una colección: es el estado mínimo del centro de
+// alertas (pospuestas y descartadas) y se normaliza aparte.
 function normalizarEstado(estado) {
   const migrado = migrarValorizadoPrevio(migrarAvancePrevio(migrarPartesAMetrado(normalizarModoMedicion(estado))))
-  return recalcularAvances(migrado, hoyISO())
+  const conAlertas = { ...migrado, alertasEstado: normalizarEstadoAlertas(migrado.alertasEstado) }
+  return recalcularAvances(conAlertas, hoyISO())
 }
 
 // Estado inicial ya normalizado (mismo contenido de siempre, con el avance
@@ -104,7 +108,8 @@ export function estadoValido(guardado) {
 }
 
 // Combina lo guardado con el estado inicial colección por colección: las
-// colecciones nuevas toman el valor inicial sin descartar el resto.
+// colecciones nuevas toman el valor inicial sin descartar el resto. El estado
+// del centro de alertas (no es colección) se conserva si viene guardado.
 export function combinarEstado(guardado) {
   if (!estadoValido(guardado)) return null
 
@@ -114,6 +119,7 @@ export function combinarEstado(guardado) {
       combinado[coleccion] = guardado[coleccion]
     }
   }
+  combinado.alertasEstado = normalizarEstadoAlertas(guardado.alertasEstado)
   return combinado
 }
 

@@ -13,7 +13,6 @@ import {
   formatearFecha,
 } from '../../utils/formatters'
 import {
-  alertasServicio,
   costoSubarbol,
   cuentaComoManoDeObra,
   desglosePorTipo,
@@ -36,7 +35,7 @@ import { curvaServicio } from '../../utils/curvaS'
 import { lineaBaseVigente } from '../../utils/lineaBase'
 import { servicioConPresupuestoVigente } from '../../utils/modificaciones'
 import { resumenHorasServicio } from '../../utils/horasHombre'
-import { alertasDeObra } from '../../utils/alertas'
+import { alertasCentro, etiquetaAlerta } from '../../utils/alertasCentro'
 import { htmlReporteMensualObra, imprimirHTML } from '../../utils/reportes'
 import { usePanelServicio } from './panel'
 
@@ -490,6 +489,9 @@ export function ResumenServicio() {  const { servicio } = useOutletContext()
       lecturas_avance: lecturasAvance,
       modificaciones: todasLasModificaciones,
       partes_diario: todosLosPartes,
+      facturas: todasLasFacturas,
+      config: configuracion,
+      alertasEstado,
     },
   } = useData()
 
@@ -586,14 +588,25 @@ export function ResumenServicio() {  const { servicio } = useOutletContext()
     servicio,
   })
   const costoHH = hh.real > 0 ? desglose.personal / hh.real : null
-  const alertas = alertasServicio({ estado, dias })
-  // Alertas de partidas (Fase E): inactividad, bajo rendimiento y vencidas.
-  const alertasPartidas = alertasDeObra({
-    servicio,
-    tareas: todasLasTareas,
-    partes: todosLosPartes ?? [],
+  // Alertas del servicio: MISMA fuente única que la campana y el Dashboard
+  // (`alertasCentro`), filtrada a esta obra. Solo cambia la presentación.
+  const alertasDeEstaObra = alertasCentro({
+    estado: {
+      servicios: [servicio],
+      tareas: todasLasTareas,
+      registros_servicio: todosLosRegistros,
+      cobros: todosLosCobros,
+      facturas: todasLasFacturas ?? [],
+      valorizaciones: todasLasValorizaciones ?? [],
+      config: configuracion ?? [],
+      modificaciones: todasLasModificaciones ?? [],
+      partes_diario: todosLosPartes ?? [],
+    },
     hoy: hoyISO(),
+    alertasEstado,
   })
+  const alertas = alertasDeEstaObra.filter((a) => !a.tipo.startsWith('partida_'))
+  const alertasPartidas = alertasDeEstaObra.filter((a) => a.tipo.startsWith('partida_'))
 
   // Reporte mensual de obra (PDF): resumen, avance, costos y valorizaciones
   // del mes elegido. Reutiliza las fórmulas puras vía `reportes.js`.
@@ -677,13 +690,17 @@ export function ResumenServicio() {  const { servicio } = useOutletContext()
           <div className="mb-5 space-y-2">
             {alertas.map((alerta) => (
               <p
-                key={alerta.codigo}
+                key={alerta.id}
                 className={`rounded-lg px-4 py-2.5 text-sm font-medium ${
-                  alerta.nivel === 'peligro'
+                  alerta.gravedad === 'alta'
                     ? 'bg-red-50 text-red-700'
                     : 'bg-amber-50 text-amber-800'
                 }`}
               >
+                <Link to={alerta.enlace} className="underline">
+                  {etiquetaAlerta(alerta.tipo)}
+                </Link>
+                {' · '}
                 {alerta.mensaje}
               </p>
             ))}
@@ -790,31 +807,27 @@ export function ResumenServicio() {  const { servicio } = useOutletContext()
           <ul className="space-y-2">
             {alertasPartidas.map((a) => (
               <li
-                key={`${a.tipo}-${a.tarea_id}`}
+                key={a.id}
                 className={`rounded-lg border px-4 py-2.5 text-sm ${
-                  a.tipo === 'vencida'
+                  a.gravedad === 'alta'
                     ? 'border-red-200 bg-red-50/40'
                     : 'border-amber-200 bg-amber-50/40'
                 }`}
               >
                 <Link
-                  to={`partidas?tarea=${a.tarea_id}`}
+                  to={a.enlace}
                   className="font-medium text-slate-900 hover:text-primary-700 hover:underline"
                 >
-                  {a.tarea}
+                  {a.titulo}
                 </Link>
                 <p
                   className={`mt-0.5 text-xs ${
-                    a.tipo === 'vencida' ? 'text-red-700' : 'text-amber-800'
+                    a.gravedad === 'alta' ? 'text-red-700' : 'text-amber-800'
                   }`}
                 >
-                  {a.tipo === 'vencida'
-                    ? 'Vencida'
-                    : a.tipo === 'rendimiento'
-                      ? 'Bajo rendimiento'
-                      : 'Sin partes'}
+                  {etiquetaAlerta(a.tipo)}
                   {' · '}
-                  {a.detalle}
+                  {a.mensaje}
                 </p>
               </li>
             ))}

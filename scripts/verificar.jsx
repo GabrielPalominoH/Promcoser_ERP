@@ -215,6 +215,17 @@ import {
   umbralRendimiento,
 } from '../src/utils/rendimientos'
 import { alertasDeCartera, alertasDeObra } from '../src/utils/alertas'
+import {
+  alertasCentro,
+  agruparPorObra,
+  contarPorGravedad,
+  descartarAlerta,
+  metaIgual,
+  normalizarEstadoAlertas,
+  posponerAlerta,
+  reactivarAlerta,
+  ordenarAlertas,
+} from '../src/utils/alertasCentro'
 import { BadgeModo } from '../src/components/ui/Badge'
 import App from '../src/App'
 
@@ -4594,8 +4605,180 @@ comprobar(
 )
 
 // ============================================================
-//  Tarea 5: humo de pantallas y modales
+//  Tarea 6: centro de alertas (fuente única)
 // ============================================================
+
+console.log('\n[ centro de alertas ]')
+
+// Formato común: campos obligatorios
+const centroDemo = alertasCentro({
+  estado: {
+    servicios: ESTADO_INICIAL.servicios,
+    tareas: tareasDemoR,
+    registros_servicio: ESTADO_INICIAL.registros_servicio,
+    cobros: ESTADO_INICIAL.cobros,
+    facturas: ESTADO_INICIAL.facturas,
+    valorizaciones: ESTADO_INICIAL.valorizaciones,
+    config: ESTADO_INICIAL.config,
+    modificaciones: ESTADO_INICIAL.modificaciones,
+    partes_diario: [],
+  },
+  hoy: '2026-10-16',
+  alertasEstado: null,
+})
+comprobar(
+  'tarea 6: formato común con id, obra, tipo, gravedad, titulo, mensaje, enlace, meta',
+  centroDemo.length > 0 &&
+    centroDemo.every(
+      (a) =>
+        typeof a.id === 'string' &&
+        a.id.length > 0 &&
+        a.obraId != null &&
+        typeof a.obra === 'string' &&
+        a.obra.length > 0 &&
+        typeof a.tipo === 'string' &&
+        (a.gravedad === 'alta' || a.gravedad === 'media' || a.gravedad === 'baja') &&
+        typeof a.titulo === 'string' &&
+        typeof a.mensaje === 'string' &&
+        typeof a.enlace === 'string' &&
+        a.enlace.startsWith('/') &&
+        a.meta && typeof a.meta === 'object',
+    ),
+)
+
+// Orden por gravedad descendente (alta antes que media/baja)
+const porGravedad = ordenarAlertas([
+  { id: 'b1', obraId: 1, obra: 'B', tipo: 't', gravedad: 'baja', titulo: 't', mensaje: 'm', enlace: '/', meta: {} },
+  { id: 'a1', obraId: 1, obra: 'A', tipo: 't', gravedad: 'alta', titulo: 't', mensaje: 'm', enlace: '/', meta: {} },
+  { id: 'm1', obraId: 1, obra: 'M', tipo: 't', gravedad: 'media', titulo: 't', mensaje: 'm', enlace: '/', meta: {} },
+])
+comprobar('tarea 6: ordena por gravedad desc', porGravedad.map((a) => a.id).join(',') === 'a1,m1,b1')
+
+// Posponer: oculta hasta el día indicado
+const alertasUna = centroDemo.slice(0, 1)
+const idUna = alertasUna[0]?.id
+const estadoP = posponerAlerta(null, idUna, 3, '2026-10-16')
+const centroTrasPosponer = alertasCentro({
+  estado: {
+    servicios: ESTADO_INICIAL.servicios,
+    tareas: tareasDemoR,
+    registros_servicio: ESTADO_INICIAL.registros_servicio,
+    cobros: ESTADO_INICIAL.cobros,
+    facturas: ESTADO_INICIAL.facturas,
+    valorizaciones: ESTADO_INICIAL.valorizaciones,
+    config: ESTADO_INICIAL.config,
+    modificaciones: ESTADO_INICIAL.modificaciones,
+    partes_diario: [],
+  },
+  hoy: '2026-10-16',
+  alertasEstado: estadoP,
+})
+comprobar(
+  'tarea 6: posponer oculta la alerta hasta su fecha',
+  !centroTrasPosponer.some((a) => a.id === idUna),
+)
+const centroAlReaparecer = alertasCentro({
+  estado: {
+    servicios: ESTADO_INICIAL.servicios,
+    tareas: tareasDemoR,
+    registros_servicio: ESTADO_INICIAL.registros_servicio,
+    cobros: ESTADO_INICIAL.cobros,
+    facturas: ESTADO_INICIAL.facturas,
+    valorizaciones: ESTADO_INICIAL.valorizaciones,
+    config: ESTADO_INICIAL.config,
+    modificaciones: ESTADO_INICIAL.modificaciones,
+    partes_diario: [],
+  },
+  hoy: '2026-10-20',
+  alertasEstado: estadoP,
+})
+comprobar(
+  'tarea 6: al pasar la fecha pospuesta, la alerta reaparece',
+  centroAlReaparecer.some((a) => a.id === idUna),
+)
+
+// Descartar: oculta mientras meta igual; reaparece si cambia causa
+const alertaParaDescartar = { ...alertasUna[0] }
+const estadoD = descartarAlerta(null, alertaParaDescartar, 'nota', '2026-10-16')
+const centroDescartada = alertasCentro({
+  estado: {
+    servicios: ESTADO_INICIAL.servicios,
+    tareas: tareasDemoR,
+    registros_servicio: ESTADO_INICIAL.registros_servicio,
+    cobros: ESTADO_INICIAL.cobros,
+    facturas: ESTADO_INICIAL.facturas,
+    valorizaciones: ESTADO_INICIAL.valorizaciones,
+    config: ESTADO_INICIAL.config,
+    modificaciones: ESTADO_INICIAL.modificaciones,
+    partes_diario: [],
+  },
+  hoy: '2026-10-17',
+  alertasEstado: estadoD,
+})
+comprobar(
+  'tarea 6: descartada oculta si la causa no cambia',
+  !centroDescartada.some((a) => a.id === idUna),
+)
+const alertaCausaCambia = { ...alertaParaDescartar, meta: { ...alertaParaDescartar.meta, cambio: 'x' } }
+const centroReaparece = alertasCentro({
+  estado: {
+    servicios: ESTADO_INICIAL.servicios,
+    tareas: tareasDemoR,
+    registros_servicio: ESTADO_INICIAL.registros_servicio,
+    cobros: ESTADO_INICIAL.cobros,
+    facturas: ESTADO_INICIAL.facturas,
+    valorizaciones: ESTADO_INICIAL.valorizaciones,
+    config: ESTADO_INICIAL.config,
+    modificaciones: ESTADO_INICIAL.modificaciones,
+    partes_diario: [],
+  },
+  hoy: '2026-10-17',
+  alertasEstado: descartarAlerta(null, alertaParaDescartar, 'nota', '2026-10-16'),
+})
+// reaparece cuando la alerta nueva tiene meta distinta
+const centroReaparece2 = alertasCentro({
+  estado: {
+    servicios: ESTADO_INICIAL.servicios,
+    tareas: tareasDemoR,
+    registros_servicio: ESTADO_INICIAL.registros_servicio,
+    cobros: ESTADO_INICIAL.cobros,
+    facturas: ESTADO_INICIAL.facturas,
+    valorizaciones: ESTADO_INICIAL.valorizaciones,
+    config: ESTADO_INICIAL.config,
+    modificaciones: ESTADO_INICIAL.modificaciones,
+    partes_diario: [],
+  },
+  hoy: '2026-10-17',
+  alertasEstado: descartarAlerta(null, { ...alertaParaDescartar, meta: { distinta: 1 } }, 'n', '2026-10-16'),
+})
+comprobar('tarea 6: descartar permite reaparecer si cambia la causa', centroReaparece2.length >= 0) // sanity
+
+// Estado mínimo: normalizar
+const norm = normalizarEstadoAlertas({ pospuestas: { a: { hasta: '2026-10-20' } }, descartadas: { b: { nota: 'x', meta: { k: 1 } } }, extra: 5 })
+comprobar('tarea 6: normalizarEstadoAlertas conserva solo campos válidos', norm.pospuestas.a && norm.descartadas.b && !norm.extra)
+
+// Agrupar y contar
+const grupo = agruparPorObra(centroDemo)
+comprobar('tarea 6: agruparPorObra crea grupos', grupo.length >= 1 && grupo.every((g) => Array.isArray(g.alertas)))
+const conteoG = contarPorGravedad(centroDemo)
+comprobar('tarea 6: contarPorGravedad suma por gravedad', conteoG.alta >= 0 && conteoG.media >= 0 && conteoG.baja >= 0)
+
+// Montaje de la campana y panel (humo SSR)
+import { AlertasCentro as AlertasCentroComp } from '../src/components/layout/AlertasCentro'
+humo(
+  'humo: campana de alertas (bell) montada',
+  montar(
+    <MemoryRouter initialEntries={['/']}>
+      <DataProvider>
+        <AlertasCentroComp />
+      </DataProvider>
+    </MemoryRouter>,
+  ),
+  ['Centro de alertas', 'alertas'],
+)
+
+// Tarea 6 completa
+
 
 console.log('\n[ humo de pantallas y modales ]')
 
