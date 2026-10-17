@@ -17,39 +17,35 @@ import { usePanelServicio } from '../../pages/servicio/panel'
 // así que los enlaces relativos se resolverían contra la raíz.
 const SECCIONES = [
   {
-    titulo: 'Servicio',
+    titulo: 'Obra',
     opciones: [{ id: 'resumen', etiqueta: 'Resumen', icono: 'grid', end: true }],
-  },
-  {
-    titulo: 'Registro',
-    opciones: [
-      { id: 'materiales', etiqueta: 'Materiales', icono: 'box' },
-      { id: 'personal', etiqueta: 'Personal', icono: 'users' },
-      { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
-      { id: 'gastos', etiqueta: 'Gastos', icono: 'recibo' },
-      { id: 'ingresos', etiqueta: 'Ingresos', icono: 'billete' },
-    ],
   },
   {
     titulo: 'Planificación',
     opciones: [
       { id: 'cronograma', etiqueta: 'Cronograma', icono: 'gantt' },
-      { id: 'curva-s', etiqueta: 'Curva S', icono: 'barras' },
-      { id: 'linea-base', etiqueta: 'Línea base', icono: 'bandera' },
       { id: 'partidas', etiqueta: 'Partidas', icono: 'layers' },
+      { id: 'linea-base', etiqueta: 'Línea base', icono: 'bandera' },
+      { id: 'curva-s', etiqueta: 'Curva S', icono: 'barras' },
     ],
   },
   {
-    titulo: 'Cobro',
-    opciones: [{ id: 'valorizaciones', etiqueta: 'Valorizaciones', icono: 'factura' }],
-  },
-  {
     titulo: 'Ejecución',
-    opciones: [{ id: 'parte-diario', etiqueta: 'Parte diario', icono: 'clipboard' }],
+    opciones: [
+      { id: 'parte-diario', etiqueta: 'Parte diario', icono: 'clipboard' },
+      { id: 'personal', etiqueta: 'Personal', icono: 'users' },
+      { id: 'equipos', etiqueta: 'Equipos', icono: 'truck' },
+      { id: 'materiales', etiqueta: 'Materiales', icono: 'box' },
+      { id: 'gastos', etiqueta: 'Gastos', icono: 'recibo' },
+    ],
   },
   {
-    titulo: 'Contrato',
-    opciones: [{ id: 'modificaciones', etiqueta: 'Modificaciones', icono: 'enmienda' }],
+    titulo: 'Contrato y cobro',
+    opciones: [
+      { id: 'valorizaciones', etiqueta: 'Valorizaciones', icono: 'factura' },
+      { id: 'ingresos', etiqueta: 'Ingresos', icono: 'billete' },
+      { id: 'modificaciones', etiqueta: 'Modificaciones', icono: 'enmienda' },
+    ],
   },
   {
     titulo: 'Ajustes',

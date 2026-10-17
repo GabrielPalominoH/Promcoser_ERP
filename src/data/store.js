@@ -233,3 +233,63 @@ export function nombreRespaldo(prefijo = 'promcoser-respaldo') {
   const dia = String(ahora.getDate()).padStart(2, '0')
   return `${prefijo}-${ahora.getFullYear()}-${mes}-${dia}.json`
 }
+
+// ------------------------------------------------------------
+//  Primer uso y respaldos (uso real, sin backend)
+// ------------------------------------------------------------
+// Preferencias de operación guardadas en este navegador. No son datos de
+// negocio: no viajan en el respaldo.
+const CLAVE_INICIALIZADO = 'promcoser_inicializado'
+const CLAVE_ULTIMO_RESPALDO = 'promcoser_ultimo_respaldo'
+export const DIAS_AVISO_RESPALDO = 7
+
+function leerPreferencia(clave) {
+  try {
+    return backend().get(clave)
+  } catch {
+    return null
+  }
+}
+
+// ¿Es la primera vez en este navegador? Verdadero solo si no hay datos
+// guardados ni se eligió cómo empezar. En SSR/pruebas siempre es falso.
+export function esPrimerUso() {
+  if (typeof window === 'undefined') return false
+  return (
+    !leerPreferencia(CLAVE_INICIALIZADO) &&
+    !leerPreferencia(STORAGE_KEY) &&
+    !leerPreferencia(STORAGE_KEY_ANTERIOR)
+  )
+}
+
+export function marcarInicializado() {
+  try {
+    backend().set(CLAVE_INICIALIZADO, '1')
+  } catch {
+    // Sin almacenamiento: el aviso de bienvenida solo se omite en esta sesión.
+  }
+}
+
+// Registra que se descargó un respaldo (fecha local ISO yyyy-mm-dd).
+export function registrarRespaldo(hoy = hoyISO()) {
+  try {
+    backend().set(CLAVE_ULTIMO_RESPALDO, hoy)
+  } catch {
+    // Solo se pierde el recordatorio.
+  }
+}
+
+// Días desde el último respaldo descargado; null si nunca se descargó uno.
+export function diasDesdeRespaldo(hoy = hoyISO()) {
+  const ultimo = leerPreferencia(CLAVE_ULTIMO_RESPALDO)
+  if (!ultimo) return null
+  const dias = Math.round((new Date(`${hoy}T00:00:00`) - new Date(`${ultimo}T00:00:00`)) / 86400000)
+  return Number.isFinite(dias) ? Math.max(0, dias) : null
+}
+
+// ¿Hay información de negocio que valga la pena respaldar?
+export function hayDatosParaRespaldar(estado) {
+  return ['servicios', 'personal', 'equipos', 'costos_oficina'].some(
+    (coleccion) => (estado?.[coleccion] ?? []).length > 0,
+  )
+}

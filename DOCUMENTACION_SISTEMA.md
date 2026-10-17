@@ -6,7 +6,7 @@ ejemplo: tres obras —servicio 6 *Mejoramiento del servicio de agua potable y
 alcantarillado – AA.HH. San Isidro (II Etapa)*, servicio 7 *Mejoramiento y
 ampliación de pistas y veredas – Jr. Amazonas* y servicio 8 *Mantenimiento de
 redes de agua potable – Sector Muyuna*— y están verificados contra la suite
-(`npm run verificar`, 827 pruebas).
+(`npm run verificar`, 838 pruebas).
 
 > **Verificación**: cada cifra de este documento puede reproducirse con la suite.
 > Si cambias semillas o fórmulas, actualiza este documento y la suite.
@@ -20,10 +20,11 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 
 | Colección | Qué guarda |
 |---|---|
+| `cargos` | Catálogo maestro de cargos (el personal se vincula por nombre) |
 | `personal` | Fichas: nombre, apellido, cargo, DNI, `tarifa_por_hora`, `ambito` (Obra/Oficina) |
 | `equipos` | Fichas: nombre, `costo_por_hora`, `propiedad` (Propio/Alquilado) |
 | `servicios` | Obra: nombre, cliente, tipo, `presupuesto_asignado`, fechas, `avance`, estatus, y parámetros de alertas (`alerta_inactividad_dias`, `umbral_rendimiento_pct`, `dias_alerta_valorizacion_sin_cobro`) |
-| `tareas` | Árbol del cronograma: `servicio_id`, `padre_id` (nullable = raíz), nombre, fechas, `avance`, `monto` |
+| `tareas` | Árbol del cronograma: `servicio_id`, `padre_id` (nullable = raíz), nombre, fechas, `avance` (caché derivado), `monto`; en las hojas `modo_medicion`, `metrado`, `unidad`, `precio_unitario`, `metrado_previo`/`costo_previo`/`valorizado_previo` y dependencias |
 | `registros_servicio` | Libro único de costos: servicio, `tarea_id` (nullable), `tipo_registro` (material/personal/equipo/gasto), `referencia_id`, `cantidad_o_horas`, `monto_calculado`, `fecha`, `modalidad`, `asignacion_id` |
 | `asignaciones` | Personal asignado a un servicio: `horas_por_dia`, `tarifa`, `fecha_inicio`, `fecha_fin` |
 | `cobros` | Ingresos recibidos: servicio, `fecha`, `monto`, `concepto`, `documento`, `factura_id`, `valorizacion_id` (valorización que cancela, opcional) |
@@ -45,7 +46,8 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 - `personal 1──N asignaciones` → generan **registros mensuales automáticos** de tipo `personal` con `asignacion_id` (ver §4).
 - `servicio 1──N modificaciones` (adicional/deductivo) y `servicio 1──N ampliaciones_plazo`; al aprobar un adicional sus partidas se materializan como tareas hoja.
 - `servicio 1──N partes_diario`; sus filas referencian `tarea_id` (el metrado ejecutado del día) y el avance de la tarea se deriva de la suma de sus partes (ver §5.2).
-- `borrar servicio` arrastra registros, tareas, asignaciones, facturas, cobros, modificaciones y ampliaciones (cascada en `DataContext`).
+- `borrar servicio` arrastra registros, tareas, asignaciones, facturas, cobros, líneas base, lecturas de avance, valorizaciones, adelantos, modificaciones, ampliaciones de plazo y partes diarios (cascada en `DataContext`).
+- `esquema`: `_v: 17`; el historial de versiones está en el encabezado de `src/data/store.js`.
 
 ---
 
@@ -721,6 +723,54 @@ Dashboard vía `servicioConPresupuestoVigente`, conservando el original para
 mostrar la variación. Los ejemplos sembrados están **sin aprobar** a propósito
 para no mover las cifras de la línea base.
 
+### Cronograma, Curva S y Línea base
+- **Cronograma** (`/servicios/:id/cronograma`): árbol de tareas con Gantt (arrastre y
+  redimensionado respetando calendario y grupos), dependencias FS/SS/FF/SF, motor CPM
+  (`cpm.js`: ES/EF/LS/LF, holgura y ruta crítica; solo asesora, aplica con "Reprogramar"),
+  calendario laboral por obra (`servicio.calendario`), look-ahead de 3–6 semanas, desvío
+  contra la línea base, histograma de recursos y red PERT. Importa y exporta Excel
+  (`importacion.js`: plantilla N° · Tarea · Inicio · Fin · Hito · Metrado · Unidad ·
+  P. Unit. · Valorizado previo · Monto · Predecesoras · Avance).
+- **Línea base** (`/linea-base`, `lineaBase.js`): copia inmutable del cronograma congelada
+  en una fecha, más **lecturas de avance** firmadas por corte.
+- **Curva S** (`/curva-s`, `curvaS.js`): PV (línea base), AC (costo real) y EV (avance ×
+  presupuesto, o lecturas si existen) con SPI/CPI/EAC; granularidad mensual, semanal,
+  cada 4 o 2 días y diaria. El panel de cartera (`cartera.js`) suma las curvas de todas las obras.
+
+### Parte diario (`/servicios/:id/parte-diario`)
+Una jornada por parte: clima, responsable, personal y equipos presentes, partidas con su
+**metrado ejecutado del día** (o hitos cumplidos), incidencias, observaciones y fotos
+(binarios en IndexedDB, metadata en el parte). Es el único lugar donde se teclea el
+progreso: el avance de cada hoja se deriva de la suma de sus partes (§5.2). Imprimible
+(`Imprimir / PDF`).
+
+### Valorizaciones (`/servicios/:id/valorizaciones`)
+Por periodo: metrado acumulado a la fecha de corte menos lo ya valorizado, por el precio
+unitario; sobre el bruto se descuentan la amortización de adelantos (directo y de
+materiales) y el fondo de garantía, y luego IGV y detracción hasta el **neto**. Antes de
+cerrar se puede ajustar el metrado por partida. La primera valorización parte de
+`valorizado_previo`. El cobro se vincula con `cobros.valorizacion_id` (el texto del concepto
+es solo respaldo). Imprimible y exportable a Excel.
+
+### Centro de alertas (campana del encabezado)
+`alertasCentro.js` es la fuente única de la campana, el Resumen y el Dashboard. Tipos:
+partida vencida, sin partes, bajo rendimiento, presupuesto excedido, margen bajo, plazo
+vencido, plazo próximo, factura vencida y valorización sin cobrar. Cada alerta guarda su
+**causa** y su **medida**; al descartarla o posponerla reaparece solo si cambia la causa,
+sube la gravedad o la medida cruza el escalón de su tipo: **+7 días** (partida vencida,
+sin partes, plazo vencido, **plazo próximo**, factura vencida, valorización sin cobrar),
+**+10 puntos** de desvío de rendimiento y **±10 %** en montos (presupuesto excedido y
+margen bajo). Los umbrales de inactividad, rendimiento y valorización sin cobro son por obra.
+
+### Exportación e impresión
+Sin librerías: Excel (.xlsx) con `excel.js` + `exportaciones.js`, y HTML imprimible /
+"Guardar como PDF" con `reportes.js` (parte diario, valorización, reporte mensual de obra,
+reporte del Resumen). Todos reutilizan las fórmulas de las pantallas.
+
+### Catálogos globales
+`/cargos` (catálogo de cargos; renombrar uno arrastra el nombre a las fichas de personal) y
+`/unidades` (unidades de medida fijas, ordenadas para metrado de obra).
+
 ### 9.1 Datos exactos de cada gráfico del Resumen (servicio 6)
 
 **Curva de gasto acumulado** (de `gastoPorMes`: jun 39,410 / jul 12,190 / ago 0 /
@@ -874,13 +924,19 @@ materiales`, `gastos`, `equipos`, `personal`, `ingresos`, `partidas`,
    `null` ("—"), no ceros ficticios.
 7. **Por cobrar retirado**: el resultado se mide sobre lo cobrado; las facturas
    son registro documental con sus propios saldos.
+8. **Avance con un solo escritor**: `tarea.avance` es un caché derivado
+   (`recalcularAvances`); el parte diario es el único punto de captura.
+9. **Valorización sin doble cobro**: solo se cobra el metrado acumulado menos lo ya
+   valorizado (`valorizado_previo` incluido).
+10. **Alertas sin ruido**: un descarte solo se anula por cambio de causa, mayor gravedad o
+    medida que cruza el escalón del tipo.
 
 ---
 
 ## 11. Verificación (cómo reproducir todo este documento)
 
 ```
-npm run verificar   # 827 pruebas: reducer, calculadora, asignaciones, cobros,
+npm run verificar   # 838 pruebas: reducer, calculadora, asignaciones, cobros,
                     # gerencial, combo de cartera, montos por tareas,
                     # productividad, proyección financiera, formato,
                     # persistencias, rutas SSR, filtros de listas, modal
@@ -901,5 +957,4 @@ Secciones clave de `scripts/verificar.jsx`:
 - `[ productividad ]`: duraciones, 224/4 días, desviaciones.
 - `[ proyección financiera ]`: 221,100 / 2.27 / 147,492.42 / 187,507.58 / verde.
 - `[ personal y facturas ]`: factura 101 y 102 cobradas (saldo 0), 103 pendiente 52,500.
-- `[ centro de alertas ]`: 7 alertas en el demo (2 vencidas, 3 sin partes, 1 margen bajo, 1 plazo próximo); causa/medida con escalones, vínculo explícito valorización→cobro, umbral configurable por obra y migración de descartes sin pérdida.
 - `[ centro de alertas ]`: 7 alertas en el demo (2 vencidas, 3 sin partes, 1 margen bajo, 1 plazo próximo); causa/medida con escalones, vínculo explícito valorización→cobro, umbral configurable por obra y migración de descartes sin pérdida.

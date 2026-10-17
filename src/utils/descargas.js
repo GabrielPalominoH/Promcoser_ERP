@@ -4,6 +4,7 @@
 // hace nada y devuelve false, igual que `imprimirHTML`.
 
 import { libroXLSX } from './excel'
+import { nombreRespaldo, registrarRespaldo, serializarRespaldo } from '../data/store'
 
 const TIPO_XLSX =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -29,4 +30,13 @@ export function descargarXLSX(bytes, nombre) {
 // Descarga un libro ya armado ({ nombre, hojas }) como .xlsx.
 export function descargarLibro({ nombre, hojas }) {
   return descargarXLSX(libroXLSX({ hojas }), nombre)
+}
+
+// Descarga el respaldo JSON completo y anota la fecha para el recordatorio
+// semanal. Devuelve false si el navegador no puede descargar (SSR/pruebas).
+export function descargarRespaldo(estado) {
+  const blob = new Blob([serializarRespaldo(estado)], { type: 'application/json' })
+  const ok = descargarBlob(blob, nombreRespaldo())
+  if (ok) registrarRespaldo()
+  return ok
 }

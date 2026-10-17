@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
+import { SECCIONES_NAVEGACION } from '../src/components/layout/Sidebar'
+import { AvisosSistema } from '../src/components/layout/AvisosSistema'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { COLECCIONES, ESTADO_INICIAL, TIPOS_SERVICIO, migrarPresupuestoATareas, tipoServicio } from '../src/data/mockData'
 import { UNIDADES } from '../src/data/unidades'
@@ -10,8 +12,12 @@ import { mismoCargo, opcionesCargo, personasConCargo, puedeEliminarCargo } from 
 import { esPersonalActivo, personalAsignable, puedeEliminarPersonal } from '../src/utils/personal'
 import {
   cargarEstado,
+  diasDesdeRespaldo,
+  esPrimerUso,
   guardarEstado,
+  hayDatosParaRespaldar,
   normalizarRespaldo,
+  registrarRespaldo,
   serializarRespaldo,
   validarRespaldo,
 } from '../src/data/store'
@@ -5483,6 +5489,42 @@ humo(
 )
 
 // ============================================================
+
+console.log('\n[ uso real: primer uso, respaldo y navegación ]')
+
+comprobar('primer uso: en SSR/pruebas nunca muestra la bienvenida', esPrimerUso() === false)
+comprobar('respaldo: sin respaldo previo no hay días', diasDesdeRespaldo('2026-10-17') === null)
+registrarRespaldo('2026-10-10')
+comprobar('respaldo: 7 días desde el último', diasDesdeRespaldo('2026-10-17') === 7)
+comprobar('respaldo: el mismo día son 0 días', diasDesdeRespaldo('2026-10-10') === 0)
+comprobar('respaldo: hay datos que respaldar en el ejemplo', hayDatosParaRespaldar(ESTADO_INICIAL) === true)
+comprobar(
+  'respaldo: sin obras, personal, equipos ni oficina no hay nada que respaldar',
+  hayDatosParaRespaldar({ servicios: [], personal: [], equipos: [], costos_oficina: [] }) === false,
+)
+comprobar(
+  'avisos del sistema: no renderizan nada en el servidor',
+  renderToString(
+    <MemoryRouter>
+      <DataProvider>
+        <AvisosSistema />
+      </DataProvider>
+    </MemoryRouter>,
+  ) === '',
+)
+{
+  const rutas = SECCIONES_NAVEGACION.flatMap((sec) => sec.enlaces.map((e) => e.to))
+  comprobar(
+    'sidebar: agrupa Gestión, Recursos, Administración y Catálogos',
+    SECCIONES_NAVEGACION.map((sec) => sec.titulo).join('|') === 'Gestión|Recursos|Administración|Catálogos',
+  )
+  comprobar(
+    'sidebar: conserva las 7 rutas globales sin repetir',
+    rutas.length === 7 &&
+      new Set(rutas).size === 7 &&
+      ['/', '/servicios', '/personal', '/equipos', '/oficina', '/cargos', '/unidades'].every((r) => rutas.includes(r)),
+  )
+}
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLO(S)`} — ${pruebas} pruebas`)
 process.exit(fallos === 0 ? 0 : 1)

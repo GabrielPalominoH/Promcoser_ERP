@@ -1,13 +1,15 @@
 # Planificación por módulos — PROMCOSER ERP
 
-Roadmap de entregables por módulo necesario. Estado base: commit `0bb33b8`
-(indirectos, filtros, CSV). Convención: cada módulo
-se cierra con suite verde (`npm run verificar`), build OK, push a `master` y
+Roadmap de entregables por módulo necesario. Estado al 2026-10: esquema `_v: 17`,
+suite de 829 pruebas, CI (`lint` → `verificar` → `build`). Convención: cada módulo
+se cierra con `npm run lint`, suite verde (`npm run verificar`), build OK, push a `main` y
 manual actualizado.
 
 ## M1. Servicios (base — completar)
-**Existe:** CRUD, tipos (Obra/Misceláneo/Contrato), panel de
-8 pestañas, búsqueda, columna tipo.
+**Existe:** CRUD, tipos (Obra/Misceláneo/Contrato), panel con 14 secciones
+(Resumen, Materiales, Personal, Equipos, Gastos, Ingresos, Cronograma, Curva S,
+Línea base, Partidas, Valorizaciones, Parte diario, Modificaciones, Opciones),
+búsqueda, columna tipo y calendario laboral por obra.
 **Falta:**
 - Fecha fin real, responsable descriptivo (texto, sin usuarios), ubicación.
 - Filtros por tipo y estado en el listado (hoy solo búsqueda).
@@ -25,9 +27,9 @@ ejecución, excedido, cobrado). El resultado se mide como utilidad real
 ## M3. Personal (costo directo automático)
 **Existe:** asignaciones, costo mensual automático devengado/proyectado, baja con prorrateo, proyección inicio-fin, estimación por duración con comparador estimado vs. real en Partidas y Resumen (`diasEstimadosTarea`, `diasRealesTarea`, `desviacionDias`).
 **Sin tareo ni asentamiento manual** (eliminados por decisión: Opción A).
+**Existe además:** horas-hombre plan vs real, productividad (metrado por hora) y rendimientos por partida (`horasHombre.js`, `rendimientos.js`).
 **Falta:**
-- Reportes: horas por trabajador/servicio/periodo, costo laboral por tarea.
-- Productividad: unidades producidas por tarea → costo por unidad y unid/hora-hombre.
+- Reportes: horas por trabajador/periodo, costo laboral por tarea.
 **Aceptación:** Caso H (trabajador en varios servicios sin duplicar) en la suite.
 
 ## M4. Equipos (existe base)
@@ -68,10 +70,10 @@ El módulo Contratos se retiró: el tipo se elige al crear/editar cada servicio
 consolidado separados.
 
 ## M9. Reportes (existe parcial)
-**Existe:** CSV de rentabilidad por servicio, reporte imprimible del Resumen y, en el panel gerencial, la evolución mensual real vs proyectada (caja real por mes + personal proyectado).
+**Existe:** CSV de rentabilidad por servicio, reporte imprimible del Resumen, **exportación a Excel (.xlsx) sin librerías** (`exportaciones.js`/`excel.js`), reportes imprimibles / "Guardar como PDF" (parte diario, valorización, reporte mensual de obra; `reportes.js`) y, en el panel gerencial, la evolución mensual real vs proyectada (caja real por mes + personal proyectado).
 **Sin cierre mensual** (eliminado por decisión: sin `generarCierre` ni CSV mensual). La tendencia mensual se reactivó como sección del panel gerencial (ver M10); sigue sin existir un cierre contable por mes.
 **Falta:**
-- Exportación Excel vía CSV mejorado.
+- Reporte imprimible del expediente de cada modificación.
 **Aceptación:** Caso K (respaldo) ya en suite.
 
 ## M10. Dashboard gerencial (hecho)
@@ -97,10 +99,30 @@ consolidado separados.
   desplaza `fecha_fin_estimada` y se recalcula el cronograma con CPM.
 - Historial de cambios de estado con fecha.
 **Falta:**
-- Reporte imprimible/PDF del expediente de la modificación (Fase 3).
+- Reporte imprimible/PDF del expediente de la modificación.
 **Aceptación:** sección `[ modificaciones ]` en la suite (importes, presupuesto
 vigente, materialización y valorización del adicional, plazo, historial,
 migración v10 → v11).
+
+## M12. Control de obra (hecho)
+Fases entregadas sobre el cronograma (detalle técnico en `DOCUMENTACION_SISTEMA.md`):
+- **Cronograma gerencial**: Gantt con arrastre/redimensionado, dependencias FS/SS/FF/SF,
+  motor CPM (ruta crítica, holguras, "Reprogramar"), calendario laboral por obra,
+  look-ahead, desvío contra la línea base, histograma de recursos, red PERT e
+  importación/plantilla Excel de ida y vuelta (incluye metrado, unidad, P. unit. y valorizado previo).
+- **Línea base y Curva S**: línea base congelada, lecturas de avance, PV/EV/AC, SPI/CPI/EAC,
+  granularidad mensual a diaria, y panel de cartera (`cartera.js`).
+- **Modo de medición del avance** (Fases A–C): `metrado`/`hitos`/`tiempo`/`costo`/`manual`;
+  `tarea.avance` es un caché derivado (`recalcularAvances`).
+- **Parte diario** (Fases 2 y B): clima, personal, equipos, metrado ejecutado del día, hitos,
+  incidencias y fotos (IndexedDB); es el único punto donde se teclea el progreso.
+- **Valorizaciones** (F3 y Fase D): metrado acumulado menos lo valorizado, adelantos, fondo de
+  garantía, IGV, detracción y neto; ajuste de metrado antes de cerrar; `valorizado_previo`.
+- **Rendimientos y alertas de partidas** (Fase E): real/día y real/HH contra plan.
+- **Centro de alertas** (T6/T6B/T6C): campana única con causa y medida, escalones por tipo,
+  posponer/descartar y umbral configurable por obra.
+- **Catálogos**: Cargos y Unidades de medida.
+- **Higiene**: ESLint y CI en GitHub Actions; pruebas de humo de pantallas y modales.
 
 ## Orden de ejecución sugerido
 
@@ -118,6 +140,7 @@ del sistema iguale a la del control al céntimo.
 - [ ] Registrar cobro con y sin factura (tope de saldo, autocreación, adelanto).
 - [ ] Montos, avance y horas estimadas en Cronograma/Partidas; desviación de horas visible.
 - [ ] Resumen cuadra: presupuesto, gastado, saldo, cobrado, utilidad, productividad, SPI.
+- [ ] Parte diario con metrado: el avance de la partida sube y cuadra con la valorización (solo cobra la diferencia).
 - [ ] Un adicional aprobado sube el presupuesto vigente y su partida se valoriza; una ampliación aprobada mueve la fecha fin.
 - [ ] Dashboard cuadra: resultado, caja por mes, utilidad por cliente, gasto y ranking.
 - [ ] Exportar → Vaciar todo → Importar: totales idénticos tras el round-trip.

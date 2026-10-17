@@ -27,6 +27,12 @@ en una sola computadora.
 
 - **Sus datos se guardan en el navegador de la computadora** (Chrome, Edge,
   etc.), no en internet. Si usa otra computadora, no verá sus datos.
+- **Al abrir el sistema por primera vez** aparece una bienvenida: elija
+  **Empezar con datos vacíos** para cargar sus obras reales, o **Explorar con
+  datos de ejemplo** para conocerlo sin riesgo.
+- **El sistema le recuerda el respaldo:** si pasan 7 días sin descargar uno (o el
+  almacenamiento del navegador casi se llena), aparece un aviso amarillo arriba
+  con el botón **Descargar respaldo**.
 - **Haga un respaldo cada semana.** En el panel principal (Dashboard) hay un
   botón **"Datos y respaldo"** con la opción **"Exportar respaldo"**, que
   descarga un archivo con toda la información. Guárdelo en un USB o en su
@@ -43,15 +49,21 @@ en una sola computadora.
 
 ## 3. Las partes del sistema (menú principal)
 
-Al lado izquierdo siempre verá el menú con estas opciones:
+Al lado izquierdo siempre verá el menú, agrupado en **Gestión** (Dashboard, Servicios), **Recursos** (Personal, Equipos), **Administración** (Oficina) y **Catálogos** (Cargos, Unidades). Dentro de una obra el menú se ordena como el trabajo real: **Obra** (Resumen), **Planificación** (Cronograma, Partidas, Línea base, Curva S), **Ejecución** (Parte diario, Personal, Equipos, Materiales, Gastos), **Contrato y cobro** (Valorizaciones, Ingresos, Modificaciones) y **Ajustes**. En **Configuración** puede elegir el tema claro u oscuro (grafito sobrio).
+
+Opciones del menú principal:
 
 | Opción | Para qué sirve |
 |---|---|
 | **Dashboard** | El panel gerencial de la empresa. Arriba el **semáforo ejecutivo** (🟢 en orden / 🟡 atención / 🔴 en rojo) con su motivo, la meta de ingreso y los 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado). Luego el **gráfico combinado de columnas y líneas con doble eje Y**: las columnas son el volumen de obras activas por mes (eje derecho) y las dos líneas son el desfase de tiempo y el desfase de costo de la cartera (eje izquierdo 0–100 %); al pasar el mouse por cada mes aparece el detalle. Después, el detalle: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo, restablece los datos de ejemplo o vacía todo para empezar de cero. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
+| **Cargos** | El catálogo de cargos (Ayudante, Operario, Capataz…). Cada ficha de Personal elige su cargo de esta lista; si renombra un cargo, se actualiza en todo el personal. |
 | **Equipos** | La lista de máquinas y herramientas con su costo por hora. |
 | **Oficina** | El costo mensual del personal de oficina (gasto general, separado de las obras). Alimenta el resultado empresa. |
+| **Unidades** | Lista de unidades de medida (m³, m², ml, und, Glb…) que se usan para el metrado de las partidas. Es solo de consulta. |
+| **Campana de alertas** (arriba) | Avisa lo que requiere atención: partidas vencidas o sin partes, presupuesto excedido, plazo próximo o vencido, facturas vencidas, valorizaciones sin cobrar. Cada alerta se puede **posponer** o **descartar** con una nota; reaparece solo si empeora de verdad (por ejemplo, 7 días más de atraso). |
+| **Configuración** (abajo) | Preferencias de apariencia del sistema. |
 | **Tipos de servicio** | Al crear o editar una obra eliges su tipo: Obra, Misceláneo o Contrato. Sirve para filtrar en el Dashboard. |
 
 ### Buscar y filtrar (en todas las listas)
@@ -105,26 +117,17 @@ Aquí se **asigna** quién trabaja en la obra. Pulse **"Asignar personal"**
 elige la persona, la tarea (opcional), las horas por día, la tarifa y desde
 cuándo. No se toma asistencia día por día. El sistema calcula la **proyección
 total de inicio a fin** (lo que costará la mano de obra si nadie se mueve) y la
-muestra en 3 números: gastado (asentado), proyectado restante y total.
+muestra en 3 números: gastado (devengado), proyectado restante y total.
 
-**Asentar mes:** cada mes se pulsa **Asentar** y se crea el gasto real de ese
-mes por cada persona vigente (un solo registro por persona). Solo lo asentado
-suma al gastado; lo demás es proyección. Si se asentó por error, se
-puede **desasentar**.
+**Cómo se calcula el costo:** no se toma asistencia ni se asienta el mes. El
+costo de cada persona se **devenga solo** desde su asignación: cada mes, hasta hoy,
+el sistema crea un único registro de gasto real por persona vigente; lo que falta
+hasta el fin de la obra es proyección. El mes de la baja sale prorrateado por los
+días trabajados.
 
-**Si alguien renuncia:** se le da **Dar de baja** indicando su último día.
-Ya no genera gasto en los meses siguientes (el total inicio-fin baja), pero
-lo ya asentado se conserva: lo gastado no se quita. El mes de la baja sale
-prorrateado por los días trabajados. Si fue un error, se puede reactivar.
-
-**Tareo diario (opcional pero recomendado):** horas normales y extras por
-persona, día y tarea, con la tarifa de ese momento (si la tarifa cambia
-después, lo ya registrado no cambia). Cada tareo queda **pendiente** hasta
-que alguien lo **aprueba**. Al asentar el mes, el gasto sale del tareo
-aprobado; si no hay tareo, de la proyección. Tareo pendiente bloquea el
-asentamiento de esa persona hasta aprobarlo. Más de 12 horas en un día
-muestra advertencia; más de 24 no se permite; si ya existe el mismo día se
-avisa de posible duplicado.
+**Si alguien renuncia:** se le da **Dar de baja** indicando su último día. Ya no
+genera gasto en los meses siguientes (el total inicio-fin baja), pero lo ya
+devengado se conserva: lo gastado no se quita. Si fue un error, se puede reactivar.
 
 ### Equipos
 Aquí se anota qué máquina se usó y cuántas horas. El costo sale del costo por
@@ -158,13 +161,24 @@ conserva el historial y la saca de los saldos; no hay borrado físico.
 
 ### Cronograma
 El calendario de la obra dividido en tareas, como una lista de pendientes con
-fechas. Se marca el avance de cada tarea y el sistema muestra una barra de
-tiempo (diagrama de Gantt) con el progreso total. La duración de cada tarea
+fechas. El sistema muestra una barra de tiempo (diagrama de Gantt) con el
+progreso de cada tarea y el total. La duración de cada tarea
 (fin − inicio + 1) es su estimación de días. Aquí nacen todas las
 tareas: principales y subtareas. Al editar una tarea verá **sus costos
 asignados y su total**: los costos se asignan desde Materiales, Personal,
 Equipos o Gastos eligiendo la tarea. Al borrar una tarea, sus costos no se
 borran: quedan como "sin tarea".
+
+Además del Gantt, el Cronograma permite arrastrar barras, definir
+dependencias entre tareas, **reprogramar con la ruta crítica (CPM)**, ajustar el
+calendario laboral (días de trabajo y feriados), ver las próximas semanas
+(look-ahead) y **importar o exportar el cronograma en Excel** con una
+plantilla (incluye metrado, unidad y precio unitario).
+
+**Cómo se mide el avance:** cada partida hoja declara su modo — por *metrado*
+(lo ejecutado ÷ lo contratado, desde el Parte diario), por *hitos*, por *tiempo*,
+por *costo* o *manual* (excepción que exige una nota). El avance ya no se teclea
+en el Cronograma: se calcula solo.
 
 ### Partidas (montos y valorizado por tarea)
 Una **partida es un trabajo del cronograma con su monto**. En vez de manejar
@@ -184,8 +198,8 @@ e hijas, y estas columnas:
   botón Guardar). Las tareas principales **suman solas** lo de sus hijas y no
   llevan botón: así es imposible que se descuadren.
 - **Valorizado:** monto × avance. Es lo ya ejecutado de ese trabajo.
-- **Avance:** el % que se marca en el Cronograma (aquí solo se ve, se cambia
-  allá).
+- **Avance:** el % calculado según el modo de medición de la partida (aquí solo
+  se ve; se alimenta desde el Parte diario).
 - **Costo:** lo gastado en ese trabajo: sus costos directos más los de sus
   hijas.
 - **Margen:** valorizado menos costo. Si sale en rojo, ese trabajo genera
@@ -208,14 +222,50 @@ Tenga en cuenta:
   montos registrados se conservan.
 
 **El flujo de cada mes, en 3 pasos:** 1) durante el mes registre los costos
-eligiendo su tarea; 2) actualice los % en el Cronograma y los montos aquí si
+eligiendo su tarea; 2) registre el Parte diario y actualice los montos aquí si
 cambiaron; 3) revise el tablero: todo margen en rojo necesita atención.
+
+### Curva S y Línea base
+La **Línea base** congela el cronograma en una fecha (fechas, montos, metrados)
+para tener un plan contra el cual controlar la obra aunque después cambie el
+cronograma. Allí también se registran **lecturas de avance** firmadas ("a tal
+fecha la obra iba al X %"). La **Curva S** dibuja el costo planificado (PV), el
+costo real (AC) y el valor ganado (EV), y muestra los índices SPI (ritmo de
+plazo), CPI (ritmo de costo) y el costo final estimado. Se puede ver por mes,
+semana o día.
+
+### Valorizaciones
+La valorización es el cobro del avance de un periodo. El sistema toma, por cada
+partida, el metrado ejecutado acumulado hasta la fecha de corte, le resta lo ya
+valorizado y lo multiplica por el precio unitario. Luego descuenta la
+amortización de adelantos y el fondo de garantía, suma IGV, resta la detracción
+y muestra el **neto a cobrar**. Antes de cerrarla puede **ajustar el metrado**
+de cada partida. Lo cobrado antes del sistema se anota como *valorizado previo*
+para no cobrarlo dos veces. Al registrar el cobro en Ingresos, elija la
+valorización que cancela. Se puede **imprimir / guardar como PDF** y exportar a
+Excel. Los **adelantos** se registran en la misma pantalla.
+
+### Parte diario
+El cuaderno de obra del día: clima, responsable, personal y equipos presentes,
+**metrado ejecutado de cada partida**, incidencias, observaciones y fotos.
+Pulse **Nuevo parte**. Es el único lugar donde se anota el progreso: el avance
+de cada partida sale de la suma de sus partes. Si lo ejecutado supera el
+metrado contratado más la tolerancia (5 %), el sistema pide una nota. Cada
+parte se puede **imprimir / guardar como PDF**.
+
+### Modificaciones
+Adicionales y deductivos de obra (con sus partidas: metrado × precio unitario) y
+ampliaciones de plazo, cada uno con estado (borrador, presentado, aprobado,
+rechazado) y su historial. Solo lo **aprobado** cambia el contrato: el
+presupuesto vigente es el original más los adicionales menos los deductivos, y
+una ampliación aprobada mueve la fecha de fin. Un adicional aprobado crea sus
+partidas en el cronograma.
 
 ### Opciones
 Datos de la obra (nombre, cliente, tipo, fechas, estatus) y la
 opción de eliminarla. El **tipo** (Obra, Misceláneo, Contrato) se elige al
 crear o editar el servicio y sirve para filtrar en el Dashboard. Eliminar una obra borra todo lo suyo (registros, tareas,
-asignaciones, tareo, facturas y cobros), así que pide
+asignaciones, facturas, cobros, valorizaciones, partes diarios y modificaciones), así que pide
 escribir "Eliminar servicio" para confirmar que es en serio.
 
 ---
@@ -269,14 +319,14 @@ tal como figura en la factura, para poder ubicarla después.
   quedaría al terminar si sigues igual.
 - **Semáforo financiero:** verde (margen protegido), amarillo (riesgo de
   plazo o margen estrecho), rojo (pérdida proyectada o sobrecosto).
-- **Indirectos:** gasto de oficina atribuido por regla (horas, costos o
-  ingresos) o mostrado por separado sin regla.
-- **Tareo:** horas trabajadas por día (normales + extras) con su tarifa; solo
-  lo aprobado alimenta el gasto.
+- **Línea base:** copia congelada del cronograma contra la que se controla la obra.
+- **SPI / CPI:** índices de plazo y de costo (mayor a 1 = mejor de lo planeado).
+- **Valorización:** cobro del avance de un periodo, con deducciones y neto.
+- **Metrado:** cantidad de obra de una partida (m³, m², ml…).
+- **Adicional / deductivo:** modificación del contrato que sube o baja el presupuesto vigente.
 - **Asignación:** persona asignada a una obra con pago y vigencia; de aquí
   sale la proyección.
-- **Asentar:** convertir un mes de proyección en gasto real (un registro por
-  persona vigente).
+- **Devengado:** costo de personal ya generado hasta hoy desde las asignaciones.
 - **Baja:** fin de una asignación (renuncia); quita meses futuros sin borrar
   lo gastado.
 - **Factura (interna):** documento de control con total, ingresos aplicados,
@@ -294,10 +344,11 @@ Materiales de la obra, con su factura a la mano.
 **Cada vez que cobra:** regístrelo el mismo día en la pestaña Ingresos, con su
 recibo a la mano.
 
-**Cada fin de mes:** apruebe el tareo, asiente el mes en Personal (botón
-Asentar), registre facturas e ingresos, actualice los % de avance en el
-Cronograma, revise los montos en Partidas y mire el margen por tarea. Lo que
-esté en rojo necesita atención.
+**Cada día:** registre el Parte diario con el metrado ejecutado.
+
+**Cada fin de mes:** prepare la valorización, registre facturas e ingresos,
+revise los montos en Partidas y mire el margen por tarea. Revise también la
+campana de alertas. Lo que esté en rojo necesita atención.
 
 **Filtros del Dashboard:** cliente, tipo y estado alcanzan a todo lo que es por
 servicio (Oficina y resultado empresa son de la empresa y no se filtran). El
@@ -331,8 +382,8 @@ No por ahora: es de un solo usuario. Si dos personas cargan datos en
 computadoras distintas, tendrán información diferente.
 
 **¿Borrar una obra borra todo?**
-Sí: sus registros, tareas, asignaciones, tareo, facturas y
-cobros. Por eso pide confirmación escrita. Exporte un respaldo antes
+Sí: sus registros, tareas, asignaciones, facturas, cobros,
+valorizaciones, partes diarios y modificaciones. Por eso pide confirmación escrita. Exporte un respaldo antes
 si tiene dudas.
 
 **¿Se cayó internet, pierdo algo?**

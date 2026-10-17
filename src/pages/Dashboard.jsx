@@ -14,9 +14,7 @@ import { Aviso } from '../components/ui/Aviso'
 import { COLECCIONES } from '../data/mockData'
 import {
   leerConfig,
-  nombreRespaldo,
   normalizarRespaldo,
-  serializarRespaldo,
   validarRespaldo,
 } from '../data/store'
 import {
@@ -52,7 +50,7 @@ import { serieHorasHombre } from '../utils/horasHombre'
 import { alertasCentro, etiquetaAlerta } from '../utils/alertasCentro'
 import { servicioConPresupuestoVigente } from '../utils/modificaciones'
 import { libroFlujoCaja } from '../utils/exportaciones'
-import { descargarLibro } from '../utils/descargas'
+import { descargarLibro, descargarRespaldo } from '../utils/descargas'
 
 function descargarCSV(nombre, filas) {
   const contenido = filas.map((fila) => fila.join(',')).join('\n')
@@ -192,15 +190,7 @@ export function Dashboard() {
   }
 
   const exportarRespaldo = () => {
-    const blob = new Blob([serializarRespaldo(estado)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const enlace = document.createElement('a')
-    enlace.href = url
-    enlace.download = nombreRespaldo()
-    document.body.appendChild(enlace)
-    enlace.click()
-    enlace.remove()
-    URL.revokeObjectURL(url)
+    descargarRespaldo(estado)
     cerrarDatos()
     setAviso({ tipo: 'exito', mensaje: 'Respaldo descargado. Guárdalo en un lugar seguro.' })
   }

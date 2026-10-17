@@ -80,70 +80,70 @@
   /* Rampa slate invertida: superficies/bordes (50–300) y texto (400–900).
      El fondo de página es bastante más oscuro que las tarjetas para que los
      componentes se despeguen del fondo. */
-  --color-slate-50: #121a33; /* relleno sutil (inputs deshabilitados, pies) */
-  --color-slate-100: #1f2a4c; /* relleno secundario y hover; borde tenue */
-  --color-slate-200: #2d3963; /* borde y anillo de tarjetas */
-  --color-slate-300: #3f4c7c; /* borde principal */
-  --color-slate-400: #6e7a9c; /* texto tenue, pistas de progreso */
-  --color-slate-500: #9aa5c2; /* texto secundario y placeholders */
-  --color-slate-600: #b6c0da; /* texto */
-  --color-slate-700: #cdd5e8; /* texto */
-  --color-slate-800: #e3e9f5; /* texto del cuerpo */
-  --color-slate-900: #f1f5fc; /* texto principal */
+  --color-slate-50: #11151b; /* relleno sutil (inputs deshabilitados, pies) */
+  --color-slate-100: #1b2129; /* relleno secundario y hover; borde tenue */
+  --color-slate-200: #262d38; /* borde y anillo de tarjetas */
+  --color-slate-300: #343d4b; /* borde principal */
+  --color-slate-400: #6b7686; /* texto tenue, pistas de progreso */
+  --color-slate-500: #98a2b3; /* texto secundario y placeholders */
+  --color-slate-600: #b4bcc9; /* texto */
+  --color-slate-700: #ccd2dc; /* texto */
+  --color-slate-800: #e2e6ed; /* texto del cuerpo */
+  --color-slate-900: #f2f4f8; /* texto principal */
 
   /* Rampa primaria (azul corporativo) solo en los tonos que son texto o
      relleno tenue; los sólidos de botón (600/800) se mantienen. */
-  --color-primary-50: #1c2b61; /* navegación activa e hovers tenues */
-  --color-primary-700: #9db8ff; /* enlaces y etiquetas sobre fondo oscuro */
+  --color-primary-50: #1b2a40; /* navegación activa e hovers tenues */
+  --color-primary-700: #8fb3e6; /* enlaces y etiquetas sobre fondo oscuro */
 
   /* Estados: tintes de fondo y texto de las insignias/avisos. */
-  --color-red-50: #2c1420;
-  --color-red-100: #3a1a28;
-  --color-red-200: #63213a;
-  --color-red-300: #7f3246;
-  --color-red-400: #b0455c;
-  --color-red-600: #ff9aa8;
-  --color-red-700: #ffb0bc;
-  --color-red-800: #ffc2cb;
+  --color-red-50: #2a1618;
+  --color-red-100: #371c20;
+  --color-red-200: #5c2630;
+  --color-red-300: #7a3641;
+  --color-red-400: #a94653;
+  --color-red-600: #f19aa2;
+  --color-red-700: #f4aeb5;
+  --color-red-800: #f7c2c7;
 
-  --color-emerald-50: #0d2a1e;
-  --color-emerald-200: #1c5138;
-  --color-emerald-700: #79e0ac;
-  --color-emerald-800: #a7f3d0;
+  --color-emerald-50: #0f2820;
+  --color-emerald-200: #1d4f3b;
+  --color-emerald-700: #7fd8ae;
+  --color-emerald-800: #a9ebcb;
 
-  --color-amber-50: #2a2110;
-  --color-amber-200: #5a4718;
-  --color-amber-700: #f5cd6a;
-  --color-amber-800: #fde68a;
+  --color-amber-50: #2a2312;
+  --color-amber-200: #5a4a1c;
+  --color-amber-700: #e8c46a;
+  --color-amber-800: #f3d98b;
 
-  --color-green-50: #0d2a1e;
+  --color-green-50: #0f2820;
 }
 
 /* Superficie de las tarjetas, inputs, tablas y modales (`bg-white`), que no
    puede salir de la variable compartida `--color-white`. Es el tono más
    claro del tema: así las tarjetas resaltan sobre el fondo de página. */
 :root[data-tema='oscuro'] .bg-white {
-  background-color: #192340;
+  background-color: #151a21;
 }
 /* Los tooltips de los gráficos usan `bg-white/95`: al llevar opacidad son
    OTRA clase (`.bg-white\/95`), no coinciden con la regla anterior y quedaban
    con fondo blanco mientras el texto `text-slate-*` ya se aclaraba en oscuro
    (mensaje ilegible). Se fuerza aquí la misma superficie oscura. */
 :root[data-tema='oscuro'] .bg-white\/95 {
-  background-color: rgb(25 35 64 / 0.95);
+  background-color: rgb(21 26 33 / 0.95);
 }
 /* Fondo de página: en el `body` (por `@apply`) y en el contenedor raíz.
    Notablemente más oscuro que las superficies para dar profundidad. */
 :root[data-tema='oscuro'] body {
-  background-color: #070b19;
+  background-color: #0c0f14;
   color: var(--color-slate-800);
 }
 :root[data-tema='oscuro'] .bg-slate-200 {
-  background-color: #070b19;
+  background-color: #0c0f14;
 }
 /* Fondo de modales y cajón móvil: se queda oscuro (slate-900 ya es texto). */
 :root[data-tema='oscuro'] .bg-slate-900\/50 {
-  background-color: rgb(3 7 22 / 0.6);
+  background-color: rgb(2 4 8 / 0.65);
 }
 
 /* Botones de color sólido con texto blanco: conservan el tono saturado. */
@@ -161,7 +161,7 @@
 
 /* Barra de desplazamiento a tono con el tema. */
 :root[data-tema='oscuro'] * {
-  scrollbar-color: #3f4c7c transparent;
+  scrollbar-color: #343d4b transparent;
 }
 
 @layer base {

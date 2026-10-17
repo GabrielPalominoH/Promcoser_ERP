@@ -3,15 +3,27 @@ import { useData } from '../../context/useData'
 
 export const SECCIONES_NAVEGACION = [
   {
-    titulo: 'Principal',
+    titulo: 'Gestión',
     enlaces: [
       { to: '/', label: 'Dashboard', icono: 'grid', end: true },
       { to: '/servicios', label: 'Servicios', icono: 'clipboard' },
-
+    ],
+  },
+  {
+    titulo: 'Recursos',
+    enlaces: [
       { to: '/personal', label: 'Personal', icono: 'users' },
-      { to: '/cargos', label: 'Cargos', icono: 'maletin' },
       { to: '/equipos', label: 'Equipos', icono: 'truck' },
-      { to: '/oficina', label: 'Oficina', icono: 'oficina' },
+    ],
+  },
+  {
+    titulo: 'Administración',
+    enlaces: [{ to: '/oficina', label: 'Oficina', icono: 'oficina' }],
+  },
+  {
+    titulo: 'Catálogos',
+    enlaces: [
+      { to: '/cargos', label: 'Cargos', icono: 'maletin' },
       { to: '/unidades', label: 'Unidades', icono: 'box' },
     ],
   },
@@ -196,7 +208,7 @@ export function Sidebar({ abierto, onCerrar, onAlternar, colapsado = false, onAb
         <div className={`flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 ${v(FILA_MARCA)}`}>
           <div className={`min-w-0 ${v(ETIQUETA)}`}>
             <p className="truncate text-sm font-semibold text-slate-900">PROMCOSER</p>
-            <p className="truncate text-xs text-slate-500">Control de servicios</p>
+            <p className="truncate text-xs text-slate-500">Gestión de obras</p>
           </div>
           <BotonMenu abierto={abierto} colapsado={colapsado} onAlternar={onAlternar} clase={v(FILA_ACCION)} />
         </div>
