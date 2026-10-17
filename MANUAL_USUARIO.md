@@ -67,7 +67,7 @@ Opciones del menú principal:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | El panel gerencial de la empresa. Arriba el **semáforo ejecutivo** (🟢 en orden / 🟡 atención / 🔴 en rojo) con su motivo, la meta de ingreso y los 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado). Luego el **gráfico combinado de columnas y líneas con doble eje Y**: las columnas son el volumen de obras activas por mes (eje derecho) y las dos líneas son el desfase de tiempo y el desfase de costo de la cartera (eje izquierdo 0–100 %); al pasar el mouse por cada mes aparece el detalle. Después, el detalle: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado. El respaldo (exportar, importar, restablecer, vaciar) está en **Configuración → Datos y respaldo**. |
+| **Dashboard** | El panel gerencial. Arriba, el **semáforo** y 5 indicadores: resultado de la empresa, cobrado (con % de la meta), gastado (% del presupuesto), avance de la cartera (con SPI y CPI) y obras con riesgo. Luego, **lo que requiere atención**: obras con riesgo (presupuesto, plazo, atraso o sobrecosto proyectado), partidas que vencen pronto y alertas de partidas. Después, la **cartera de obras** en una tabla (una fila por obra con gastado, cobrado, utilidad, avance, SPI, CPI y costo final estimado), el **desempeño** (curva S consolidada y retraso/sobrecosto por mes), el **flujo de caja** con saldo acumulado, la estructura del gasto, las horas-hombre y la programación (lo que inicia pronto y la ruta crítica pendiente). Se filtra por cliente, tipo y estado. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Cargos** | El catálogo de cargos (Ayudante, Operario, Capataz…). Cada ficha de Personal elige su cargo de esta lista; si renombra un cargo, se actualiza en todo el personal. |
@@ -101,17 +101,13 @@ baja, ingresos / facturas, pagado / proyectado).
 Entre a **Servicios** y pulse una obra. Adentro verá su propio menú:
 
 ### Resumen
-La foto de la obra: presupuesto inicial, gastado con su % de ejecución,
-saldo disponible (o excedente en rojo), cobrado y utilidad real,
-fechas y alertas (por ejemplo, "plazo vencido" o "superó su presupuesto"). Más abajo:
-movimientos por tipo (materiales, personal, gastos, equipos), avance del
-cronograma (global, completadas, atrasadas) y cascada de utilidad
-(cobrado menos cada tipo = utilidad). Más abajo, el panel de tendencias en
-cuadrícula 2×2 (curva de gasto acumulado, gasto mensual con media móvil,
-horas hombre por mes, valorizado contra costo por trabajo). Luego
-productividad de horas (estimadas vs. reales), proyección financiera
-(utilidad y costo final estimados con semáforo) y ritmo de avance contra el plazo (SPI). También se puede
-imprimir el reporte.
+La foto de la obra para decidir. Arriba, el nombre, el estado, el plazo y los días que quedan, y
+las alertas de la obra. Luego 5 indicadores: presupuesto vigente, gastado (% ejecutado y saldo),
+cobrado, utilidad real y avance (con SPI y CPI). El bloque **Desempeño y proyección** dice si la obra
+va bien, cuánto costaría al terminar y cuánta utilidad dejaría si sigue al ritmo actual, y cuánto
+falta facturar según lo avanzado. Debajo: alertas de partidas, **valorizado contra costo por
+partida** (dónde se gana y dónde se pierde), la cascada de utilidad, el gasto mensual y la mano de
+obra. Desde aquí se genera el **Reporte mensual (PDF)**.
 
 ### Materiales (compras)
 Aquí se registran las **compras de materiales** para la obra. Cada compra
@@ -364,7 +360,7 @@ campana de alertas. Lo que esté en rojo necesita atención.
 
 **Filtros del Dashboard:** cliente, tipo y estado alcanzan a todo lo que es por
 servicio (Oficina y resultado empresa son de la empresa y no se filtran). El
-CSV de rentabilidad por servicio descarga lo que se ve.
+CSV de la cartera de obras descarga lo que se ve.
 
 **Meta de ingreso:** en el Dashboard, tarjeta **"Meta de ingreso"**, escriba el
 monto que quiere cobrar y pulse **"Guardar meta"**. La barra muestra cuánto se

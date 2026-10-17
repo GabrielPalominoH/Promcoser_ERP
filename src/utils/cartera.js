@@ -54,6 +54,7 @@ export function evmCartera({
       vac: null,
       avance: 0,
       serie: [],
+      porServicio: [],
     }
   }
 
@@ -72,44 +73,58 @@ export function evmCartera({
 
   const avance = presupuesto > 0 ? r2((ev / presupuesto) * 100) : 0
 
-  // Serie consolidada por periodo (misma clave) sumando PV/AC/EV.
-  const porClave = new Map()
+  // Serie consolidada por periodo (misma clave) sumando PV/AC/EV. Son valores
+  // ACUMULADOS: una obra que ya terminó su curva sigue aportando su último
+  // acumulado en los periodos siguientes (si no, la curva de la cartera caería
+  // al terminar cada obra). Pasado el corte de hoy no hay AC ni EV reales.
+  const meta = new Map()
   for (const { curva } of curvas) {
     for (const p of curva.periodos) {
-      const acc = porClave.get(p.clave) ?? {
-        clave: p.clave,
-        etiqueta: p.etiqueta,
-        corta: p.corta,
-        anio: p.anio,
-        inicio: p.inicio,
-        fin: p.fin,
-        pv: 0,
-        ac: 0,
-        ev: 0,
-        hayAc: false,
+      if (!meta.has(p.clave)) {
+        meta.set(p.clave, { clave: p.clave, etiqueta: p.etiqueta, corta: p.corta, anio: p.anio, inicio: p.inicio, fin: p.fin })
       }
-      if (p.pv != null) acc.pv += p.pv
-      if (p.ac != null) {
-        acc.ac += p.ac
-        acc.hayAc = true
-      }
-      if (p.ev != null) acc.ev += p.ev
-      porClave.set(p.clave, acc)
     }
   }
-  const serie = [...porClave.values()]
-    .sort((a, b) => a.clave.localeCompare(b.clave))
-    .map((p) => ({
-      clave: p.clave,
-      etiqueta: p.etiqueta,
-      corta: p.corta,
-      anio: p.anio,
-      inicio: p.inicio,
-      fin: p.fin,
-      pv: r2(p.pv),
-      ac: p.hayAc ? r2(p.ac) : null,
-      ev: r2(p.ev),
-    }))
+  const claves = [...meta.keys()].sort((a, b) => a.localeCompare(b))
+  const ultimos = curvas.map(() => ({ pv: null, ac: null, ev: null }))
+  const indices = curvas.map(({ curva }) => new Map(curva.periodos.map((p) => [p.clave, p])))
+  const serie = claves.map((clave) => {
+    const m = meta.get(clave)
+    const futuro = Boolean(m.inicio && m.inicio > hoy)
+    let pv = 0
+    let ac = 0
+    let ev = 0
+    let hayPv = false
+    let hayAc = false
+    let hayEv = false
+    curvas.forEach((_, i) => {
+      const p = indices[i].get(clave)
+      const u = ultimos[i]
+      if (p) {
+        if (p.pv != null) u.pv = p.pv
+        if (p.ac != null) u.ac = p.ac
+        if (p.ev != null) u.ev = p.ev
+      }
+      if (u.pv != null) {
+        pv += u.pv
+        hayPv = true
+      }
+      if (!futuro && u.ac != null) {
+        ac += u.ac
+        hayAc = true
+      }
+      if (!futuro && u.ev != null) {
+        ev += u.ev
+        hayEv = true
+      }
+    })
+    return {
+      ...m,
+      pv: hayPv ? r2(pv) : null,
+      ac: hayAc ? r2(ac) : null,
+      ev: hayEv ? r2(ev) : null,
+    }
+  })
 
   // Índice del periodo que contiene el corte de hoy (para la marca vertical).
   let indiceHoy = -1
@@ -131,6 +146,18 @@ export function evmCartera({
     avance,
     indiceHoy,
     serie,
+    // Desempeño de cada obra con datos (mismos cálculos de su Curva S).
+    porServicio: curvas.map(({ servicio, curva }) => ({
+      servicio_id: servicio.id,
+      presupuesto: r2(Number(curva.presupuesto) || 0),
+      pv: curva.pv ?? null,
+      ev: r2(Number(curva.ev) || 0),
+      ac: r2(Number(curva.ac) || 0),
+      spi: curva.pv != null && curva.pv > 0 ? r2(curva.ev / curva.pv) : null,
+      cpi: curva.ac > 0 ? r2(curva.ev / curva.ac) : null,
+      eac: curva.eac ?? null,
+      avance: curva.presupuesto > 0 ? r2((curva.ev / curva.presupuesto) * 100) : 0,
+    })),
   }
 }
 

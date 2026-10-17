@@ -6,7 +6,7 @@ ejemplo: tres obras —servicio 6 *Mejoramiento del servicio de agua potable y
 alcantarillado – AA.HH. San Isidro (II Etapa)*, servicio 7 *Mejoramiento y
 ampliación de pistas y veredas – Jr. Amazonas* y servicio 8 *Mantenimiento de
 redes de agua potable – Sector Muyuna*— y están verificados contra la suite
-(`npm run verificar`, 876 pruebas).
+(`npm run verificar`, 882 pruebas).
 
 > **Verificación**: cada cifra de este documento puede reproducirse con la suite.
 > Si cambias semillas o fórmulas, actualiza este documento y la suite.
@@ -659,35 +659,53 @@ cobran por valorizaciones espaciadas.
 ## 9. Recorrido por pantalla
 
 ### Dashboard principal (`/`)
-Orden real de la pantalla:
-1. **Meta de ingreso** → `avanceMetaIngreso` (cobrado empresa vs. meta configurable).
-2. **Filtros** (cliente / tipo / estado): alcanzan a todo lo que es por servicio;
+Pensado para decidir, de arriba hacia abajo: ¿cómo va la empresa?, ¿qué obra necesita atención?,
+¿cómo terminará la cartera?, ¿alcanza la caja?
+
+1. **Encabezado con filtros** (cliente / tipo / estado): alcanzan a todo lo que es por obra;
    oficina y resultado empresa no se filtran.
-3. **4 StatCards** (Resultado / Gastado / Cobrado / Servicios) con tendencia
-   `variacionMensual` sobre la serie de caja y "¿Cómo se calcula?".
-4. **Semáforo ejecutivo** → `estadoEmpresa` (🔴/🟡/🟢 + motivo).
-5. **Gráfico combinado de columnas y líneas con doble eje Y** → `desfaseMensualProyectos`
-   (§3.4). Columnas de volumen, líneas de desfase de tiempo y de costo. Datos
-   exactos en §9.2.
-6. **Obras en riesgo** → `analizarServicios.motivos` (excedido, plazo vencido/cercano).
-7. **Caja real por mes**, **Proyección de personal por mes**, **Utilidad por cliente**,
-   **Gasto por servicio**, **Cobros por concepto**, **Cronograma global**.
-8. **Movimientos recientes** colapsado (detalle operativo).
-9. **Datos y respaldo**: se movió a Configuración → Datos y respaldo.
+2. **Semáforo** → `estadoEmpresa`, con el número de obras con riesgo ampliado (ver 4).
+3. **5 KPIs**: Resultado empresa (utilidad de obras − oficina, con tendencia), Cobrado (con % de la
+   meta si existe; la meta se define en Configuración → Empresa), Gastado (% del presupuesto vigente
+   de la cartera), Avance de la cartera (EV ÷ presupuesto, con SPI y CPI) y Obras (en curso / con riesgo).
+4. **Obras con riesgo**: además de `analizarServicios` (presupuesto excedido, plazo vencido o
+   cercano) marca **atraso** (SPI < 0.9) y **sobrecosto proyectado** (EAC > presupuesto vigente),
+   con ejecución, avance, SPI, CPI y días al fin; debajo, las partidas que vencen en 15 días.
+5. **Alertas de partidas** (fuente única `alertasCentro`), filtro por obra, 6 visibles y "Ver todas".
+6. **Cartera de obras**: una tabla, una fila por obra ordenada por riesgo, con presupuesto,
+   gastado y % de ejecución (la marca en la barra es el avance), cobrado, utilidad real y margen,
+   avance, SPI, CPI y costo final estimado (EAC); fila de total; exporta CSV. El desempeño por obra
+   sale de `evmCartera().porServicio` (mismas cifras que la Curva S de cada obra).
+7. **Desempeño de la cartera**: SPI, CPI, costo final estimado y desviación al cierre; Curva S
+   consolidada (PV acumulado que nunca baja; AC y EV solo hasta hoy) y el gráfico de retraso y
+   sobrecosto por mes (`desfaseMensualProyectos`, §3.4 y §9.2).
+8. **Flujo de caja**: tabla mensual de cobrado, egresos de obra, oficina, neto y saldo acumulado,
+   más los meses siguientes con el costo de personal ya comprometido; exporta Excel.
+9. **Estructura del gasto** (por tipo) y **Horas-hombre** (plan vs real).
+10. **Utilidad por cliente**: solo aparece si algún cliente tiene más de una obra.
+11. **Programación**: lo que inicia en 3 semanas y la ruta crítica **pendiente**.
+
+Se retiraron por redundantes o de poco valor para decidir: la tarjeta de meta con formulario,
+"Resultado empresa" repetido, Gasto por servicio, Ranking de utilidad, Cobros por concepto,
+Cronograma global, Movimientos recientes y los contadores de personal/equipos registrados.
 
 ### Resumen del servicio (`/servicios/:id`)
-1. Fechas y días restantes (`diasRestantes`).
-2. Alertas (`alertasServicio`).
-3. **Dinero**: presupuesto inicial, cobrado, gastado (con % de ejecución),
-   saldo disponible, utilidad real.
-4. **Métricas**: movimientos por tipo, avance del cronograma, **cascada de utilidad**
-   (`cobrado − materiales − personal − equipos − gastos = utilidad`).
-5. **Tendencias** (cuadrícula 2×2): curva de gasto acumulado, gasto mensual con
-   media móvil, horas hombre por mes, valorizado vs. costo por trabajo.
-   Datos exactos de cada uno en §9.1.
-6. **Productividad**: días estimados vs. reales.
-7. **Proyección financiera** con semáforo.
-8. **Ritmo de avance** (SPI).
+1. **Encabezado**: nombre de la obra, estado, cliente, tipo, plazo y días restantes; Reporte
+   mensual (PDF), Imprimir y Editar. Debajo, las alertas de la obra que no son de partidas.
+2. **5 KPIs**: Presupuesto vigente (con la variación por modificaciones), Gastado (% ejecutado y
+   saldo), Cobrado (% del presupuesto), Utilidad real (margen sobre lo cobrado) y Avance (SPI, CPI,
+   tareas atrasadas).
+3. **Desempeño y proyección** (un solo bloque): semáforo, SPI, CPI, desviación de plazo (EV − PV),
+   costo final estimado y utilidad proyectada (`proyeccionFinanciera` + `curvaServicio`), barra de
+   costo final contra presupuesto y cuánto falta facturar según lo avanzado.
+4. **Alertas de partidas**.
+5. **Valorizado contra costo por partida** (qué trabajo deja margen) y **Cascada de utilidad**.
+6. **Gasto mensual** con media de 3 meses y **Mano de obra** (HH planificadas, registradas, costo por
+   HH y horas por mes).
+
+Se retiraron: la curva de gasto acumulado (ya está en la Curva S), el conteo de movimientos, el
+bloque "Productividad (días de personal)" (comparaba duración planificada con días con registros y
+daba lecturas engañosas) y el bloque separado de control de avance (se unió a Desempeño).
 
 ### Partidas
 Mismo árbol del Cronograma con columnas: Modo (cómo se mide el avance de cada

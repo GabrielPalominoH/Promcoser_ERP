@@ -2642,6 +2642,20 @@ comprobar(
   evmCart.serie.length === 12 && evmCart.indiceHoy === 7,
   `${evmCart.serie.length}/${evmCart.indiceHoy}`,
 )
+comprobar(
+  'cartera EVM: la curva consolidada de PV nunca baja (acumulado)',
+  evmCart.serie.every((p, i, arr) => i === 0 || (p.pv ?? 0) >= (arr[i - 1].pv ?? 0) - 0.01),
+  evmCart.serie.map((p) => p.pv).join('/'),
+)
+comprobar(
+  'cartera EVM: pasado el corte no hay AC ni EV (no caen a cero)',
+  evmCart.serie.slice(evmCart.indiceHoy + 1).every((p) => p.ac === null && p.ev === null),
+)
+comprobar(
+  'cartera EVM: el PV final es el total planificado de las partidas (580000) y no baja del PV de hoy',
+  evmCart.serie.at(-1)?.pv === 580000 && evmCart.serie.at(-1).pv >= evmCart.pv,
+  String(evmCart.serie.at(-1)?.pv),
+)
 
 const ctrlCart = controlCPMCartera({
   servicios: ESTADO_INICIAL.servicios,
@@ -3601,8 +3615,8 @@ const htmlDash = renderToString(
   </MemoryRouter>,
 )
 comprobar(
-  'dashboard: incluye el gráfico combinado (doble eje)',
-  htmlDash.includes('columnas y líneas con doble eje Y') &&
+  'dashboard: incluye el gráfico combinado de retraso y sobrecosto (doble eje)',
+  htmlDash.includes('Retraso y sobrecosto por mes') &&
     htmlDash.includes('aria-label="Gráfico combinado'),
 )
 comprobar(
@@ -3617,12 +3631,31 @@ comprobar(
 // Control de proyecto (P6): valor ganado de cartera, curva S consolidada,
 // histograma de horas-hombre, look-ahead y ruta crítica.
 comprobar(
-  'dashboard: sección "Control de proyecto (P6)" con HH y ruta crítica',
-  htmlDash.includes('Control de proyecto (P6)') &&
-    htmlDash.includes('Curva S consolidada de la cartera') &&
-    htmlDash.includes('Histograma de horas-hombre') &&
-    htmlDash.includes('Look-ahead') &&
+  'dashboard: desempeño (curva S), horas-hombre y programación con ruta crítica',
+  htmlDash.includes('Desempeño de la cartera') &&
+    htmlDash.includes('Curva S consolidada') &&
+    htmlDash.includes('Horas-hombre') &&
+    htmlDash.includes('Inician pronto') &&
     htmlDash.includes('Ruta crítica'),
+)
+comprobar(
+  'dashboard: cartera de obras en una sola tabla con SPI, CPI y costo final',
+  htmlDash.includes('Cartera de obras') &&
+    htmlDash.includes('Costo final (EAC)') &&
+    htmlDash.includes('Total cartera') &&
+    htmlDash.includes('Obras con riesgo') &&
+    htmlDash.includes('Flujo de caja') &&
+    htmlDash.includes('Saldo acumulado'),
+)
+comprobar(
+  'dashboard: sin bloques redundantes (ranking, gasto por servicio, cobros por concepto, cronograma global, movimientos)',
+  ['Ranking de utilidad', 'Gasto por servicio', 'Cobros por concepto', 'Cronograma global', 'Movimientos recientes', 'Personal registrado', 'Guardar meta'].every(
+    (t) => !htmlDash.includes(t),
+  ),
+)
+comprobar(
+  'dashboard: el riesgo ampliado marca sobrecosto proyectado en la obra de pistas (EAC sobre presupuesto)',
+  htmlDash.includes('Sobrecosto proyectado'),
 )
 
 // ============================================================
