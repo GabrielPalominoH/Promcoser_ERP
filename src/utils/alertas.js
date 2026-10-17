@@ -62,10 +62,14 @@ export function alertasDeObra({ servicio = {}, tareas = [], partes = [], hoy = h
     }
     // (c) vencida: cualquier modo, sin avance completo.
     if (t?.fecha_fin && t.fecha_fin < hoy && avance < 100) {
+      const [a1, m1, d1] = String(t.fecha_fin).split('-').map(Number)
+      const [a2, m2, d2] = String(hoy).split('-').map(Number)
+      const atraso = Math.max(0, Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / 86400000))
       alertas.push({
         ...comun,
         tipo: 'vencida',
         detalle: `Terminaba el ${t.fecha_fin} y va en ${avance} %.`,
+        atraso_dias: atraso,
       })
     }
     if (t?.modo_medicion !== 'metrado' || avance >= 100) continue
@@ -82,6 +86,7 @@ export function alertasDeObra({ servicio = {}, tareas = [], partes = [], hoy = h
           detalle: ultima
             ? `Sin partes hace ${dias} días (último: ${ultima}).`
             : `Iniciada hace ${dias} días sin ningún parte.`,
+          dias_sin_partes: dias,
         })
       }
     }
@@ -92,6 +97,7 @@ export function alertasDeObra({ servicio = {}, tareas = [], partes = [], hoy = h
         ...comun,
         tipo: 'rendimiento',
         detalle: `Rinde ${rend.desvio} % de lo planificado (${rend.realDia} de ${rend.planDia} ${rend.unidad}/día).`,
+        rendimiento_pct: rend.desvio,
       })
     }
   }

@@ -251,8 +251,8 @@ function alertasDeObraComun({ servicio, tareas, partes, hoy }) {
       a.tipo === 'vencida'
         ? { atraso_dias: Math.max(0, diasEntre(a.fecha_fin ?? hoy, hoy)) }
         : a.tipo === 'inactividad'
-          ? { dias: extraerDias(a.detalle) }
-          : { desvio: extraerDesvio(a.detalle) }
+          ? { dias: a.dias_sin_partes ?? null }
+          : { desvio: a.rendimiento_pct ?? null }
     return crear({
       obraId: a.servicio_id,
       obra: a.servicio,
@@ -266,16 +266,6 @@ function alertasDeObraComun({ servicio, tareas, partes, hoy }) {
       hoy,
     })
   })
-}
-
-function extraerDias(texto) {
-  const m = String(texto ?? '').match(/(\d+)\s*día/)
-  return m ? Number(m[1]) : null
-}
-
-function extraerDesvio(texto) {
-  const m = String(texto ?? '').match(/Rinde\s+([\d.]+)\s*%/)
-  return m ? Number(m[1]) : null
 }
 
 function alertasDeServicioComun({ servicio, registros, cobros, modificaciones, hoy }) {
