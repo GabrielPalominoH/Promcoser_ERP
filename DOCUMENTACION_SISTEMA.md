@@ -763,7 +763,7 @@ sin partes, plazo vencido, **plazo próximo**, factura vencida, valorización si
 margen bajo). Los umbrales de inactividad, rendimiento y valorización sin cobro son por obra.
 
 ### Acceso y roles
-Al abrir el sistema se pide **correo y clave** (`Login.jsx`). Los usuarios y la sesión viven en
+Al abrir el sistema se pide **correo y clave** (`Login.jsx`: marca y formulario sobre una ilustración propia de obra, `public/login-obra.svg`, sin dependencias externas). Los usuarios y la sesión viven en
 `localStorage` (`src/data/auth.js`), separados de los datos de negocio: no entran al respaldo. La clave
 se guarda como sal + SHA-256 iterado (20 000 rondas). La sesión dura 8 horas y tras 5 intentos fallidos
 se bloquea 60 s. Hay un administrador inicial; el administrador crea, edita, desactiva y elimina usuarios

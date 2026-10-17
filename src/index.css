@@ -16,6 +16,56 @@
   --color-primary: #1e3a8a;
 
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* Acento de obra (señalización y maquinaria) para piezas de marca. */
+  --color-obra-400: #f0b44f;
+  --color-obra-500: #e0a43a;
+
+  /* Animaciones de entrada (pantalla de acceso). */
+  --animate-aparecer: aparecer 0.45s ease-out both;
+  --animate-subir: subir 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes subir {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Fondo ilustrado de la pantalla de acceso (obra con grúas torre). */
+@utility fondo-obra {
+  background-image: url('/login-obra.svg');
+  background-size: cover;
+  background-position: 62% center;
+}
+
+html.pantalla-acceso {
+  scrollbar-gutter: auto;
+  background-color: #060a12;
+}
+html.pantalla-acceso body {
+  background-color: #060a12;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-aparecer,
+  .animate-subir {
+    animation: none;
+  }
 }
 
 @layer base {
