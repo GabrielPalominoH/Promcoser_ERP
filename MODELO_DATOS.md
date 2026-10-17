@@ -9,13 +9,13 @@ Documento técnico breve: colecciones, relaciones y reglas. Todo vive en
 |---|---|---|
 | `personal` | `id` | Ficha: nombre, apellido, cargo, DNI, tarifa/hora, ámbito (Obra/Oficina) |
 | `equipos` | `id` | Ficha: nombre, costo/hora |
-| `servicios` | `id` | Obra: nombre, cliente, tipo, presupuesto inicial, inicio, fin estimado, avance, estatus |
+| `servicios` | `id` | Obra: nombre, cliente, tipo, presupuesto inicial, inicio, fin estimado, avance, estatus, y parámetros opcionales de alertas (`alerta_inactividad_dias`, `umbral_rendimiento_pct`, `dias_alerta_valorizacion_sin_cobro`; 3 / 70 / 30 por defecto) |
 | `tareas` | `id` | Cronograma + montos: servicio, padre (árbol), nombre, fechas, avance %, monto, y en cada hoja el modo de medición del avance (`modo_medicion`, con `pasos`/`nota_justificacion` cuando aplica) |
 | `registros_servicio` | `id` | Libro único de costos: servicio, tarea?, tipo, referencia/nombre, cantidad, monto, fecha, modalidad, asignación? |
 | `asignaciones` | `id` | Personal asignado: servicio, persona, tarea?, horas/día, tarifa, inicio, fin? (vacío = vigente). El costo mensual se genera automático |
 | `costos_oficina` | `id` | Gasto general: persona (ámbito Oficina), mes, monto. Sin servicio |
-| `cobros` | `id` | Ingresos (módulo Ingresos en UI): servicio, fecha, monto, concepto, documento? |
-| `facturas` | `id` | Facturación: servicio, número, emisión, vencimiento, importes, estado, saldo |
+| `cobros` | `id` | Ingresos (módulo Ingresos en UI): servicio, fecha, monto, concepto, documento?, factura?, `valorizacion_id`? (valorización que cancela) |
+| `facturas` | `id` | Facturación: servicio, número, emisión, vencimiento, importes, estado, saldo, `valorizacion_id`? (valorización que cancela) |
 | `config` | `id` | Configuración: empresa PROMCOSER, moneda PEN y meta de ingreso (`meta_ingreso`) |
 | `modificaciones` | `id` | Adicional/deductivo contractual: servicio, tipo, número, fecha, descripción, estado, documento, partidas (metrado × PU) e historial de estados |
 | `ampliaciones_plazo` | `id` | Ampliación de plazo: servicio, número, fecha de solicitud, días solicitados/aprobados/aplicados, motivo, estado, documento e historial |
@@ -36,6 +36,8 @@ asignaciones 1──N registros_servicio (asignacion_id; meses devengados autom�
 personal 1──N costos_oficina (personal_id; gasto general, sin servicio)
 servicios 1──N cobros (servicio_id)
 servicios 1──N facturas (servicio_id); facturas 1──N cobros (factura_id, opcional)
+valorizaciones 1──N cobros (valorizacion_id, opcional; se elige al registrar el cobro)
+valorizaciones 1──N facturas (valorizacion_id, opcional; cuando el cobro crea la factura)
 servicios 1──N modificaciones (servicio_id; adicional/deductivo)
 servicios 1──N ampliaciones_plazo (servicio_id)
 modificaciones 1──N tareas (servicio_id; al aprobar un adicional sus partidas se materializan como tareas hoja marcadas con modificacion_id)
@@ -59,6 +61,8 @@ equipos 1──N partes_diario (equipo_id dentro de `equipos`)
 - **Personal**: costo directo automático desde asignaciones (`diferenciaPersonalAuto` + `proyeccionAsignaciones`); el devengado hasta hoy vive en registros mensuales (`modalidad: 'mensual'` para que siempre cuente). Baja = `fecha_fin`; lo devengado se conserva.
 - **Equipos**: el costo es el uso registrado por servicio; sin proyección.
 - **Cobros (= Ingresos en UI)**: cobrado y utilidad real (cobrado − gastado). Las facturas son registro documental con saldo y estado propios. En Partidas, el margen por tarea (valorizado − costo) se conserva como medida de avance.
+- **Cobro de una valorización** (`estadoCobroValorizacion`): primero el vínculo explícito (`cobros.valorizacion_id` / `facturas.valorizacion_id`, elegido al registrar el cobro, o `cobrada`/`cobro_id` de la propia valorización); el texto del concepto ("valorización N° 3") queda solo como respaldo. Si no hay vínculo y la obra tiene cobros, la alerta lo advierte en su mensaje ("No se pudo confirmar el cobro"). El umbral de días sin cobrar es configurable por obra (`dias_alerta_valorizacion_sin_cobro`).
+- **Centro de alertas** (`src/utils/alertasCentro.js`, fuente única): la campana del encabezado, el Resumen y el Dashboard leen las mismas alertas. Cada alerta guarda su **causa** (datos estables: tipo, ids, fechas) y su **medida** (valor que crece), más `meta` por compatibilidad. Al descartar se persisten causa, medida y gravedad original: la alerta reaparece solo si **cambia la causa**, **sube la gravedad** o **la medida empeora más allá del escalón de su tipo** (+7 días en atrasos y días sin partes, +10 % en montos, 10 puntos de desvío, 1 día de plazo); un día más, o cualquier cambio menor, no la reactiva. El estado del usuario vive en `alertasEstado = { pospuestas, descartadas }` dentro del estado: no es una colección de `ESTADO_INICIAL`.
 - **Control contra el presupuesto inicial** (`estadoPresupuesto`): gastado, disponible, % de ejecución, excedido y cobrado por servicio. Sin proyecciones: solo lectura para Resumen, Servicios y Dashboard.
 - **Sin módulo de pagos, de presupuestos ni de cierre mensual**: no hay `pagos`, `presupuestos` ni `generarCierre`; el panel gerencial no tiene un Resultado del mes contable, solo una evolución de caja real vs proyectada (ver `src/utils/gerencial.js`).
 - **Resultado empresa** = utilidad de servicios − gasto de oficina.
@@ -70,6 +74,7 @@ equipos 1──N partes_diario (equipo_id dentro de `equipos`)
 - `migrarPresupuestoATareas`: del esquema con `partidas/valorizaciones` al actual (una sola vez al cargar; luego se re-guardia migrado).
 - `migrarEstadoV1`: del esquema `promcoser_mvp_v1` (rellena avance, fin estimada, costo/hora).
 - `migrarPartesAMetrado`: del parte diario en % (`avance_dia`) al metrado del día (`metrado_dia = % × metrado ÷ 100`), idempotente; las filas de tareas sin metrado se conservan como legado.
+- `migrarVinculoValorizacion`: agrega `valorizacion_id: null` a los cobros y facturas que no lo tengan (esquema v17), idempotente y **sin cambiar ningún importe**.
 - `normalizarModoMedicion`: asigna el `modo_medicion` de cada hoja y retira el flag `avance_por_partes` (deprecado: metrado si la tarea lo tiene, si no `manual` con nota).
 - Se conservan aunque el código ya no use esos campos: protegen navegadores con datos antiguos.
 
@@ -80,12 +85,14 @@ equipos 1──N partes_diario (equipo_id dentro de `equipos`)
   `siguienteId`). Los componentes no tocan `localStorage` (salvo preferencia
   visual del sidebar). Si el guardado falla, `Layout` muestra alerta y pide
   exportar respaldo.
-- Versión de esquema `_v: 14`; respaldos de versión mayor se rechazan; lo
+- Versión de esquema `_v: 17`; respaldos de versión mayor se rechazan; lo
   inválido no destruye lo guardado. Los respaldos anteriores se rellenan con
   las colecciones nuevas vacías (`modificaciones`, `ampliaciones_plazo`,
   `partes_diario`) y se normalizan (idempotente: no toca ningún avance
-  guardado): `modo_medicion` de cada tarea hoja y el metrado del parte diario
-  (`normalizarModoMedicion` + `migrarPartesAMetrado`).
+  guardado): `modo_medicion` de cada tarea hoja, el metrado del parte diario
+  (`normalizarModoMedicion` + `migrarPartesAMetrado`), el vínculo
+  valorización→cobro (`migrarVinculoValorizacion`) y el estado del centro de
+  alertas (`normalizarEstadoAlertas`).
 - Finanzas centralizadas en `src/utils/finanzas.js` (resultado/margen bruto,
   saldos, flujo, vigencia, periodos). Política: PEN,
   céntimos, resultado = cobrado − gastado.

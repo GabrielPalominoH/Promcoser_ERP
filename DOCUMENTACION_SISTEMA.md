@@ -6,7 +6,7 @@ ejemplo: tres obras —servicio 6 *Mejoramiento del servicio de agua potable y
 alcantarillado – AA.HH. San Isidro (II Etapa)*, servicio 7 *Mejoramiento y
 ampliación de pistas y veredas – Jr. Amazonas* y servicio 8 *Mantenimiento de
 redes de agua potable – Sector Muyuna*— y están verificados contra la suite
-(`npm run verificar`, 268 pruebas).
+(`npm run verificar`, 827 pruebas).
 
 > **Verificación**: cada cifra de este documento puede reproducirse con la suite.
 > Si cambias semillas o fórmulas, actualiza este documento y la suite.
@@ -22,12 +22,12 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 |---|---|
 | `personal` | Fichas: nombre, apellido, cargo, DNI, `tarifa_por_hora`, `ambito` (Obra/Oficina) |
 | `equipos` | Fichas: nombre, `costo_por_hora`, `propiedad` (Propio/Alquilado) |
-| `servicios` | Obra: nombre, cliente, tipo, `presupuesto_asignado`, fechas, `avance`, estatus |
+| `servicios` | Obra: nombre, cliente, tipo, `presupuesto_asignado`, fechas, `avance`, estatus, y parámetros de alertas (`alerta_inactividad_dias`, `umbral_rendimiento_pct`, `dias_alerta_valorizacion_sin_cobro`) |
 | `tareas` | Árbol del cronograma: `servicio_id`, `padre_id` (nullable = raíz), nombre, fechas, `avance`, `monto` |
 | `registros_servicio` | Libro único de costos: servicio, `tarea_id` (nullable), `tipo_registro` (material/personal/equipo/gasto), `referencia_id`, `cantidad_o_horas`, `monto_calculado`, `fecha`, `modalidad`, `asignacion_id` |
 | `asignaciones` | Personal asignado a un servicio: `horas_por_dia`, `tarifa`, `fecha_inicio`, `fecha_fin` |
-| `cobros` | Ingresos recibidos: servicio, `fecha`, `monto`, `concepto`, `documento`, `factura_id` |
-| `facturas` | Documentos de cobro: número, emisión, vencimiento, base/impuestos/total, estado, `notas_credito` |
+| `cobros` | Ingresos recibidos: servicio, `fecha`, `monto`, `concepto`, `documento`, `factura_id`, `valorizacion_id` (valorización que cancela, opcional) |
+| `facturas` | Documentos de cobro: número, emisión, vencimiento, base/impuestos/total, estado, `notas_credito`, `valorizacion_id` (opcional) |
 | `costos_oficina` | Gasto general: persona de ámbito Oficina, `mes`, monto |
 | `config` | Documento único (id 1): empresa, moneda, `meta_ingreso` |
 | `lineas_base` | Versión congelada del plan de un servicio (PV de la Curva S) |
@@ -41,7 +41,7 @@ Todo vive en `src/data/mockData.js` (`ESTADO_INICIAL`). Colecciones vivas
 ### Relaciones que importan para el cálculo
 - `servicio 1──N tareas` y `tareas 1──N tareas` (árbol multinivel vía `padre_id`).
 - `tarea 1──N registros_servicio` (`tarea_id`; **`null` = sin tarea asignada**, se cuenta aparte).
-- `servicio 1──N cobros` y `servicio 1──N facturas`; `factura 1──N cobros` (aplicaciones).
+- `servicio 1──N cobros` y `servicio 1──N facturas`; `factura 1──N cobros` (aplicaciones). `valorizaciones 1──N cobros` y `valorizaciones 1──N facturas` vía `valorizacion_id` (opcional, vínculo explícito).
 - `personal 1──N asignaciones` → generan **registros mensuales automáticos** de tipo `personal` con `asignacion_id` (ver §4).
 - `servicio 1──N modificaciones` (adicional/deductivo) y `servicio 1──N ampliaciones_plazo`; al aprobar un adicional sus partidas se materializan como tareas hoja.
 - `servicio 1──N partes_diario`; sus filas referencian `tarea_id` (el metrado ejecutado del día) y el avance de la tarea se deriva de la suma de sus partes (ver §5.2).
@@ -880,11 +880,11 @@ materiales`, `gastos`, `equipos`, `personal`, `ingresos`, `partidas`,
 ## 11. Verificación (cómo reproducir todo este documento)
 
 ```
-npm run verificar   # 650 pruebas: reducer, calculadora, asignaciones, cobros,
+npm run verificar   # 827 pruebas: reducer, calculadora, asignaciones, cobros,
                     # gerencial, combo de cartera, montos por tareas,
                     # productividad, proyección financiera, formato,
                     # persistencias, rutas SSR, filtros de listas, modal
-                    # de asignación de personal y parte diario
+                    # de asignación de personal, parte diario y centro de alertas
 npm run build       # build cliente
 ```
 
@@ -901,3 +901,5 @@ Secciones clave de `scripts/verificar.jsx`:
 - `[ productividad ]`: duraciones, 224/4 días, desviaciones.
 - `[ proyección financiera ]`: 221,100 / 2.27 / 147,492.42 / 187,507.58 / verde.
 - `[ personal y facturas ]`: factura 101 y 102 cobradas (saldo 0), 103 pendiente 52,500.
+- `[ centro de alertas ]`: 7 alertas en el demo (2 vencidas, 3 sin partes, 1 margen bajo, 1 plazo próximo); causa/medida con escalones, vínculo explícito valorización→cobro, umbral configurable por obra y migración de descartes sin pérdida.
+- `[ centro de alertas ]`: 7 alertas en el demo (2 vencidas, 3 sin partes, 1 margen bajo, 1 plazo próximo); causa/medida con escalones, vínculo explícito valorización→cobro, umbral configurable por obra y migración de descartes sin pérdida.
