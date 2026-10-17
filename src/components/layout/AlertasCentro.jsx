@@ -70,13 +70,13 @@ export function AlertasCentro() {
   const badge = conteo.alta > 0 ? 'danger' : conteo.media > 0 ? 'warning' : 'neutral'
 
   return (
-    <div className="fixed right-4 top-4 z-40 print:hidden">
+    <div className="relative print:hidden">
       <button
         type="button"
         onClick={() => setAbierto((valor) => !valor)}
         aria-label="Centro de alertas"
         aria-expanded={abierto}
-        className="relative inline-flex size-11 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800"
+        className="relative inline-flex size-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-800"
       >
         <svg
           viewBox="0 0 24 24"
@@ -99,7 +99,7 @@ export function AlertasCentro() {
       </button>
 
       {abierto && (
-        <div className="mt-2 max-h-[75vh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-slate-300 bg-white p-4 shadow-xl">
+        <div className="absolute top-full right-0 z-50 mt-2 max-h-[75vh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-slate-300 bg-white p-4 shadow-xl">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Centro de alertas</h2>

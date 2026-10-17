@@ -3,7 +3,7 @@ import { Outlet, useMatch, useParams } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { SidebarServicio } from './SidebarServicio'
 import { ConfiguracionModal } from './ConfiguracionModal'
-import { AlertasCentro } from './AlertasCentro'
+import { BarraSuperior } from './BarraSuperior'
 import { AvisosSistema } from './AvisosSistema'
 import { PanelProveedor } from '../../pages/servicio/panel'
 import { useData } from '../../context/useData'
@@ -110,8 +110,6 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-200">
-      {/* Campana del centro de alertas: presente en todas las pantallas. */}
-      <AlertasCentro />
       {rol === 'administrador' && <AvisosSistema />}
       {falloGuardado && (
         <p role="alert" className="bg-red-600 px-4 py-2 text-center text-sm font-medium text-white">
@@ -130,6 +128,7 @@ export function Layout() {
           />
 
           <div className={desplazamiento}>
+            <BarraSuperior onAbrirConfiguracion={() => setConfigAbierta(true)} />
             <main className="mx-auto max-w-none p-4 sm:p-6">
               <Outlet />
             </main>
@@ -146,6 +145,7 @@ export function Layout() {
           />
 
           <div className={desplazamiento}>
+            <BarraSuperior onAbrirConfiguracion={() => setConfigAbierta(true)} />
             <main className="mx-auto max-w-none p-4 sm:p-6">
               <Outlet />
             </main>

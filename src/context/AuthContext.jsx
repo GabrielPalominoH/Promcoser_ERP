@@ -72,7 +72,7 @@ export function AuthProvider({ children }) {
       limpiarFallos()
       guardarSesion(candidato.id)
       setUsuarioId(candidato.id)
-      return { ok: true }
+      return { ok: true, rol: candidato.rol }
     },
     [usuarios],
   )

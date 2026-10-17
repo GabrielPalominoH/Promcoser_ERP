@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { inicioDeRol } from '../utils/permisos'
 import { useAuth } from '../context/useAuth'
 import { Button } from '../components/ui/Button'
 import { Campo, Input } from '../components/ui/Field'
 
 export function Login() {
   const { iniciarSesion } = useAuth()
+  const navegar = useNavigate()
   const [correo, setCorreo] = useState('')
   const [clave, setClave] = useState('')
   const [ver, setVer] = useState(false)
@@ -20,14 +23,17 @@ export function Login() {
     if (!resultado.ok) {
       setError(resultado.error)
       setClave('')
+      return
     }
+    // Cada sesión arranca en el inicio de su rol (no en la última pantalla del anterior).
+    navegar(inicioDeRol(resultado.rol), { replace: true })
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-200 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-primary-700 text-lg font-bold text-white">
+          <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-primary-600 text-lg font-bold text-white">
             P
           </div>
           <h1 className="text-xl font-semibold tracking-wide text-slate-900">PROMCOSER</h1>

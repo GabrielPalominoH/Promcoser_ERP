@@ -773,8 +773,12 @@ y restablece claves en **Usuarios y roles** (`/usuarios`), y siempre debe quedar
 |---|---|
 | Administrador | Todo, incluidos usuarios, respaldos, importar, vaciar y configuración |
 | Gerencia | Solo lectura de todo (Dashboard, finanzas, obras) |
-| Residente de obra | Cronograma, partidas, parte diario, personal asignado, materiales, equipos y gastos; no ve Ingresos, Dashboard ni Oficina |
+| Residente de obra | Cronograma, partidas, parte diario, personal asignado, materiales, equipos y gastos; no edita los datos de la obra ni ve Ingresos, Dashboard ni Oficina |
 | Administración | Ingresos, facturas, valorizaciones, gastos, oficina, fichas de personal/equipos/cargos; lee el resto |
+
+La **barra superior** (`BarraSuperior.jsx`) reúne la campana de alertas y el menú del usuario
+(nombre, rol, Mi cuenta y **Cerrar sesión**); gerencia ve además la franja *Modo solo lectura*. Al
+entrar, cada rol arranca en su inicio (`inicioDeRol`: Dashboard, o Servicios para el residente).
 
 Los permisos se aplican en dos capas: **rutas y menús** (lo vedado no se muestra y redirige) y
 **escrituras** (`DataContext` rechaza las acciones que el rol no puede hacer y muestra un aviso). Los

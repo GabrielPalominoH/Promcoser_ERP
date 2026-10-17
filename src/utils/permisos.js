@@ -16,7 +16,7 @@ export const DESCRIPCION_ROL = {
   administrador: 'Acceso total: obras, finanzas, usuarios, respaldos y configuración.',
   gerencia: 'Solo lectura de todo el sistema (Dashboard, finanzas y obras). No modifica nada.',
   residente:
-    'Opera la obra: cronograma, partidas, parte diario, personal asignado, equipos, materiales y gastos. No ve Ingresos, Dashboard ni Oficina.',
+    'Opera la obra: cronograma, partidas, parte diario, personal asignado, equipos, materiales y gastos. No edita los datos de la obra ni ve Ingresos, Dashboard ni Oficina.',
   administracion:
     'Finanzas y administración: ingresos, facturas, valorizaciones, gastos, oficina y fichas de personal y equipos. Lee el resto.',
 }
@@ -53,10 +53,12 @@ export function puedeEscribir(rol, coleccion, accion = 'actualizar') {
   const permitido = ESCRITURA[rol]
   if (!permitido) return false
   if (permitido === '*') return true
-  if (permitido.includes(coleccion)) return true
-  // El residente puede ajustar datos de la obra (p. ej. su calendario laboral),
-  // pero no crear ni borrar obras.
-  return rol === 'residente' && coleccion === 'servicios' && accion === 'actualizar'
+  return permitido.includes(coleccion)
+}
+
+// Rol que no modifica nada: la interfaz lo avisa con una franja de solo lectura.
+export function esSoloLectura(rol) {
+  return rol === 'gerencia'
 }
 
 // Rutas globales vedadas por rol.
