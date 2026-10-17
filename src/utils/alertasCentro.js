@@ -55,10 +55,48 @@ export const ETIQUETAS_ALERTA = {
   valorizacion_sin_cobrar: 'Valorización sin cobrar',
 }
 
-const ORDEN_GRAVEDAD = { alta: 3, media: 2, baja: 1 }
-
+const ORDEN_GRAVEDAD_VAL = { alta: 3, media: 2, baja: 1 }
+function ordenGravedadVal(g) {
+  return ORDEN_GRAVEDAD_VAL[g] ?? 0
+}
 export function etiquetaAlerta(tipo) {
   return ETIQUETAS_ALERTA[tipo] ?? tipo
+}
+
+// Escalones por tipo: qué medida se vigila, en qué unidad escalona y hacia
+// dónde empeora. `tipo: 'rel'` compara en porcentaje (montos: +10 %); `'abs'`
+// compara en la unidad de la medida (+7 días, +10 puntos de desvío, 1 día de
+// plazo). `direccion` dice si empeora al subir ('sube') o al bajar ('baja').
+const ESCALONES = {
+  partida_vencida: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
+  partida_inactividad: { medida: 'dias_sin_partes', tipo: 'abs', umbral: 7, direccion: 'sube' },
+  partida_rendimiento: { medida: 'desvio', tipo: 'abs', umbral: 10, direccion: 'baja' },
+  presupuesto_excedido: { medida: 'gastado', tipo: 'rel', umbral: 0.1, direccion: 'sube' },
+  margen_bajo: { medida: 'disponible', tipo: 'rel', umbral: 0.1, direccion: 'baja' },
+  plazo_vencido: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
+  plazo_cercano: { medida: 'dias', tipo: 'abs', umbral: 1, direccion: 'baja' },
+  factura_vencida: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
+  valorizacion_sin_cobrar: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
+}
+
+function medidaClave(tipo) {
+  return ESCALONES[tipo]?.medida ?? null
+}
+
+// ¿La medida nueva empeoró más allá del escalón del tipo? Un cambio menor (un
+// día más, 5 % más de gasto, 3 puntos de desvío) NO cuenta: la alerta sigue
+// oculta hasta que se cruza el escalón completo.
+function empeoraMedida(tipo, medidaNueva, medidaDesc) {
+  if (medidaNueva == null || medidaDesc == null) return false
+  const regla = ESCALONES[tipo]
+  if (!regla) return false
+  const a = Number(medidaNueva)
+  const b = Number(medidaDesc)
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false
+  const magnitud = Math.abs(Number(regla.umbral) || 0)
+  const delta = regla.tipo === 'rel' ? Math.abs(b) * magnitud : magnitud
+  if (regla.direccion === 'baja') return a < b - delta - 1e-9
+  return a > b + delta + 1e-9
 }
 
 // ------------------------------------------------------------
@@ -117,6 +155,10 @@ export function metaIgual(a, b) {
   return jsonEstable(a ?? {}) === jsonEstable(b ?? {})
 }
 
+function causaIgual(a, b) {
+  return jsonEstable(a ?? {}) === jsonEstable(b ?? {})
+}
+
 // ------------------------------------------------------------
 //  Estado del usuario (pospuestas / descartadas)
 // ------------------------------------------------------------
@@ -140,9 +182,15 @@ export function normalizarEstadoAlertas(alertasEstado) {
   const descartadas = {}
   for (const [id, valor] of Object.entries(objetoPlano(base.descartadas))) {
     if (valor && typeof valor === 'object') {
+      const meta = objetoPlano(valor.meta)
+      const causa = objetoPlano(valor.causa ?? valor.metaCausa ?? meta)
+      const medida = valor.medida != null ? valor.medida : valor.metaMedida ?? meta
       descartadas[id] = {
         nota: String(valor.nota ?? ''),
-        meta: objetoPlano(valor.meta),
+        causa,
+        medida: medida && typeof medida === 'object' ? objetoPlano(medida) : medida,
+        gravedadOriginal: valor.gravedadOriginal ?? valor.gravedad ?? null,
+        meta,
         fecha: valor.fecha ? String(valor.fecha) : null,
       }
     }
@@ -161,8 +209,9 @@ export function posponerAlerta(alertasEstado, id, dias, hoy = hoyISO()) {
   }
 }
 
-// Descarta una alerta guardando su causa (`meta`) y una nota opcional. Si la
-// causa empeora o cambia, la comparación de `meta` la hace reaparecer.
+// Descarta una alerta guardando su CAUSA (datos estables) y su MEDIDA (valor
+// que crece) en ese momento, más una nota opcional. Reaparecerá solo si cambia
+// la causa, sube la gravedad o la medida empeora más allá del escalón del tipo.
 export function descartarAlerta(alertasEstado, alerta, nota = '', hoy = hoyISO()) {
   const base = normalizarEstadoAlertas(alertasEstado)
   if (!alerta?.id) return base
@@ -170,7 +219,14 @@ export function descartarAlerta(alertasEstado, alerta, nota = '', hoy = hoyISO()
     ...base,
     descartadas: {
       ...base.descartadas,
-      [alerta.id]: { nota: String(nota ?? '').trim(), meta: objetoPlano(alerta.meta), fecha: hoy },
+      [alerta.id]: {
+        nota: String(nota ?? '').trim(),
+        causa: objetoPlano(alerta.causa ?? alerta.meta ?? {}),
+        medida: objetoPlano(alerta.medida ?? alerta.meta ?? {}),
+        gravedadOriginal: alerta.gravedad,
+        meta: objetoPlano(alerta.meta ?? {}),
+        fecha: hoy,
+      },
     },
   }
 }
@@ -195,7 +251,7 @@ export function estaVigente(alertasEstado, id, hoy = hoyISO()) {
 //  Construcción de alertas
 // ------------------------------------------------------------
 
-function crear({ tipo, gravedad, obraId, obra, clave, titulo, mensaje, enlace, meta, hoy }) {
+function crear({ tipo, gravedad, obraId, obra, clave, titulo, mensaje, enlace, meta, hoy, causa, medida }) {
   return {
     id: idAlerta(tipo, obraId, clave),
     obraId: obraId ?? null,
@@ -207,32 +263,51 @@ function crear({ tipo, gravedad, obraId, obra, clave, titulo, mensaje, enlace, m
     enlace: enlace ?? (obraId != null ? `/servicios/${obraId}` : '/'),
     meta: meta ?? {},
     creadaEn: hoy,
+    causa: objetoPlano(causa ?? meta ?? {}),
+    medida: objetoPlano(medida ?? meta ?? {}),
   }
 }
 
-// valorizacionCobrada: ¿el cobro de esa valorización ya está registrado?
-// El modelo no guarda un `valorizacion_id`, así que se reconoce por vínculo
-// explícito (`cobrada`/`cobro_id`) o por el número en el concepto del cobro
-// ("valorización N° 2"). Sin datos devuelve false (la alerta exige más datos).
-export function valorizacionCobrada(valorizacion, cobros = []) {
-  if (!valorizacion) return true
-  if (valorizacion.cobrada === true) return true
+// estadoCobroValorizacion: ¿el cobro de esa valorización ya está registrado?
+// Prioridad:
+//   1) vínculo EXPLÍCITO: `valorizacion_id` en un cobro o factura, o los
+//      campos `cobrada`/`cobro_id` de la propia valorización;
+//   2) RESPALDO heurístico por el texto del concepto ("valorización N° 2").
+// Devuelve { cobrada, confirmada, fuente }. `confirmada` es false cuando solo
+// el respaldo (o nada) pudo decidirlo, para que la alerta lo advierta.
+export function estadoCobroValorizacion(valorizacion, cobros = [], facturas = []) {
+  if (!valorizacion) return { cobrada: true, confirmada: true, fuente: 'vinculo' }
+  const id = valorizacion.id
+  const vinculado =
+    valorizacion.cobrada === true ||
+    valorizacion.cobro_id != null ||
+    [...(cobros ?? []), ...(facturas ?? [])].some(
+      (x) => x?.valorizacion_id != null && x.valorizacion_id === id,
+    )
+  if (vinculado) return { cobrada: true, confirmada: true, fuente: 'vinculo' }
   const propios = (cobros ?? []).filter((c) => c.servicio_id === valorizacion.servicio_id)
-  if (valorizacion.cobro_id != null && propios.some((c) => c.id === valorizacion.cobro_id)) {
-    return true
+  if (propios.some((c) => coincideTextoValorizacion(c, valorizacion))) {
+    return { cobrada: true, confirmada: false, fuente: 'texto' }
   }
+  return { cobrada: false, confirmada: false, fuente: null }
+}
+
+function coincideTextoValorizacion(cobro, valorizacion) {
+  const texto = String(cobro?.concepto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+  if (!texto.includes('valoriza')) return false
+  if (cobro.fecha && valorizacion.fecha && cobro.fecha < valorizacion.fecha) return false
   const numero = Number(valorizacion.numero) || null
-  return propios.some((c) => {
-    const texto = String(c.concepto ?? '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-    if (!texto.includes('valoriza')) return false
-    if (c.fecha && valorizacion.fecha && c.fecha < valorizacion.fecha) return false
-    if (numero == null) return true
-    const digitos = texto.match(/\d+/)
-    return digitos ? Number(digitos[0]) === numero : false
-  })
+  if (numero == null) return true
+  const digitos = texto.match(/\d+/)
+  return digitos ? Number(digitos[0]) === numero : false
+}
+
+// Compatibilidad: booleano simple (usa el vínculo explícito, respaldo incluido).
+export function valorizacionCobrada(valorizacion, cobros = [], facturas = []) {
+  return estadoCobroValorizacion(valorizacion, cobros, facturas).cobrada
 }
 
 // Días de gracia antes de avisar de una valorización sin cobrar. Configurable
@@ -249,9 +324,9 @@ function alertasDeObraComun({ servicio, tareas, partes, hoy }) {
   return alertasDeObra({ servicio, tareas, partes, hoy }).map((a) => {
     const meta =
       a.tipo === 'vencida'
-        ? { atraso_dias: Math.max(0, diasEntre(a.fecha_fin ?? hoy, hoy)) }
+        ? { atraso_dias: Math.max(0, Number(a.atraso_dias) || 0) }
         : a.tipo === 'inactividad'
-          ? { dias: a.dias_sin_partes ?? null }
+          ? { dias_sin_partes: a.dias_sin_partes ?? null }
           : { desvio: a.rendimiento_pct ?? null }
     return crear({
       obraId: a.servicio_id,
@@ -263,6 +338,8 @@ function alertasDeObraComun({ servicio, tareas, partes, hoy }) {
       mensaje: a.detalle,
       enlace: `/servicios/${a.servicio_id}/partidas?tarea=${a.tarea_id}`,
       meta: { ...meta, tarea_id: a.tarea_id ?? null, tarea: a.tarea },
+      causa: { tipo: a.tipo, tarea_id: a.tarea_id ?? null, tarea: a.tarea, servicio_id: a.servicio_id },
+      medida: meta,
       hoy,
     })
   })
@@ -288,6 +365,8 @@ function alertasDeServicioComun({ servicio, registros, cobros, modificaciones, h
         titulo: 'Presupuesto de la obra',
         mensaje: 'El servicio superó su presupuesto inicial.',
         meta: { gastado: r2(estado.gastado), presupuesto: r2(estado.presupuesto) },
+        causa: { tipo: 'presupuesto_excedido', servicio_id: servicio.id },
+        medida: { gastado: r2(estado.gastado) },
         hoy,
       }),
     )
@@ -302,6 +381,8 @@ function alertasDeServicioComun({ servicio, registros, cobros, modificaciones, h
         titulo: 'Presupuesto de la obra',
         mensaje: `Margen bajo: queda solo el ${((estado.disponible / estado.presupuesto) * 100).toFixed(1)}% del presupuesto.`,
         meta: { disponible: r2(estado.disponible), presupuesto: r2(estado.presupuesto) },
+        causa: { tipo: 'margen_bajo', servicio_id: servicio.id },
+        medida: { disponible: r2(estado.disponible) },
         hoy,
       }),
     )
@@ -319,6 +400,8 @@ function alertasDeServicioComun({ servicio, registros, cobros, modificaciones, h
           titulo: 'Plazo de la obra',
           mensaje: `Plazo vencido hace ${Math.abs(dias)} día(s).`,
           meta: { atraso_dias: Math.abs(dias), fecha_fin: servicio.fecha_fin_estimada },
+          causa: { tipo: 'plazo_vencido', servicio_id: servicio.id, fecha_fin: servicio.fecha_fin_estimada },
+          medida: { atraso_dias: Math.abs(dias) },
           hoy,
         }),
       )
@@ -333,6 +416,8 @@ function alertasDeServicioComun({ servicio, registros, cobros, modificaciones, h
           titulo: 'Plazo de la obra',
           mensaje: dias === 0 ? 'El plazo vence hoy.' : `Quedan ${dias} día(s) de plazo.`,
           meta: { fecha_fin: servicio.fecha_fin_estimada },
+          causa: { tipo: 'plazo_cercano', servicio_id: servicio.id, fecha_fin: servicio.fecha_fin_estimada },
+          medida: { dias },
           hoy,
         }),
       )
@@ -362,6 +447,8 @@ function alertasFacturasComun({ facturas = [], cobros = [], serviciosPorId, hoy 
         mensaje: `Venció hace ${atraso} día(s); saldo por cobrar S/ ${saldo.toFixed(2)}.`,
         enlace: `/servicios/${factura.servicio_id}/ingresos`,
         meta: { atraso_dias: atraso, saldo: r2(saldo) },
+        causa: { tipo: 'factura_vencida', factura_id: factura.id ?? null, servicio_id: factura.servicio_id },
+        medida: { atraso_dias: atraso, saldo: r2(saldo) },
         hoy,
       }),
     )
@@ -372,6 +459,7 @@ function alertasFacturasComun({ facturas = [], cobros = [], serviciosPorId, hoy 
 function alertasValorizacionesComun({
   valorizaciones = [],
   cobros = [],
+  facturas = [],
   serviciosPorId,
   config,
   hoy,
@@ -379,12 +467,17 @@ function alertasValorizacionesComun({
   const alertas = []
   for (const valorizacion of valorizaciones) {
     if (!valorizacion || valorizacion.estado === 'anulada') continue
-    if (valorizacionCobrada(valorizacion, cobros)) continue
+    const cobro = estadoCobroValorizacion(valorizacion, cobros, facturas)
+    if (cobro.cobrada) continue
     if (!valorizacion.fecha) continue
     const servicio = serviciosPorId.get(valorizacion.servicio_id)
     const umbral = umbralValorizacionSinCobro(servicio ?? {}, config)
     const atraso = diasEntre(valorizacion.fecha, hoy)
     if (atraso <= umbral) continue
+    // Si la obra tiene cobros pero ninguno se pudo vincular (ni por texto), se
+    // advierte que el cobro no se pudo confirmar.
+    const hayCobros = (cobros ?? []).some((c) => c.servicio_id === valorizacion.servicio_id)
+    const aviso = !cobro.confirmada && hayCobros ? ' No se pudo confirmar el cobro.' : ''
     alertas.push(
       crear({
         obraId: valorizacion.servicio_id ?? null,
@@ -393,9 +486,11 @@ function alertasValorizacionesComun({
         gravedad: atraso > umbral * 2 ? 'alta' : 'media',
         clave: valorizacion.id ?? `${valorizacion.numero}-${valorizacion.fecha}`,
         titulo: `Valorización N° ${valorizacion.numero ?? ''}`.trim(),
-        mensaje: `Emitida hace ${atraso} día(s) sin cobrar (límite ${umbral}).`,
+        mensaje: `Emitida hace ${atraso} día(s) sin cobrar (límite ${umbral}).${aviso}`,
         enlace: `/servicios/${valorizacion.servicio_id}/valorizaciones`,
         meta: { atraso_dias: atraso, neto: r2(valorizacion.neto) },
+        causa: { tipo: 'valorizacion_sin_cobrar', valorizacion_id: valorizacion.id ?? null, servicio_id: valorizacion.servicio_id },
+        medida: { atraso_dias: atraso, neto: r2(valorizacion.neto) },
         hoy,
       }),
     )
@@ -442,14 +537,14 @@ export function alertasCentro({
     )
   }
   crudas.push(...alertasFacturasComun({ facturas, cobros, serviciosPorId, hoy }))
-  crudas.push(...alertasValorizacionesComun({ valorizaciones, cobros, serviciosPorId, config, hoy }))
+  crudas.push(...alertasValorizacionesComun({ valorizaciones, cobros, facturas, serviciosPorId, config, hoy }))
 
   const usuario = normalizarEstadoAlertas(alertasEstado)
   const activas = crudas.filter((alerta) => {
     const pospuesta = usuario.pospuestas[alerta.id]
     if (pospuesta && pospuesta.hasta >= hoy) return false
     const descartada = usuario.descartadas[alerta.id]
-    if (descartada && metaIgual(descartada.meta, alerta.meta)) return false
+    if (descartada && !volveriaAMostrarse(descartada, alerta)) return false
     return true
   })
 
@@ -459,7 +554,7 @@ export function alertasCentro({
 // Orden estable: gravedad desc, obra, tipo, título. Id empata siempre.
 export function ordenarAlertas(alertas = []) {
   return [...alertas].sort((a, b) => {
-    const g = (ORDEN_GRAVEDAD[b.gravedad] ?? 0) - (ORDEN_GRAVEDAD[a.gravedad] ?? 0)
+    const g = (ordenGravedadVal(b.gravedad)) - (ordenGravedadVal(a.gravedad))
     if (g !== 0) return g
     const obra = String(a.obra ?? '').localeCompare(String(b.obra ?? ''), 'es')
     if (obra !== 0) return obra
@@ -495,10 +590,25 @@ export function agruparPorObra(alertas = []) {
   return grupos
 }
 
-// ¿Una alerta descartada volvería a mostrarse con esta causa? (Para la UI.)
+// ¿Una alerta descartada vuelve a mostrarse? (Para la UI y el filtro interno.)
 export function reapareceDescartada(alertasEstado, alerta) {
   const base = normalizarEstadoAlertas(alertasEstado)
-  const descartada = base.descartadas[alerta?.id]
+  return volveriaAMostrarse(base.descartadas[alerta?.id], alerta)
+}
+
+// Regla única de reaparición de una descartada:
+//   · si la CAUSA cambia → reaparece
+//   · si sube la GRAVEDAD → reaparece
+//   · si la MEDIDA empeora más allá del escalón del tipo → reaparece
+// Un día más de atraso (o un cambio menor que el escalón) NO la hace reaparecer.
+function volveriaAMostrarse(descartada, alerta) {
   if (!descartada) return true
-  return !metaIgual(descartada.meta, alerta?.meta)
+  if (!causaIgual(descartada.causa, alerta?.causa ?? {})) return true
+  const mKey = medidaClave(alerta?.tipo)
+  const gravedadDesc = ordenGravedadVal(descartada.gravedadOriginal ?? alerta?.gravedad)
+  const gravedadSube = ordenGravedadVal(alerta?.gravedad) > gravedadDesc
+  const empeoro = mKey
+    ? empeoraMedida(alerta.tipo, (alerta?.medida ?? {})[mKey], (descartada.medida ?? {})[mKey])
+    : false
+  return gravedadSube || empeoro
 }

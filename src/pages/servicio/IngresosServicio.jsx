@@ -5,6 +5,7 @@ import { useData } from '../../context/useData'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Campo, Input } from '../../components/ui/Field'
+import { CampoComboBox } from '../../components/ui/ComboBox'
 import { CampoMonto, reglasMontoMayorACero } from '../../components/ui/Monto'
 import { Modal } from '../../components/ui/Modal'
 import { Aviso } from '../../components/ui/Aviso'
@@ -200,6 +201,12 @@ export function IngresosServicio() {
     .filter((f) => f.estado !== 'anulada' && saldoFactura(f, estado.cobros) > 0)
     .map((f) => f.numero)
 
+  // Valorizaciones emitidas de la obra: para vincular el cobro con la
+  // valorización que cancela (alerta valorizacion_sin_cobrar). Solo emitidas.
+  const valorizacionesEmitidas = (estado.valorizaciones ?? [])
+    .filter((v) => v.servicio_id === servicio.id && v.estado === 'Emitida')
+    .sort((a, b) => (Number(a.numero) || 0) - (Number(b.numero) || 0))
+
   const {
     register,
     handleSubmit,
@@ -207,10 +214,10 @@ export function IngresosServicio() {
     control,
     formState: { errors },
   } = useForm({
-    defaultValues: { fecha: fechaHoyISO(), monto: '', concepto: '', documento: '', factura_numero: '' },
+    defaultValues: { fecha: fechaHoyISO(), monto: '', concepto: '', documento: '', factura_numero: '', valorizacion_id: '' },
   })
 
-  const enviar = ({ fecha, monto, concepto, documento, factura_numero }) => {
+  const enviar = ({ fecha, monto, concepto, documento, factura_numero, valorizacion_id }) => {
     const res = resolverFacturaIngreso(factura_numero, facturasServicio, estado.cobros, monto)
     // Regla 6: lo aplicado a una factura no excede su saldo (sin factura = adelanto).
     if (res.accion === 'excede') {
@@ -220,6 +227,7 @@ export function IngresosServicio() {
       })
       return
     }
+    const vId = valorizacion_id === '' || valorizacion_id == null ? null : Number(valorizacion_id)
     let facturaId = null
     let detalle = 'como adelanto'
     if (res.accion === 'vincular') {
@@ -236,6 +244,7 @@ export function IngresosServicio() {
         total: redondearMonto(monto),
         moneda: 'PEN',
         estado: 'emitida',
+        valorizacion_id: vId,
       })
       facturaId = nueva.id
       detalle = `con factura nueva ${res.numero}`
@@ -247,6 +256,7 @@ export function IngresosServicio() {
       concepto: concepto.trim(),
       documento: documento.trim() || null,
       factura_id: facturaId,
+      valorizacion_id: vId,
     })
     setAviso({ tipo: 'exito', mensaje: `Ingreso registrado por ${formatearMoneda(redondearMonto(monto))} ${detalle}.` })
     reset()
@@ -563,6 +573,33 @@ export function IngresosServicio() {
                 className="sm:col-span-2"
               >
                 <Input id="cob-factura" placeholder="F001-000123" {...register('factura_numero')} />
+              </Campo>
+              <Campo
+                label="Valorización que cancela (opcional)"
+                error={errors.valorizacion_id?.message}
+                htmlFor="cob-valorizacion"
+                hint={
+                  valorizacionesEmitidas.length > 0
+                    ? 'Vincula el cobro con la valorización emitida de esta obra.'
+                    : 'No hay valorizaciones emitidas en esta obra.'
+                }
+                className="sm:col-span-2"
+              >
+                <CampoComboBox
+                  id="cob-valorizacion"
+                  control={control}
+                  name="valorizacion_id"
+                  disabled={valorizacionesEmitidas.length === 0}
+                  placeholder={
+                    valorizacionesEmitidas.length === 0
+                      ? 'Sin valorizaciones emitidas'
+                      : 'Sin vincular — escribe para buscar…'
+                  }
+                  opciones={valorizacionesEmitidas.map((v) => ({
+                    valor: String(v.id),
+                    etiqueta: `N° ${v.numero} · ${formatearFecha(v.fecha)} · ${formatearMoneda(v.neto)}`,
+                  }))}
+                />
               </Campo>
             </div>
           </form>

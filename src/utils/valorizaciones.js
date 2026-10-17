@@ -380,3 +380,19 @@ export function resumenValorizaciones({ servicio, valorizaciones = [], adelantos
 export function describirNeto(valorizacion) {
   return `Neto ${formatearMoneda(valorizacion?.neto ?? 0)}`
 }
+
+// Migración (esquema v17): agrega `valorizacion_id` (null) a cobros y facturas
+// que aún no lo tengan. Idempotente y sin tocar importes: solo rellena el
+// vínculo explícito valorización→cobro para el centro de alertas.
+export function migrarVinculoValorizacion(estado) {
+  if (!estado || typeof estado !== 'object') return estado
+  const conVinculo = (coleccion) =>
+    (estado[coleccion] ?? []).map((item) =>
+      item && item.valorizacion_id === undefined ? { ...item, valorizacion_id: null } : item,
+    )
+  return {
+    ...estado,
+    cobros: conVinculo('cobros'),
+    facturas: conVinculo('facturas'),
+  }
+}

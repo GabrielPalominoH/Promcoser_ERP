@@ -64,6 +64,7 @@ import {
   evaluarAjuste,
   metradoEjecutadoHasta,
   metradoPrevio,
+  migrarVinculoValorizacion,
   partidasValorizables,
   resumenValorizaciones,
   saldoAdelantos,
@@ -220,11 +221,14 @@ import {
   agruparPorObra,
   contarPorGravedad,
   descartarAlerta,
+  estadoCobroValorizacion,
   metaIgual,
   normalizarEstadoAlertas,
   posponerAlerta,
+  reapareceDescartada,
   reactivarAlerta,
   ordenarAlertas,
+  umbralValorizacionSinCobro,
 } from '../src/utils/alertasCentro'
 import { BadgeModo } from '../src/components/ui/Badge'
 import App from '../src/App'
@@ -853,10 +857,14 @@ comprobar(
   'K respaldo v11 rellena partes vacíos',
   Array.isArray(normV11?.partes_diario) && normV11.partes_diario.length === 0,
 )
-// Un respaldo del esquema actual (v16) incompleto también se rechaza.
-const respaldoV15 = { ...JSON.parse(serial), _v: 16 }
-delete respaldoV15.cargos
-comprobar('K respaldo del esquema actual incompleto se rechaza', validarRespaldo(respaldoV15).ok === false)
+// Un respaldo del esquema actual (misma `_v` que la app) incompleto también se
+// rechaza: si dice traer el esquema vigente, debe traer todas las colecciones.
+const respaldoActualIncompleto = { ...JSON.parse(serial) }
+delete respaldoActualIncompleto.cargos
+comprobar(
+  'K respaldo del esquema actual incompleto se rechaza',
+  validarRespaldo(respaldoActualIncompleto).ok === false,
+)
 // Un respaldo v13 completo (parte diario en % y el flag `avance_por_partes`)
 // se acepta: el parte migra a metrado y el flag desaparece, sin perder avance.
 const tarea15 = ESTADO_INICIAL.tareas.find((t) => t.id === 15)
@@ -4627,6 +4635,18 @@ const centroDemo = alertasCentro({
   alertasEstado: null,
 })
 comprobar(
+  'tarea 6C: el demo genera 7 alertas (2 vencidas, 3 sin partes, 1 margen bajo, 1 plazo próximo)',
+  centroDemo.length === 7 &&
+    centroDemo.filter((a) => a.tipo === 'partida_vencida').length === 2 &&
+    centroDemo.filter((a) => a.tipo === 'partida_inactividad').length === 3 &&
+    centroDemo.filter((a) => a.tipo === 'margen_bajo').length === 1 &&
+    centroDemo.filter((a) => a.tipo === 'plazo_cercano').length === 1,
+)
+comprobar(
+  'tarea 6C: ninguna obra del demo supera 10 alertas (sin agrupar por tipo)',
+  agruparPorObra(centroDemo).every((g) => g.alertas.length <= 10),
+)
+comprobar(
   'tarea 6: formato común con id, obra, tipo, gravedad, titulo, mensaje, enlace, meta',
   centroDemo.length > 0 &&
     centroDemo.every(
@@ -4762,6 +4782,223 @@ const grupo = agruparPorObra(centroDemo)
 comprobar('tarea 6: agruparPorObra crea grupos', grupo.length >= 1 && grupo.every((g) => Array.isArray(g.alertas)))
 const conteoG = contarPorGravedad(centroDemo)
 comprobar('tarea 6: contarPorGravedad suma por gravedad', conteoG.alta >= 0 && conteoG.media >= 0 && conteoG.baja >= 0)
+
+// ------------------------------------------------------------
+//  Tarea 6C: causa vs medida, escalones y reloj movido
+// ------------------------------------------------------------
+
+// Estado mínimo reutilizable para inyectar el reloj en `alertasCentro`.
+const estadoMin = (extra = {}) => ({
+  servicios: [],
+  tareas: [],
+  registros_servicio: [],
+  cobros: [],
+  facturas: [],
+  valorizaciones: [],
+  config: [],
+  modificaciones: [],
+  partes_diario: [],
+  ...extra,
+})
+const alertaTipo = (estado, hoy, tipo) =>
+  alertasCentro({ estado, hoy, alertasEstado: null }).find((a) => a.tipo === tipo)
+
+// (1) Escalón por tipo, sobre el objeto de alerta (sin depender del reloj):
+//     descartar → misma medida sigue oculta → cambio menor sigue oculta →
+//     superar el escalón reaparece → cambia la causa reaparece → sube la
+//     gravedad reaparece.
+const alertaSintetica = (tipo, gravedad, medida, causa) => ({
+  id: `t-${tipo}`,
+  obraId: 1,
+  obra: 'Obra',
+  tipo,
+  gravedad,
+  titulo: 't',
+  mensaje: 'm',
+  enlace: '/',
+  meta: medida,
+  causa,
+  medida,
+  creadaEn: '2026-10-01',
+})
+const CASOS_ESCALON = [
+  { tipo: 'partida_vencida', va: (v) => ({ atraso_dias: v }), base: 3, poco: 4, escalon: 11, causa: { tipo: 'vencida', tarea_id: 1, servicio_id: 1 } },
+  { tipo: 'partida_inactividad', va: (v) => ({ dias_sin_partes: v }), base: 10, poco: 11, escalon: 18, causa: { tipo: 'inactividad', tarea_id: 2, servicio_id: 1 } },
+  { tipo: 'partida_rendimiento', va: (v) => ({ desvio: v }), base: 60, poco: 57, escalon: 49, causa: { tipo: 'rendimiento', tarea_id: 3, servicio_id: 1 } },
+  { tipo: 'presupuesto_excedido', va: (v) => ({ gastado: v }), base: 100000, poco: 105000, escalon: 111000, causa: { tipo: 'presupuesto_excedido', servicio_id: 2 } },
+  { tipo: 'margen_bajo', va: (v) => ({ disponible: v }), base: 50000, poco: 47000, escalon: 44000, causa: { tipo: 'margen_bajo', servicio_id: 3 } },
+  { tipo: 'plazo_vencido', va: (v) => ({ atraso_dias: v }), base: 2, poco: 3, escalon: 10, causa: { tipo: 'plazo_vencido', servicio_id: 4, fecha_fin: '2026-10-01' } },
+  { tipo: 'plazo_cercano', va: (v) => ({ dias: v }), base: 10, poco: 9, escalon: 8, causa: { tipo: 'plazo_cercano', servicio_id: 5, fecha_fin: '2026-10-20' } },
+  { tipo: 'factura_vencida', va: (v) => ({ atraso_dias: v }), base: 5, poco: 6, escalon: 13, causa: { tipo: 'factura_vencida', factura_id: 9, servicio_id: 6 } },
+  { tipo: 'valorizacion_sin_cobrar', va: (v) => ({ atraso_dias: v }), base: 31, poco: 32, escalon: 39, causa: { tipo: 'valorizacion_sin_cobrar', valorizacion_id: 7, servicio_id: 7 } },
+]
+for (const caso of CASOS_ESCALON) {
+  const desc = alertaSintetica(caso.tipo, 'media', caso.va(caso.base), caso.causa)
+  const estado = descartarAlerta(null, desc, 'n', '2026-10-01')
+  const misma = reapareceDescartada(estado, alertaSintetica(caso.tipo, 'media', caso.va(caso.base), caso.causa))
+  const poco = reapareceDescartada(estado, alertaSintetica(caso.tipo, 'media', caso.va(caso.poco), caso.causa))
+  const escalon = reapareceDescartada(estado, alertaSintetica(caso.tipo, 'media', caso.va(caso.escalon), caso.causa))
+  const causaNueva = reapareceDescartada(
+    estado,
+    alertaSintetica(caso.tipo, 'media', caso.va(caso.base), { ...caso.causa, otro: 1 }),
+  )
+  const gravedadMayor = reapareceDescartada(estado, alertaSintetica(caso.tipo, 'alta', caso.va(caso.base), caso.causa))
+  comprobar(`tarea 6C: escalón ${caso.tipo} — misma medida sigue oculta`, misma === false)
+  comprobar(`tarea 6C: escalón ${caso.tipo} — cambio menor sigue oculta`, poco === false)
+  comprobar(`tarea 6C: escalón ${caso.tipo} — supera el escalón y reaparece`, escalon === true)
+  comprobar(`tarea 6C: escalón ${caso.tipo} — cambia la causa y reaparece`, causaNueva === true)
+  comprobar(`tarea 6C: escalón ${caso.tipo} — sube la gravedad y reaparece`, gravedadMayor === true)
+}
+
+// (2) Reloj movido, por tipo con medida que crece con el tiempo: un día más NO
+//     reaparece; al cruzar el escalón (+7 días) reaparece.
+const casoReloj = (estado, tipo, hoyDescarte, hoyMas1, hoyEscalon) => {
+  const a = alertaTipo(estado, hoyDescarte, tipo)
+  if (!a) return { ok: false }
+  const desc = descartarAlerta(null, a, 'n', hoyDescarte)
+  const sigueOculta = !alertasCentro({ estado, hoy: hoyMas1, alertasEstado: desc }).some((x) => x.tipo === tipo)
+  const reapa = alertasCentro({ estado, hoy: hoyEscalon, alertasEstado: desc }).some((x) => x.tipo === tipo)
+  return { ok: true, sigueOculta, reapa }
+}
+
+const estPVencida = estadoMin({
+  servicios: [{ id: 900, nombre_servicio: 'Obra P', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2030-01-01', estatus: 'En ejecución' }],
+  tareas: [{ id: 9001, servicio_id: 900, nombre: 'P1', padre_id: null, fecha_inicio: '2026-09-01', fecha_fin: '2026-10-01', modo_medicion: 'manual', avance: 0 }],
+})
+const rPVencida = casoReloj(estPVencida, 'partida_vencida', '2026-10-04', '2026-10-05', '2026-10-12')
+comprobar('tarea 6C: reloj partida_vencida — un día más sigue oculta', rPVencida.ok && rPVencida.sigueOculta)
+comprobar('tarea 6C: reloj partida_vencida — +7 días reaparece', rPVencida.ok && rPVencida.reapa)
+
+const estPInact = estadoMin({
+  servicios: [{ id: 901, nombre_servicio: 'Obra I', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2030-01-01', alerta_inactividad_dias: 3 }],
+  tareas: [{ id: 9011, servicio_id: 901, nombre: 'I1', padre_id: null, fecha_inicio: '2026-09-01', fecha_fin: '2030-01-01', modo_medicion: 'metrado', avance: 0 }],
+})
+const rPInact = casoReloj(estPInact, 'partida_inactividad', '2026-10-04', '2026-10-05', '2026-10-12')
+comprobar('tarea 6C: reloj partida_inactividad — un día más sigue oculta', rPInact.ok && rPInact.sigueOculta)
+comprobar('tarea 6C: reloj partida_inactividad — +7 días reaparece', rPInact.ok && rPInact.reapa)
+
+const estPlazoV = estadoMin({
+  servicios: [{ id: 904, nombre_servicio: 'Obra PV', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2026-10-01', estatus: 'En ejecución' }],
+})
+const rPlazoV = casoReloj(estPlazoV, 'plazo_vencido', '2026-10-03', '2026-10-04', '2026-10-11')
+comprobar('tarea 6C: reloj plazo_vencido — un día más sigue oculta', rPlazoV.ok && rPlazoV.sigueOculta)
+comprobar('tarea 6C: reloj plazo_vencido — +7 días reaparece', rPlazoV.ok && rPlazoV.reapa)
+
+const estPlazoC = estadoMin({
+  servicios: [{ id: 905, nombre_servicio: 'Obra PC', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2026-10-20', estatus: 'En ejecución' }],
+})
+const rPlazoC = casoReloj(estPlazoC, 'plazo_cercano', '2026-10-10', '2026-10-11', '2026-10-12')
+comprobar('tarea 6C: reloj plazo_cercano — un día más sigue oculta', rPlazoC.ok && rPlazoC.sigueOculta)
+comprobar('tarea 6C: reloj plazo_cercano — 2 días reaparece', rPlazoC.ok && rPlazoC.reapa)
+
+const estFactura = estadoMin({
+  servicios: [{ id: 906, nombre_servicio: 'Obra F', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2030-01-01', estatus: 'En ejecución' }],
+  facturas: [{ id: 9061, servicio_id: 906, numero: 'F-1', fecha_emision: '2026-09-01', fecha_vencimiento: '2026-10-01', base: 1000, impuestos: 0, total: 1000, moneda: 'PEN', estado: 'emitida' }],
+})
+const rFactura = casoReloj(estFactura, 'factura_vencida', '2026-10-03', '2026-10-04', '2026-10-11')
+comprobar('tarea 6C: reloj factura_vencida — un día más sigue oculta', rFactura.ok && rFactura.sigueOculta)
+comprobar('tarea 6C: reloj factura_vencida — +7 días reaparece', rFactura.ok && rFactura.reapa)
+
+const estValor = estadoMin({
+  servicios: [{ id: 907, nombre_servicio: 'Obra V', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2030-01-01', estatus: 'En ejecución' }],
+  valorizaciones: [{ id: 9071, servicio_id: 907, numero: 1, fecha: '2026-08-01', estado: 'Emitida', neto: 5000 }],
+})
+const rValor = casoReloj(estValor, 'valorizacion_sin_cobrar', '2026-09-10', '2026-09-11', '2026-09-18')
+comprobar('tarea 6C: reloj valorizacion_sin_cobrar — un día más sigue oculta', rValor.ok && rValor.sigueOculta)
+comprobar('tarea 6C: reloj valorizacion_sin_cobrar — +7 días reaparece', rValor.ok && rValor.reapa)
+
+// (3) Valorización → cobro con vínculo explícito y respaldo heurístico.
+const vLink = { id: 8100, servicio_id: 910, numero: 3, fecha: '2026-09-01', estado: 'Emitida', neto: 1000 }
+const rLinkExplicito = estadoCobroValorizacion(
+  vLink,
+  [{ id: 1, servicio_id: 910, fecha: '2026-09-05', monto: 1000, concepto: 'Cobro', valorizacion_id: 8100 }],
+  [],
+)
+comprobar(
+  'tarea 6C: cobro con valorizacion_id confirma el cobro',
+  rLinkExplicito.cobrada === true && rLinkExplicito.confirmada === true && rLinkExplicito.fuente === 'vinculo',
+)
+const rLinkFactura = estadoCobroValorizacion(
+  vLink,
+  [],
+  [{ id: 2, servicio_id: 910, valorizacion_id: 8100 }],
+)
+comprobar('tarea 6C: factura con valorizacion_id también confirma', rLinkFactura.cobrada === true)
+const rTexto = estadoCobroValorizacion(
+  vLink,
+  [{ id: 3, servicio_id: 910, fecha: '2026-09-05', monto: 1000, concepto: 'Cobro valorización N° 3' }],
+  [],
+)
+comprobar(
+  'tarea 6C: respaldo por texto cobra pero sin confirmar',
+  rTexto.cobrada === true && rTexto.confirmada === false && rTexto.fuente === 'texto',
+)
+
+const estadoVal = (cobros) =>
+  estadoMin({
+    servicios: [{ id: 910, nombre_servicio: 'Obra L', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2030-01-01', estatus: 'En ejecución' }],
+    valorizaciones: [vLink],
+    cobros,
+  })
+const sinLinkConCobros = alertaTipo(
+  estadoVal([{ id: 5, servicio_id: 910, fecha: '2026-09-02', monto: 100, concepto: 'Adelanto en efectivo' }]),
+  '2026-10-20',
+  'valorizacion_sin_cobrar',
+)
+const sinLinkSinCobros = alertaTipo(estadoVal([]), '2026-10-20', 'valorizacion_sin_cobrar')
+comprobar(
+  'tarea 6C: alerta avisa que no se pudo confirmar el cobro',
+  !!sinLinkConCobros &&
+    sinLinkConCobros.mensaje.toLowerCase().includes('no se pudo confirmar el cobro'),
+)
+comprobar(
+  'tarea 6C: sin cobros en la obra no aparece el aviso de confirmación',
+  !!sinLinkSinCobros &&
+    !sinLinkSinCobros.mensaje.toLowerCase().includes('no se pudo confirmar el cobro'),
+)
+comprobar(
+  'tarea 6C: un cobro vinculado silencia la alerta',
+  !alertaTipo(
+    estadoVal([{ id: 6, servicio_id: 910, fecha: '2026-09-05', monto: 1000, concepto: 'Cobro', valorizacion_id: 8100 }]),
+    '2026-10-20',
+    'valorizacion_sin_cobrar',
+  ),
+)
+
+// (4) Umbral de valorización sin cobrar: campo único, por obra, con 30 por defecto.
+comprobar(
+  'tarea 6C: umbral de valorización usa el campo de la obra (defecto 30)',
+  umbralValorizacionSinCobro({}, {}) === 30 &&
+    umbralValorizacionSinCobro({ dias_alerta_valorizacion_sin_cobro: 5 }, {}) === 5 &&
+    umbralValorizacionSinCobro({}, { dias_alerta_valorizacion_sin_cobro: 12 }) === 12,
+)
+const estadoUmbral = estadoMin({
+  servicios: [{ id: 911, nombre_servicio: 'Obra U', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2030-01-01', dias_alerta_valorizacion_sin_cobro: 45, estatus: 'En ejecución' }],
+  valorizaciones: [{ id: 9111, servicio_id: 911, numero: 1, fecha: '2026-09-01', estado: 'Emitida', neto: 1000 }],
+})
+comprobar(
+  'tarea 6C: umbral por obra (45 días) evita la alerta a 30 días',
+  !alertaTipo(estadoUmbral, '2026-10-01', 'valorizacion_sin_cobrar'),
+)
+
+// (5) Migración de esquema: `valorizacion_id` se agrega como null sin tocar importes.
+const estadoSinLink = {
+  cobros: [{ id: 1, servicio_id: 1, monto: 500, concepto: 'x' }],
+  facturas: [{ id: 2, servicio_id: 1, total: 500 }],
+}
+const migradoLink = migrarVinculoValorizacion(estadoSinLink)
+comprobar(
+  'tarea 6C: la migración agrega valorizacion_id null sin cambiar importes',
+  migradoLink.cobros[0].valorizacion_id === null &&
+    migradoLink.facturas[0].valorizacion_id === null &&
+    migradoLink.cobros[0].monto === 500 &&
+    migradoLink.facturas[0].total === 500,
+)
+comprobar(
+  'tarea 6C: la migración es idempotente y conserva vínculos existentes',
+  migrarVinculoValorizacion({ cobros: [{ id: 1, valorizacion_id: 7 }] }).cobros[0].valorizacion_id === 7 &&
+    migrarVinculoValorizacion(migradoLink).cobros[0].valorizacion_id === null,
+)
 
 // Montaje de la campana y panel (humo SSR)
 import { AlertasCentro as AlertasCentroComp } from '../src/components/layout/AlertasCentro'

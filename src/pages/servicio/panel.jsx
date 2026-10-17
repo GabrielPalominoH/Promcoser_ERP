@@ -118,6 +118,8 @@ export function FormularioEditarServicio({ servicio, onGuardar }) {
       tolerancia_metrado: servicio.tolerancia_metrado ?? 5,
       alerta_inactividad_dias: servicio.alerta_inactividad_dias ?? 3,
       umbral_rendimiento_pct: servicio.umbral_rendimiento_pct ?? 70,
+      dias_alerta_valorizacion_sin_cobro:
+        servicio.dias_alerta_valorizacion_sin_cobro ?? 30,
     })
   }, [servicio, reset])
 
@@ -266,6 +268,20 @@ export function FormularioEditarServicio({ servicio, onGuardar }) {
             {...register('umbral_rendimiento_pct')}
           />
         </Campo>
+        <Campo
+          label="Alerta por valorización sin cobrar (días)"
+          error={errors.dias_alerta_valorizacion_sin_cobro?.message}
+          htmlFor="dias_alerta_valorizacion_sin_cobro"
+          hint="Días desde la emisión para alertar una valorización aún sin cobrar (por defecto 30)."
+        >
+          <Input
+            id="dias_alerta_valorizacion_sin_cobro"
+            type="number"
+            step="1"
+            min="0"
+            {...register('dias_alerta_valorizacion_sin_cobro')}
+          />
+        </Campo>
       </div>
     </form>
   )
@@ -312,6 +328,11 @@ export function PanelProveedor({ servicio, children }) {
       umbral_rendimiento_pct: Number.isFinite(Number(valores.umbral_rendimiento_pct))
         ? Math.max(0, Number(valores.umbral_rendimiento_pct))
         : 70,
+      dias_alerta_valorizacion_sin_cobro: Number.isFinite(
+        Number(valores.dias_alerta_valorizacion_sin_cobro),
+      )
+        ? Math.max(0, Math.floor(Number(valores.dias_alerta_valorizacion_sin_cobro)))
+        : 30,
     })
     setAviso({ tipo: 'exito', mensaje: 'Servicio actualizado correctamente.' })
     setMostrarEditar(false)

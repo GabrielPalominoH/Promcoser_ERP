@@ -35,6 +35,9 @@
 //  16 = + `valorizado_previo` en cada hoja con metrado (Fase D): lo ya cobrado
 //       antes del sistema, por defecto igual a `metrado_previo`. La primera
 //       valorización parte de lo cobrado y solo cobra la diferencia.
+//  17 = + `valorizacion_id` opcional en cobros y facturas (vínculo explícito
+//       valorización→cobro) y `dias_alerta_valorizacion_sin_cobro` por obra.
+//       No cambia ningún importe: solo se rellena con `null` lo que falta.
 import {
   COLECCIONES,
   ESTADO_INICIAL,
@@ -51,17 +54,20 @@ import {
 } from '../utils/avance'
 import { hoyISO } from '../utils/calculadora'
 import { migrarPartesAMetrado } from '../utils/partesDiario'
+import { migrarVinculoValorizacion } from '../utils/valorizaciones'
 import { normalizarEstadoAlertas } from '../utils/alertasCentro'
 
-export const VERSION_ESQUEMA = 16
+export const VERSION_ESQUEMA = 17
 
 // Normalización al cargar/importar (todo idempotente): modo de medición de
 // cada hoja, migración del parte diario (metrado), fijación del ejecutado
-// previo y de lo ya cobrado, y recálculo final del avance como caché derivado.
-// `alertasEstado` no es una colección: es el estado mínimo del centro de
-// alertas (pospuestas y descartadas) y se normaliza aparte.
+// previo y de lo ya cobrado, vínculo valorización→cobro, y recálculo final del
+// avance como caché derivado. `alertasEstado` no es una colección: es el estado
+// mínimo del centro de alertas (pospuestas y descartadas) y se normaliza aparte.
 function normalizarEstado(estado) {
-  const migrado = migrarValorizadoPrevio(migrarAvancePrevio(migrarPartesAMetrado(normalizarModoMedicion(estado))))
+  const migrado = migrarVinculoValorizacion(
+    migrarValorizadoPrevio(migrarAvancePrevio(migrarPartesAMetrado(normalizarModoMedicion(estado)))),
+  )
   const conAlertas = { ...migrado, alertasEstado: normalizarEstadoAlertas(migrado.alertasEstado) }
   return recalcularAvances(conAlertas, hoyISO())
 }
