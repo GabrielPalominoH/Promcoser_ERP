@@ -251,15 +251,18 @@ function leerPreferencia(clave) {
   }
 }
 
-// ¿Es la primera vez en este navegador? Verdadero solo si no hay datos
-// guardados ni se eligió cómo empezar. En SSR/pruebas siempre es falso.
+// ¿Es la primera vez en este navegador? Se mide UNA vez al cargar el módulo,
+// antes de que el proveedor de datos persista nada (la pantalla de acceso se
+// muestra antes que el Layout y, si se midiera después, ya habría datos
+// guardados). En SSR/pruebas siempre es falso.
+const PRIMER_USO_AL_CARGAR =
+  typeof window !== 'undefined' &&
+  !leerPreferencia(CLAVE_INICIALIZADO) &&
+  !leerPreferencia(STORAGE_KEY) &&
+  !leerPreferencia(STORAGE_KEY_ANTERIOR)
+
 export function esPrimerUso() {
-  if (typeof window === 'undefined') return false
-  return (
-    !leerPreferencia(CLAVE_INICIALIZADO) &&
-    !leerPreferencia(STORAGE_KEY) &&
-    !leerPreferencia(STORAGE_KEY_ANTERIOR)
-  )
+  return PRIMER_USO_AL_CARGAR && !leerPreferencia(CLAVE_INICIALIZADO)
 }
 
 export function marcarInicializado() {

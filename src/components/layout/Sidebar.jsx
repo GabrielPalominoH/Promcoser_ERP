@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useData } from '../../context/useData'
+import { useAuth } from '../../context/useAuth'
+import { rutaGlobalPermitida } from '../../utils/permisos'
 
 export const SECCIONES_NAVEGACION = [
   {
@@ -29,7 +31,20 @@ export const SECCIONES_NAVEGACION = [
   },
 ]
 
+// Secciones visibles para un rol: se quitan los enlaces vedados y se añade
+// Usuarios (solo administrador) en Administración.
+export function seccionesPara(rol) {
+  return SECCIONES_NAVEGACION.map((seccion) => {
+    const enlaces = seccion.enlaces.filter((e) => rutaGlobalPermitida(rol, e.to))
+    if (seccion.titulo === 'Administración' && rol === 'administrador') {
+      enlaces.push({ to: '/usuarios', label: 'Usuarios y roles', icono: 'users' })
+    }
+    return { ...seccion, enlaces }
+  }).filter((seccion) => seccion.enlaces.length > 0)
+}
+
 const ICONOS = {
+  salir: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
   box: 'M21 8l-9-5-9 5m18 0v8l-9 5m0-18v18m0-13l9-5M3 16l9 5',
   users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m13 18v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
@@ -181,8 +196,26 @@ export function BotonConfiguracion({ onAbrir, variante = '', etiqueta = '' }) {
   )
 }
 
+// Cerrar sesión: junto a Configuración, al pie de ambos sidebars.
+export function BotonSesion({ variante = '', etiqueta = '' }) {
+  const { usuario, cerrarSesion } = useAuth()
+  return (
+    <button
+      type="button"
+      onClick={cerrarSesion}
+      title={`Cerrar sesión${usuario?.nombre ? ` (${usuario.nombre})` : ''}`}
+      aria-label="Cerrar sesión"
+      className={`flex items-center gap-3 rounded-lg py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 ${variante}`}
+    >
+      <Icono nombre="salir" className="size-5 shrink-0" />
+      <span className={etiqueta}>Cerrar sesión</span>
+    </button>
+  )
+}
+
 export function Sidebar({ abierto, onCerrar, onAlternar, colapsado = false, onAbrirConfiguracion }) {
   const { estado } = useData()
+  const { rol } = useAuth()
   const v = (tabla) => claseVariante(tabla, { abierto, colapsado })
   const conteos = {
     '/servicios': (estado.servicios ?? []).filter((s) => s.estatus === 'En curso').length,
@@ -214,7 +247,7 @@ export function Sidebar({ abierto, onCerrar, onAlternar, colapsado = false, onAb
         </div>
 
         <nav className={`flex-1 space-y-6 overflow-y-auto ${v(FILA_NAV)}`}>
-          {SECCIONES_NAVEGACION.map((seccion) => (
+          {seccionesPara(rol).map((seccion) => (
             <div key={seccion.titulo}>
               <p className={`mb-2 px-2 text-xs font-semibold tracking-wide text-slate-400 uppercase ${v(ETIQUETA)}`}>
                 {seccion.titulo}
@@ -259,6 +292,7 @@ export function Sidebar({ abierto, onCerrar, onAlternar, colapsado = false, onAb
             variante={v(FILA_ENLACE)}
             etiqueta={v(ETIQUETA)}
           />
+          <BotonSesion variante={v(FILA_ENLACE)} etiqueta={v(ETIQUETA)} />
         </div>
       </aside>
     </>

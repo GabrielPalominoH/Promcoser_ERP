@@ -6,7 +6,7 @@ ejemplo: tres obras —servicio 6 *Mejoramiento del servicio de agua potable y
 alcantarillado – AA.HH. San Isidro (II Etapa)*, servicio 7 *Mejoramiento y
 ampliación de pistas y veredas – Jr. Amazonas* y servicio 8 *Mantenimiento de
 redes de agua potable – Sector Muyuna*— y están verificados contra la suite
-(`npm run verificar`, 838 pruebas).
+(`npm run verificar`, 866 pruebas).
 
 > **Verificación**: cada cifra de este documento puede reproducirse con la suite.
 > Si cambias semillas o fórmulas, actualiza este documento y la suite.
@@ -761,6 +761,25 @@ sube la gravedad o la medida cruza el escalón de su tipo: **+7 días** (partida
 sin partes, plazo vencido, **plazo próximo**, factura vencida, valorización sin cobrar),
 **+10 puntos** de desvío de rendimiento y **±10 %** en montos (presupuesto excedido y
 margen bajo). Los umbrales de inactividad, rendimiento y valorización sin cobro son por obra.
+
+### Acceso y roles
+Al abrir el sistema se pide **correo y clave** (`Login.jsx`). Los usuarios y la sesión viven en
+`localStorage` (`src/data/auth.js`), separados de los datos de negocio: no entran al respaldo. La clave
+se guarda como sal + SHA-256 iterado (20 000 rondas). La sesión dura 8 horas y tras 5 intentos fallidos
+se bloquea 60 s. Hay un administrador inicial; el administrador crea, edita, desactiva y elimina usuarios
+y restablece claves en **Usuarios y roles** (`/usuarios`), y siempre debe quedar al menos uno activo.
+
+| Rol | Puede |
+|---|---|
+| Administrador | Todo, incluidos usuarios, respaldos, importar, vaciar y configuración |
+| Gerencia | Solo lectura de todo (Dashboard, finanzas, obras) |
+| Residente de obra | Cronograma, partidas, parte diario, personal asignado, materiales, equipos y gastos; no ve Ingresos, Dashboard ni Oficina |
+| Administración | Ingresos, facturas, valorizaciones, gastos, oficina, fichas de personal/equipos/cargos; lee el resto |
+
+Los permisos se aplican en dos capas: **rutas y menús** (lo vedado no se muestra y redirige) y
+**escrituras** (`DataContext` rechaza las acciones que el rol no puede hacer y muestra un aviso). Los
+registros mensuales automáticos del personal se permiten siempre porque los genera el sistema. Es un
+control de uso: sin servidor, quien abra las herramientas del navegador puede saltárselo.
 
 ### Exportación e impresión
 Sin librerías: Excel (.xlsx) con `excel.js` + `exportaciones.js`, y HTML imprimible /

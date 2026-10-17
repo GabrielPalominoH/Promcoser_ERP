@@ -27,6 +27,14 @@ en una sola computadora.
 
 - **Sus datos se guardan en el navegador de la computadora** (Chrome, Edge,
   etc.), no en internet. Si usa otra computadora, no verá sus datos.
+- **Acceso:** el sistema pide correo y clave al abrirlo. La sesión dura 8 horas y tras 5
+  intentos fallidos espera 1 minuto. Para salir use **Cerrar sesión** (abajo del menú); para
+  cambiar su clave, **Configuración → Mi cuenta**. Si olvida su clave, el administrador la
+  restablece en **Usuarios y roles**.
+- **Roles:** *Administrador* (todo), *Gerencia* (solo lectura), *Residente de obra* (opera la
+  obra, sin Ingresos, Dashboard ni Oficina) y *Administración* (finanzas). Si intenta algo que su
+  rol no permite, aparece un aviso y no se guarda nada.
+- **Los usuarios no van en el respaldo**: si cambia de computadora, hay que volver a crearlos.
 - **Al abrir el sistema por primera vez** aparece una bienvenida: elija
   **Empezar con datos vacíos** para cargar sus obras reales, o **Explorar con
   datos de ejemplo** para conocerlo sin riesgo.

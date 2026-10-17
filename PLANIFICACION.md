@@ -149,7 +149,7 @@ del sistema iguale a la del control al céntimo.
 
 ## Backlog (fuera de alcance inicial)
 
-Backend/BD centralizada, usuarios/roles/permisos, auditoría con usuario,
+Backend/BD centralizada, seguridad fuerte de usuarios (hoy hay login y roles solo en el navegador), auditoría con usuario,
 multi-moneda, integración SUNAT, sincronización entre dispositivos,
 contabilidad formal. Puerta de entrada: si el piloto exige multiusuario, se
 adelanta backend.

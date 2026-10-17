@@ -1,4 +1,9 @@
+import { useState } from 'react'
 import { Modal } from '../ui/Modal'
+import { Button } from '../ui/Button'
+import { Campo, Input } from '../ui/Field'
+import { useAuth } from '../../context/useAuth'
+import { ETIQUETAS_ROL } from '../../utils/permisos'
 
 // Configuración global de la aplicación (preferencias de apariencia).
 // Se abre desde el botón que vive en la parte de abajo del sidebar, tanto
@@ -37,6 +42,51 @@ function VistaPrevia({ tema }) {
         <div className={`h-6 rounded ${superficie}`} />
         <div className={`h-2 w-14 rounded ${lineaSuave}`} />
       </div>
+    </div>
+  )
+}
+
+// Mi cuenta: datos de la sesión y cambio de clave propia.
+function MiCuenta() {
+  const { usuario, cambiarMiClave } = useAuth()
+  const [actual, setActual] = useState('')
+  const [nueva, setNueva] = useState('')
+  const [mensaje, setMensaje] = useState(null)
+
+  if (!usuario?.correo) return null
+
+  const enviar = (e) => {
+    e.preventDefault()
+    const r = cambiarMiClave(actual, nueva)
+    setMensaje(r.ok ? { ok: true, texto: 'Clave actualizada.' } : { ok: false, texto: r.error })
+    if (r.ok) {
+      setActual('')
+      setNueva('')
+    }
+  }
+
+  return (
+    <div className="mt-6 border-t border-slate-200 pt-4">
+      <p className="text-sm font-semibold text-slate-900">Mi cuenta</p>
+      <p className="mt-0.5 text-sm text-slate-500">
+        {usuario.nombre} · {usuario.correo} · {ETIQUETAS_ROL[usuario.rol] ?? usuario.rol}
+      </p>
+      <form onSubmit={enviar} noValidate className="mt-3 space-y-3">
+        <Campo label="Clave actual" htmlFor="cuenta-actual">
+          <Input id="cuenta-actual" type="password" autoComplete="current-password" value={actual} onChange={(e) => { setActual(e.target.value); setMensaje(null) }} />
+        </Campo>
+        <Campo label="Clave nueva" htmlFor="cuenta-nueva" hint="Mínimo 8 caracteres.">
+          <Input id="cuenta-nueva" type="password" autoComplete="new-password" value={nueva} onChange={(e) => { setNueva(e.target.value); setMensaje(null) }} />
+        </Campo>
+        {mensaje && (
+          <p role="status" className={`text-sm font-medium ${mensaje.ok ? 'text-emerald-700' : 'text-red-600'}`}>
+            {mensaje.texto}
+          </p>
+        )}
+        <Button type="submit" variante="secundario">
+          Cambiar clave
+        </Button>
+      </form>
     </div>
   )
 }
@@ -82,6 +132,7 @@ export function ConfiguracionModal({ abierto, onCerrar, tema, onCambiarTema }) {
         <p className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
           Esta preferencia se guarda solo en este navegador y no modifica tus datos de negocio.
         </p>
+        <MiCuenta />
       </div>
     </Modal>
   )

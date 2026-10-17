@@ -8,6 +8,7 @@ import {
 } from '../data/store'
 import { recalcularAvances } from '../utils/avance'
 import { normalizarEstadoAlertas } from '../utils/alertasCentro'
+import { useAuth } from './useAuth'
 
 const DataContext = createContext(null)
 
@@ -203,6 +204,7 @@ export function reducerConAvance(estado, accion) {
 export function DataProvider({ children }) {
   const [estado, dispatch] = useReducer(reducerConAvance, null, cargarEstadoCentral)
   const [falloGuardado, setFalloGuardado] = useState(false)
+  const auth = useAuth()
 
   useEffect(() => {
     if (!persistirEstado(estado)) {
@@ -211,39 +213,65 @@ export function DataProvider({ children }) {
   }, [estado])
 
   const valor = useMemo(() => {
+    // Permisos por rol (ver `src/utils/permisos.js`). Los registros mensuales
+    // automáticos del personal (con `asignacion_id`) son derivados del sistema,
+    // no ediciones del usuario: se permiten siempre para no romper el devengado.
+    const permitir = (coleccion, accion, item) => {
+      if (auth.puedeEscribir(coleccion, accion)) return true
+      if (coleccion === 'registros_servicio' && item?.asignacion_id != null) return true
+      auth.avisarDenegado('Tu rol no permite modificar esta información.')
+      return false
+    }
+    const existente = (coleccion, id) => (estado[coleccion] ?? []).find((x) => x.id === id)
     const acciones = {
       agregarItem: (coleccion, item) => {
         const itemCompleto = {
           ...item,
           id: item.id ?? siguienteId(estado[coleccion]),
         }
-        dispatch({
-          type: 'AGREGAR_ITEM',
-          payload: { coleccion, item: itemCompleto },
-        })
+        if (permitir(coleccion, 'agregar', itemCompleto)) {
+          dispatch({
+            type: 'AGREGAR_ITEM',
+            payload: { coleccion, item: itemCompleto },
+          })
+        }
         return itemCompleto
       },
-      actualizarItem: (coleccion, item) =>
-        dispatch({ type: 'ACTUALIZAR_ITEM', payload: { coleccion, item } }),
-      eliminarItem: (coleccion, id) =>
-        dispatch({ type: 'ELIMINAR_ITEM', payload: { coleccion, id } }),
-      alternarActivo: (coleccion, id) =>
-        dispatch({ type: 'ALTERNAR_ACTIVO', payload: { coleccion, id } }),
-      reemplazarColeccion: (coleccion, items) =>
-        dispatch({
-          type: 'REEMPLAZAR_COLECCION',
-          payload: { coleccion, items },
-        }),
+      actualizarItem: (coleccion, item) => {
+        if (permitir(coleccion, 'actualizar', existente(coleccion, item.id) ?? item)) {
+          dispatch({ type: 'ACTUALIZAR_ITEM', payload: { coleccion, item } })
+        }
+      },
+      eliminarItem: (coleccion, id) => {
+        if (permitir(coleccion, 'eliminar', existente(coleccion, id))) {
+          dispatch({ type: 'ELIMINAR_ITEM', payload: { coleccion, id } })
+        }
+      },
+      alternarActivo: (coleccion, id) => {
+        if (permitir(coleccion, 'actualizar', existente(coleccion, id))) {
+          dispatch({ type: 'ALTERNAR_ACTIVO', payload: { coleccion, id } })
+        }
+      },
+      reemplazarColeccion: (coleccion, items) => {
+        if (permitir(coleccion, 'reemplazar')) {
+          dispatch({
+            type: 'REEMPLAZAR_COLECCION',
+            payload: { coleccion, items },
+          })
+        }
+      },
       actualizarAlertasEstado: (alertasEstado) =>
         dispatch({
           type: 'REEMPLAZAR_ALERTAS_ESTADO',
           payload: { alertasEstado },
         }),
-      restablecer: () => dispatch({ type: 'RESTABLECER' }),
+      restablecer: () => {
+        if (permitir('*', 'restablecer')) dispatch({ type: 'RESTABLECER' })
+      },
     }
 
     return { estado, dispatch, falloGuardado, ...acciones }
-  }, [estado, falloGuardado])
+  }, [estado, falloGuardado, auth])
 
   return <DataContext.Provider value={valor}>{children}</DataContext.Provider>
 }

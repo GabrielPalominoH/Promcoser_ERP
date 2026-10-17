@@ -1,7 +1,23 @@
 import { readFileSync } from 'node:fs'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import { SECCIONES_NAVEGACION } from '../src/components/layout/Sidebar'
+import { SECCIONES_NAVEGACION, seccionesPara } from '../src/components/layout/Sidebar'
+import { Login } from '../src/pages/Login'
+import {
+  adminsActivos,
+  cargarUsuarios,
+  cerrarSesionGuardada,
+  crearRegistroUsuario,
+  guardarSesion,
+  leerSesion,
+  limpiarFallos,
+  registrarFallo,
+  segundosDeBloqueo,
+  sha256Hex,
+  validarClaveNueva,
+  verificarClave,
+} from '../src/data/auth'
+import { inicioDeRol, puedeEscribir, rutaGlobalPermitida, seccionServicioPermitida } from '../src/utils/permisos'
 import { AvisosSistema } from '../src/components/layout/AvisosSistema'
 import { DataProvider, dataReducer, siguienteId } from '../src/context/DataContext'
 import { COLECCIONES, ESTADO_INICIAL, TIPOS_SERVICIO, migrarPresupuestoATareas, tipoServicio } from '../src/data/mockData'
@@ -5525,6 +5541,51 @@ comprobar(
       ['/', '/servicios', '/personal', '/equipos', '/oficina', '/cargos', '/unidades'].every((r) => rutas.includes(r)),
   )
 }
+
+console.log('\n[ login y roles ]')
+
+comprobar('sha256: vector estándar "abc"', sha256Hex('abc') === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
+{
+  const usuariosIni = cargarUsuarios()
+  const admin = usuariosIni[0]
+  comprobar('login: se siembra un único administrador con el correo acordado', usuariosIni.length === 1 && admin.correo === 'gpalomino.promcoser@gmail.com' && admin.rol === 'administrador')
+  comprobar('login: la clave del administrador valida', verificarClave(admin, 'adminPromcoser') === true)
+  comprobar('login: una clave errónea no valida', verificarClave(admin, 'adminpromcoser') === false && verificarClave(admin, '') === false)
+  comprobar('login: la clave no se guarda en texto', !JSON.stringify(usuariosIni).includes('adminPromcoser'))
+  const nuevo = crearRegistroUsuario({ id: 2, nombre: 'Ana', correo: ' ANA@Empresa.com ', rol: 'residente', clave: 'claveSegura1' })
+  comprobar('login: el correo se normaliza y la clave valida', nuevo.correo === 'ana@empresa.com' && verificarClave(nuevo, 'claveSegura1') && !verificarClave(nuevo, 'otra'))
+  comprobar('login: dos usuarios con la misma clave tienen distinta sal y resumen', crearRegistroUsuario({ id: 3, nombre: 'B', correo: 'b@e.com', rol: 'gerencia', clave: 'claveSegura1' }).hash !== nuevo.hash)
+  comprobar('login: clave corta se rechaza y la de 8 caracteres pasa', validarClaveNueva('corta') !== null && validarClaveNueva('12345678') === null)
+  comprobar('login: no se puede dejar sin administrador activo', adminsActivos([{ ...admin, activo: false }, nuevo]).length === 0 && adminsActivos([admin, nuevo]).length === 1)
+
+  guardarSesion(1, 1000)
+  comprobar('sesión: vigente dentro de las horas permitidas', leerSesion(usuariosIni, 1000 + 3600 * 1000)?.id === 1)
+  comprobar('sesión: caduca pasadas las 8 horas', leerSesion(usuariosIni, 1000 + 9 * 3600 * 1000) === null)
+  comprobar('sesión: un usuario desactivado pierde la sesión', leerSesion([{ ...admin, activo: false }], 1000 + 3600 * 1000) === null)
+  cerrarSesionGuardada()
+  comprobar('sesión: cerrar sesión la borra', leerSesion(usuariosIni, 1000 + 3600 * 1000) === null)
+
+  limpiarFallos()
+  for (let i = 0; i < 4; i++) registrarFallo(5000)
+  comprobar('bloqueo: 4 fallos aún no bloquean', segundosDeBloqueo(5000) === 0)
+  registrarFallo(5000)
+  comprobar('bloqueo: el quinto fallo bloquea 60 s', segundosDeBloqueo(5000) === 60 && segundosDeBloqueo(5000 + 61000) === 0)
+  limpiarFallos()
+  comprobar('bloqueo: un acceso correcto limpia los fallos', segundosDeBloqueo(5000) === 0)
+}
+
+comprobar('roles: administrador escribe en todo y gestiona respaldos', puedeEscribir('administrador', 'servicios', 'eliminar') && puedeEscribir('administrador', 'config', 'actualizar') && puedeEscribir('administrador', '*', 'restablecer') && puedeEscribir('administrador', 'cobros', 'reemplazar'))
+comprobar('roles: gerencia es de solo lectura', COLECCIONES.every((c) => !puedeEscribir('gerencia', c, 'agregar') && !puedeEscribir('gerencia', c, 'actualizar') && !puedeEscribir('gerencia', c, 'eliminar')))
+comprobar('roles: residente opera la obra pero no cobra ni crea obras', puedeEscribir('residente', 'partes_diario', 'agregar') && puedeEscribir('residente', 'tareas', 'actualizar') && puedeEscribir('residente', 'registros_servicio', 'agregar') && !puedeEscribir('residente', 'cobros', 'agregar') && !puedeEscribir('residente', 'valorizaciones', 'agregar') && !puedeEscribir('residente', 'servicios', 'agregar') && !puedeEscribir('residente', 'servicios', 'eliminar') && puedeEscribir('residente', 'servicios', 'actualizar'))
+comprobar('roles: administración maneja finanzas pero no la obra ni la configuración', puedeEscribir('administracion', 'cobros', 'agregar') && puedeEscribir('administracion', 'facturas', 'actualizar') && puedeEscribir('administracion', 'costos_oficina', 'agregar') && !puedeEscribir('administracion', 'partes_diario', 'agregar') && !puedeEscribir('administracion', 'tareas', 'actualizar') && !puedeEscribir('administracion', 'servicios', 'agregar') && !puedeEscribir('administracion', 'config', 'actualizar'))
+comprobar('roles: solo el administrador reemplaza colecciones o restablece', ['gerencia', 'residente', 'administracion'].every((r) => !puedeEscribir(r, 'cobros', 'reemplazar') && !puedeEscribir(r, '*', 'restablecer')))
+comprobar('roles: un rol desconocido no puede nada', !puedeEscribir('visitante', 'cobros', 'agregar') && !rutaGlobalPermitida('visitante', '/servicios') && !seccionServicioPermitida('visitante', 'resumen'))
+comprobar('rutas: Usuarios solo para el administrador', rutaGlobalPermitida('administrador', '/usuarios') && ['gerencia', 'residente', 'administracion'].every((r) => !rutaGlobalPermitida(r, '/usuarios')))
+comprobar('rutas: el residente no ve Dashboard ni Oficina y arranca en Servicios', !rutaGlobalPermitida('residente', '/') && !rutaGlobalPermitida('residente', '/oficina') && inicioDeRol('residente') === '/servicios' && inicioDeRol('gerencia') === '/')
+comprobar('secciones de obra: el residente no ve Ingresos y solo el administrador ve Opciones', !seccionServicioPermitida('residente', 'ingresos') && seccionServicioPermitida('gerencia', 'ingresos') && seccionServicioPermitida('administrador', 'opciones') && ['gerencia', 'residente', 'administracion'].every((r) => !seccionServicioPermitida(r, 'opciones')))
+comprobar('sidebar: el administrador ve Usuarios y roles; los demás no', seccionesPara('administrador').flatMap((s) => s.enlaces).some((e) => e.to === '/usuarios') && ['gerencia', 'residente', 'administracion'].every((r) => !seccionesPara(r).flatMap((s) => s.enlaces).some((e) => e.to === '/usuarios')))
+comprobar('sidebar: el residente no ve Dashboard ni Oficina', !seccionesPara('residente').flatMap((s) => s.enlaces).some((e) => e.to === '/' || e.to === '/oficina'))
+comprobar('login: sin sesión se muestra solo el acceso', renderToString(<Login />).includes('Iniciar sesión') && !renderToString(<Login />).includes('Dashboard'))
 
 console.log(`\n${fallos === 0 ? 'TODO OK' : `${fallos} FALLO(S)`} — ${pruebas} pruebas`)
 process.exit(fallos === 0 ? 0 : 1)

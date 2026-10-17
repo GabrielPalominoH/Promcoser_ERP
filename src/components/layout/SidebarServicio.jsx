@@ -1,6 +1,7 @@
 import { Link, NavLink } from 'react-router-dom'
 import {
   BotonConfiguracion,
+  BotonSesion,
   BotonMenu,
   ETIQUETA,
   FILA_ACCION,
@@ -12,6 +13,8 @@ import {
 } from './Sidebar'
 import { BadgeEstatus } from '../ui/Badge'
 import { usePanelServicio } from '../../pages/servicio/panel'
+import { useAuth } from '../../context/useAuth'
+import { seccionServicioPermitida } from '../../utils/permisos'
 
 // Rutas absolutas: este sidebar lo renderiza el Layout (ruta sin path),
 // así que los enlaces relativos se resolverían contra la raíz.
@@ -58,6 +61,11 @@ export function SidebarServicio({ abierto, onCerrar, onAlternar, colapsado = fal
 
   const v = (tabla) => claseVariante(tabla, { abierto, colapsado })
 
+  const { rol } = useAuth()
+  const seccionesVisibles = SECCIONES.map((seccion) => ({
+    ...seccion,
+    opciones: seccion.opciones.filter((o) => seccionServicioPermitida(rol, o.id)),
+  })).filter((seccion) => seccion.opciones.length > 0)
   const base = `/servicios/${servicio.id}`
   const destino = (id) => (id === 'resumen' ? base : `${base}/${id}`)
 
@@ -121,7 +129,7 @@ export function SidebarServicio({ abierto, onCerrar, onAlternar, colapsado = fal
             </li>
           </ul>
 
-          {SECCIONES.map((seccion) => (
+          {seccionesVisibles.map((seccion) => (
             <div key={seccion.titulo}>
               <p className={`mb-1.5 px-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase ${v(ETIQUETA)}`}>
                 {seccion.titulo}
@@ -159,6 +167,7 @@ export function SidebarServicio({ abierto, onCerrar, onAlternar, colapsado = fal
             variante={v(FILA_ENLACE)}
             etiqueta={v(ETIQUETA)}
           />
+          <BotonSesion variante={v(FILA_ENLACE)} etiqueta={v(ETIQUETA)} />
         </div>
       </aside>
     </>

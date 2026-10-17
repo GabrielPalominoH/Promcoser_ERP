@@ -108,6 +108,10 @@ equipos 1──N partes_diario (equipo_id dentro de `equipos`)
   saldos, flujo, vigencia, periodos). Política: PEN,
   céntimos, resultado = cobrado − gastado.
 
+## Usuarios y sesión (fuera del respaldo)
+
+`src/data/auth.js` guarda en `localStorage` la lista de usuarios (`promcoser_usuarios_v1`: id, nombre, correo, rol, activo, sal y resumen SHA-256 iterado de la clave; nunca la clave en texto), la sesión (`promcoser_sesion`, 8 h) y el bloqueo por intentos fallidos (5 fallos → 60 s). Roles: `administrador`, `gerencia` (solo lectura), `residente` (opera la obra) y `administracion` (finanzas); la matriz vive en `src/utils/permisos.js`. Los usuarios **no viajan en el respaldo** ni en "Restablecer"/"Vaciar todo".
+
 ## Preferencias de operación (no son datos de negocio)
 
 `store.js` guarda aparte, sin entrar al respaldo: `promcoser_inicializado` (ya se eligió cómo empezar),

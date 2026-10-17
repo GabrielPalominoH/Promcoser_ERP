@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../context/useData'
+import { useAuth } from '../context/useAuth'
 import { Card } from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
 import { Badge, BadgeEstatus } from '../components/ui/Badge'
@@ -162,6 +163,7 @@ export function ModalDatosRespaldo({
 
 export function Dashboard() {
   const { estado, restablecer, reemplazarColeccion, actualizarItem } = useData()
+  const { rol } = useAuth()
   const [aviso, setAviso] = useState(null)
   const [datosAbierto, setDatosAbierto] = useState(false)
   const [vaciarArmado, setVaciarArmado] = useState(false)
@@ -475,9 +477,11 @@ export function Dashboard() {
             Resultado, caja, riesgos y rentabilidad de PROMCOSER en una sola vista.
           </p>
         </div>
-        <Button variante="secundario" onClick={() => setDatosAbierto(true)}>
-          Datos y respaldo
-        </Button>
+        {rol === 'administrador' && (
+          <Button variante="secundario" onClick={() => setDatosAbierto(true)}>
+            Datos y respaldo
+          </Button>
+        )}
       </div>
 
       <Card

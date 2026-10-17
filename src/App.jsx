@@ -22,12 +22,32 @@ import { Cargos } from './pages/Cargos'
 import { Equipos } from './pages/Equipos'
 import { Oficina } from './pages/Oficina'
 import { Unidades } from './pages/Unidades'
+import { Usuarios } from './pages/Usuarios'
+import { Login } from './pages/Login'
+import { useAuth } from './context/useAuth'
+import { inicioDeRol, rutaGlobalPermitida, seccionServicioPermitida } from './utils/permisos'
+
+// Guardia por rol: si la ruta o sección está vedada, vuelve al inicio del rol.
+function Protegida({ ruta, seccion, children }) {
+  const { rol } = useAuth()
+  const permitido = ruta ? rutaGlobalPermitida(rol, ruta) : seccionServicioPermitida(rol, seccion)
+  return permitido ? children : <Navigate to={inicioDeRol(rol)} replace />
+}
 
 export default function App() {
+  const { autenticado } = useAuth()
+  if (!autenticado) return <Login />
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
+        <Route
+          index
+          element={
+            <Protegida ruta="/">
+              <Dashboard />
+            </Protegida>
+          }
+        />
         <Route path="servicios" element={<Servicios />} />
         <Route path="servicios/:servicioId" element={<PanelServicio />}>
           <Route index element={<ResumenServicio />} />
@@ -35,7 +55,14 @@ export default function App() {
           <Route path="personal" element={<PersonalServicio />} />
           <Route path="equipos" element={<EquiposServicio />} />
           <Route path="gastos" element={<GastosServicio />} />
-          <Route path="ingresos" element={<IngresosServicio />} />
+          <Route
+            path="ingresos"
+            element={
+              <Protegida seccion="ingresos">
+                <IngresosServicio />
+              </Protegida>
+            }
+          />
           <Route path="cobros" element={<Navigate to="../ingresos" replace />} />
           <Route path="facturacion" element={<Navigate to="../ingresos" replace />} />
           <Route path="cronograma" element={<CronogramaServicio />} />
@@ -45,12 +72,34 @@ export default function App() {
           <Route path="valorizaciones" element={<ValorizacionesServicio />} />
           <Route path="modificaciones" element={<ModificacionesServicio />} />
           <Route path="parte-diario" element={<ParteDiarioServicio />} />
-          <Route path="opciones" element={<OpcionesServicio />} />
+          <Route
+            path="opciones"
+            element={
+              <Protegida seccion="opciones">
+                <OpcionesServicio />
+              </Protegida>
+            }
+          />
         </Route>
         <Route path="personal" element={<Personal />} />
         <Route path="cargos" element={<Cargos />} />
         <Route path="equipos" element={<Equipos />} />
-        <Route path="oficina" element={<Oficina />} />
+        <Route
+          path="oficina"
+          element={
+            <Protegida ruta="/oficina">
+              <Oficina />
+            </Protegida>
+          }
+        />
+        <Route
+          path="usuarios"
+          element={
+            <Protegida ruta="/usuarios">
+              <Usuarios />
+            </Protegida>
+          }
+        />
         <Route path="unidades" element={<Unidades />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
