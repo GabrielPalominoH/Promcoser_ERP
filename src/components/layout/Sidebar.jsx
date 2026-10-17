@@ -1,7 +1,8 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import { useData } from '../../context/useData'
 import { useAuth } from '../../context/useAuth'
-import { rutaGlobalPermitida } from '../../utils/permisos'
+import { ETIQUETAS_ROL, rutaGlobalPermitida } from '../../utils/permisos'
+import { cargoVisible } from '../../data/auth'
 
 export const SECCIONES_NAVEGACION = [
   {
@@ -31,16 +32,13 @@ export const SECCIONES_NAVEGACION = [
   },
 ]
 
-// Secciones visibles para un rol: se quitan los enlaces vedados y se añade
-// Usuarios (solo administrador) en Administración.
+// Secciones visibles para un rol: se quitan los enlaces vedados y las
+// secciones que quedan vacías. Usuarios y roles vive en Configuración.
 export function seccionesPara(rol) {
-  return SECCIONES_NAVEGACION.map((seccion) => {
-    const enlaces = seccion.enlaces.filter((e) => rutaGlobalPermitida(rol, e.to))
-    if (seccion.titulo === 'Administración' && rol === 'administrador') {
-      enlaces.push({ to: '/usuarios', label: 'Usuarios y roles', icono: 'users' })
-    }
-    return { ...seccion, enlaces }
-  }).filter((seccion) => seccion.enlaces.length > 0)
+  return SECCIONES_NAVEGACION.map((seccion) => ({
+    ...seccion,
+    enlaces: seccion.enlaces.filter((e) => rutaGlobalPermitida(rol, e.to)),
+  })).filter((seccion) => seccion.enlaces.length > 0)
 }
 
 const ICONOS = {
@@ -177,26 +175,38 @@ export function BotonMenu({ abierto, colapsado, onAlternar, clase = '' }) {
   )
 }
 
-// Botón de Configuración: vive SIEMPRE en la parte de abajo del sidebar
-// (tanto en el panel general como en el de un servicio). Usa las mismas
-// tablas de variante que los enlaces para alinearse y ocultar la etiqueta
-// cuando el sidebar está colapsado.
-export function BotonConfiguracion({ onAbrir, variante = '', etiqueta = '' }) {
+export function iniciales(nombre) {
+  const partes = String(nombre ?? '').trim().split(/\s+/).filter(Boolean)
+  return ((partes[0]?.[0] ?? '') + (partes[1]?.[0] ?? '')).toUpperCase() || '?'
+}
+
+// Tarjeta del usuario al pie del sidebar (donde antes estaba el botón de
+// Configuración): avatar, nombre y cargo. Abre el módulo de Configuración.
+// Usa las tablas de variante para quedarse solo con el avatar al colapsar.
+export function BotonConfiguracion({ variante = '', etiqueta = '', onAbrir }) {
+  const { usuario } = useAuth()
+  const etiquetaRol = ETIQUETAS_ROL[usuario?.rol] ?? usuario?.rol ?? ''
   return (
-    <button
-      type="button"
+    <Link
+      to="/configuracion"
       onClick={onAbrir}
-      title="Configuración"
+      title={`Configuración · ${usuario?.nombre ?? ''}`}
       aria-label="Abrir configuración"
-      className={`flex items-center gap-3 rounded-lg py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 ${variante}`}
+      className={`flex items-center gap-3 rounded-lg py-2 transition-colors hover:bg-slate-100 ${variante}`}
     >
-      <Icono nombre="config" className="size-5 shrink-0" />
-      <span className={etiqueta}>Configuración</span>
-    </button>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-semibold text-white">
+        {iniciales(usuario?.nombre)}
+      </span>
+      <span className={`min-w-0 flex-1 ${etiqueta}`}>
+        <span className="block truncate text-sm font-semibold text-slate-900">{usuario?.nombre}</span>
+        <span className="block truncate text-xs text-slate-500">{cargoVisible(usuario, etiquetaRol)}</span>
+      </span>
+      <Icono nombre="config" className={`size-4 shrink-0 text-slate-400 ${etiqueta}`} />
+    </Link>
   )
 }
 
-// Cerrar sesión: junto a Configuración, al pie de ambos sidebars.
+// Cerrar sesión: bajo la tarjeta del usuario, al pie de ambos sidebars.
 export function BotonSesion({ variante = '', etiqueta = '' }) {
   const { usuario, cerrarSesion } = useAuth()
   return (
@@ -213,7 +223,7 @@ export function BotonSesion({ variante = '', etiqueta = '' }) {
   )
 }
 
-export function Sidebar({ abierto, onCerrar, onAlternar, colapsado = false, onAbrirConfiguracion }) {
+export function Sidebar({ abierto, onCerrar, onAlternar, colapsado = false }) {
   const { estado } = useData()
   const { rol } = useAuth()
   const v = (tabla) => claseVariante(tabla, { abierto, colapsado })
@@ -288,7 +298,7 @@ export function Sidebar({ abierto, onCerrar, onAlternar, colapsado = false, onAb
         {/* Configuración: siempre visible al pie del sidebar. */}
         <div className={`shrink-0 border-t border-slate-200 ${v(FILA_NAV)}`}>
           <BotonConfiguracion
-            onAbrir={onAbrirConfiguracion}
+            onAbrir={onCerrar}
             variante={v(FILA_ENLACE)}
             etiqueta={v(ETIQUETA)}
           />

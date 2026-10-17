@@ -77,7 +77,7 @@ consolidado separados.
 **Aceptación:** Caso K (respaldo) ya en suite.
 
 ## M10. Dashboard gerencial (hecho)
-**Existe:** panel gerencial en `/` con KPIs de empresa (resultado, gastado, cobrado, servicios en curso/en riesgo), meta de ingreso (cobrado vs objetivo, con lo que falta), atención inmediata (obras en riesgo), evolución real (caja por mes) vs proyectada (personal por mes), utilidad por cliente, gasto y ranking por servicio, resultado empresa y cronograma global. El detalle operativo (movimientos recientes) queda colapsado en segundo plano y el respaldo/importación/restablecer vive en el botón **"Datos y respaldo"**.
+**Existe:** panel gerencial en `/` con KPIs de empresa (resultado, gastado, cobrado, servicios en curso/en riesgo), meta de ingreso (cobrado vs objetivo, con lo que falta), atención inmediata (obras en riesgo), evolución real (caja por mes) vs proyectada (personal por mes), utilidad por cliente, gasto y ranking por servicio, resultado empresa y cronograma global. El detalle operativo (movimientos recientes) queda colapsado en segundo plano y el respaldo/importación/restablecer vive en **Configuración → Datos y respaldo** (solo administrador).
 **Filtros:** cliente, tipo y estado alcanzan a todo lo por servicio; Oficina y resultado empresa son de la empresa y no se filtran.
 **Falta:**
 - Filtro por responsable (requiere ese dato en M1).

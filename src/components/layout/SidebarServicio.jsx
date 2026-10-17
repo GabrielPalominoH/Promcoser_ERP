@@ -56,7 +56,7 @@ const SECCIONES = [
   },
 ]
 
-export function SidebarServicio({ abierto, onCerrar, onAlternar, colapsado = false, onAbrirConfiguracion }) {
+export function SidebarServicio({ abierto, onCerrar, onAlternar, colapsado = false }) {
   const { servicio } = usePanelServicio()
 
   const v = (tabla) => claseVariante(tabla, { abierto, colapsado })
@@ -163,7 +163,7 @@ export function SidebarServicio({ abierto, onCerrar, onAlternar, colapsado = fal
         {/* Configuración: siempre visible al pie del sidebar. */}
         <div className={`shrink-0 border-t border-slate-200 ${v(FILA_NAV)}`}>
           <BotonConfiguracion
-            onAbrir={onAbrirConfiguracion}
+            onAbrir={onCerrar}
             variante={v(FILA_ENLACE)}
             etiqueta={v(ETIQUETA)}
           />

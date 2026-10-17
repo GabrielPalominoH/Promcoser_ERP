@@ -28,10 +28,13 @@ en una sola computadora.
 - **Sus datos se guardan en el navegador de la computadora** (Chrome, Edge,
   etc.), no en internet. Si usa otra computadora, no verá sus datos.
 - **Acceso:** el sistema pide correo y clave al abrirlo. La sesión dura 8 horas y tras 5
-  intentos fallidos espera 1 minuto. Arriba a la derecha está su **nombre y rol**: al pulsarlo se abre
-  el menú con **Mi cuenta y configuración** (cambiar su clave) y **Cerrar sesión**. También hay
-  un botón **Cerrar sesión** al pie del menú lateral. Si olvida su clave, el administrador la
-  restablece en **Usuarios y roles**.
+  intentos fallidos espera 1 minuto. Al pie del menú lateral está su **nombre y cargo**: al pulsarlo se
+  abre **Configuración**. Justo debajo está **Cerrar sesión**.
+- **Configuración** tiene: *Mi cuenta* (su nombre, cargo y cambio de clave), *Apariencia* (tema
+  claro u oscuro) y, solo para el administrador, *Usuarios y roles* (crear usuarios con su rol y
+  cargo, restablecer claves, desactivar o eliminar), *Empresa* (nombre y meta de ingreso) y *Datos
+  y respaldo* (exportar, importar, restablecer ejemplo, vaciar). Si olvida su clave, el administrador la
+  restablece en **Configuración → Usuarios y roles**.
 - **Roles:** *Administrador* (todo), *Gerencia* (solo lectura), *Residente de obra* (opera la
   obra, sin editar sus datos ni ver Ingresos, Dashboard ni Oficina) y *Administración* (finanzas). Si intenta algo que su
   rol no permite, aparece un aviso y no se guarda nada. Gerencia ve la franja **Modo solo lectura**.
@@ -42,8 +45,8 @@ en una sola computadora.
 - **El sistema le recuerda el respaldo:** si pasan 7 días sin descargar uno (o el
   almacenamiento del navegador casi se llena), aparece un aviso amarillo arriba
   con el botón **Descargar respaldo**.
-- **Haga un respaldo cada semana.** En el panel principal (Dashboard) hay un
-  botón **"Datos y respaldo"** con la opción **"Exportar respaldo"**, que
+- **Haga un respaldo cada semana.** En **Configuración → Datos y respaldo** está
+  la opción **"Exportar respaldo"**, que
   descarga un archivo con toda la información. Guárdelo en un USB o en su
   correo. Si algo le pasa a la computadora, con la opción **"Importar
   respaldo"** se recupera todo: después de importar, revise que los totales
@@ -64,7 +67,7 @@ Opciones del menú principal:
 
 | Opción | Para qué sirve |
 |---|---|
-| **Dashboard** | El panel gerencial de la empresa. Arriba el **semáforo ejecutivo** (🟢 en orden / 🟡 atención / 🔴 en rojo) con su motivo, la meta de ingreso y los 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado). Luego el **gráfico combinado de columnas y líneas con doble eje Y**: las columnas son el volumen de obras activas por mes (eje derecho) y las dos líneas son el desfase de tiempo y el desfase de costo de la cartera (eje izquierdo 0–100 %); al pasar el mouse por cada mes aparece el detalle. Después, el detalle: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado; el botón **"Datos y respaldo"** exporta/importa el respaldo, restablece los datos de ejemplo o vacía todo para empezar de cero. |
+| **Dashboard** | El panel gerencial de la empresa. Arriba el **semáforo ejecutivo** (🟢 en orden / 🟡 atención / 🔴 en rojo) con su motivo, la meta de ingreso y los 4 KPIs con tendencia vs. mes anterior y fórmula visible (resultado con drilldown a Oficina, gastado, cobrado, servicios con drilldown al listado). Luego el **gráfico combinado de columnas y líneas con doble eje Y**: las columnas son el volumen de obras activas por mes (eje derecho) y las dos líneas son el desfase de tiempo y el desfase de costo de la cartera (eje izquierdo 0–100 %); al pasar el mouse por cada mes aparece el detalle. Después, el detalle: obras en riesgo, evolución de la caja real por mes, proyección de personal por mes, utilidad por cliente, gasto y ranking por servicio y cronograma global. El detalle operativo (movimientos recientes) queda oculto tras un botón. Con filtros por cliente, tipo y estado. El respaldo (exportar, importar, restablecer, vaciar) está en **Configuración → Datos y respaldo**. |
 | **Servicios** | La lista de obras (cada obra se llama "servicio"). Desde aquí se crea una obra nueva o se entra a ver una. |
 | **Personal** | La lista de todos los trabajadores con su cargo y su pago por hora. Es como la planilla. Desde aquí se les asigna a las obras. |
 | **Cargos** | El catálogo de cargos (Ayudante, Operario, Capataz…). Cada ficha de Personal elige su cargo de esta lista; si renombra un cargo, se actualiza en todo el personal. |
@@ -375,8 +378,7 @@ fichas de Personal/Equipos/Servicios) agrupan los miles solos: escriba `10000`
 y verá `10,000`. Se usa coma para los miles y punto para los decimales (hasta
 2): `1234.5` queda como `1,234.5`.
 
-**Cada semana:** pulse **"Datos y respaldo" → "Exportar respaldo"** en el
-Dashboard y guarde el archivo fuera de la computadora.
+**Cada semana:** pulse **Configuración → Datos y respaldo → "Exportar respaldo"** y guarde el archivo fuera de la computadora.
 
 ---
 

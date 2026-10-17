@@ -22,7 +22,7 @@ import { Cargos } from './pages/Cargos'
 import { Equipos } from './pages/Equipos'
 import { Oficina } from './pages/Oficina'
 import { Unidades } from './pages/Unidades'
-import { Usuarios } from './pages/Usuarios'
+import { Configuracion } from './pages/Configuracion'
 import { Login } from './pages/Login'
 import { useAuth } from './context/useAuth'
 import { inicioDeRol, rutaGlobalPermitida, seccionServicioPermitida } from './utils/permisos'
@@ -92,14 +92,8 @@ export default function App() {
             </Protegida>
           }
         />
-        <Route
-          path="usuarios"
-          element={
-            <Protegida ruta="/usuarios">
-              <Usuarios />
-            </Protegida>
-          }
-        />
+        <Route path="configuracion" element={<Configuracion />} />
+        <Route path="usuarios" element={<Navigate to="/configuracion?seccion=usuarios" replace />} />
         <Route path="unidades" element={<Unidades />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -225,8 +225,10 @@ import { ModalNota } from '../src/pages/servicio/LineaBaseServicio'
 import { FormularioEditarServicio, ModalEliminarServicio } from '../src/pages/servicio/panel'
 import { ModalEliminarCosto } from '../src/pages/Oficina'
 import { ModalReporteMensual } from '../src/pages/servicio/ResumenServicio'
-import { ModalDatosRespaldo } from '../src/pages/Dashboard'
-import { ConfiguracionModal } from '../src/components/layout/ConfiguracionModal'
+import { DatosRespaldo } from '../src/components/configuracion/DatosRespaldo'
+import { Configuracion } from '../src/pages/Configuracion'
+import { cargoVisible } from '../src/data/auth'
+import { SECCIONES_CONFIGURACION, seccionConfiguracionPermitida } from '../src/utils/permisos'
 import {
   diasInactividadAlerta,
   diasTrabajados,
@@ -3275,13 +3277,17 @@ comprobar(
 // hexadecimales explícitos y NO las utilidades bg-white / bg-slate-200, que el
 // tema oscuro redefine a tonos oscuros bajo :root[data-tema='oscuro'] (por eso
 // la vista previa del tema claro se veía oscura estando en oscuro).
-const fuenteConfiguracion = readFileSync('src/components/layout/ConfiguracionModal.jsx', 'utf8')
+const fuenteConfiguracion = readFileSync('src/pages/Configuracion.jsx', 'utf8')
+const fuenteVistaPrevia = fuenteConfiguracion.slice(
+  fuenteConfiguracion.indexOf('function VistaPrevia'),
+  fuenteConfiguracion.indexOf('const TEMAS'),
+)
 comprobar(
   'configuración: la vista previa del tema claro usa colores fijos (hex)',
-  fuenteConfiguracion.includes('bg-[#ffffff]') &&
-    fuenteConfiguracion.includes('bg-[#e2e8f0]') &&
-    !fuenteConfiguracion.includes('bg-white') &&
-    !fuenteConfiguracion.includes('bg-slate-200'),
+  fuenteVistaPrevia.includes('bg-[#ffffff]') &&
+    fuenteVistaPrevia.includes('bg-[#e2e8f0]') &&
+    !fuenteVistaPrevia.includes('bg-white') &&
+    !fuenteVistaPrevia.includes('bg-slate-200'),
 )
 
 // El listado de Servicios se muestra como cuadrícula de tarjetas (cada una
@@ -5483,26 +5489,31 @@ humo(
 humo(
   'humo: datos y respaldo',
   montar(
-    <ModalDatosRespaldo
-      abierto
-      vaciarArmado={false}
-      inputArchivo={{ current: null }}
-      onCerrar={nadaHumo}
-      onExportar={nadaHumo}
-      onImportarArchivo={nadaHumo}
-      onRestablecer={nadaHumo}
-      onVaciar={nadaHumo}
-    />,
+    <MemoryRouter>
+      <DataProvider>
+        <DatosRespaldo />
+      </DataProvider>
+    </MemoryRouter>,
   ),
-  ['Datos y respaldo', 'Exportar respaldo', 'Vaciar todo'],
+  ['Datos y respaldo', 'Exportar respaldo', 'Importar respaldo', 'Restablecer datos de ejemplo', 'Vaciar todo', 'Espacio usado'],
 )
-humo(
-  'humo: configuración de apariencia',
+const montarConfig = (seccion) =>
   montar(
-    <ConfiguracionModal abierto tema="claro" onCerrar={nadaHumo} onCambiarTema={nadaHumo} />,
-  ),
-  ['Configuración', 'Claro', 'Oscuro'],
+    <MemoryRouter initialEntries={[`/configuracion${seccion ? `?seccion=${seccion}` : ''}`]}>
+      <DataProvider>
+        <Configuracion />
+      </DataProvider>
+    </MemoryRouter>,
+  )
+humo(
+  'humo: módulo de configuración (administrador)',
+  montarConfig(''),
+  ['Configuración', 'Mi cuenta', 'Apariencia', 'Usuarios y roles', 'Empresa', 'Datos y respaldo', 'Mis datos', 'Cambiar mi clave'],
 )
+humo('humo: configuración → apariencia', montarConfig('apariencia'), ['Tema', 'Claro', 'Oscuro'])
+humo('humo: configuración → usuarios y roles', montarConfig('usuarios'), ['Nuevo usuario', 'Qué puede hacer cada rol', 'Residente de obra'])
+humo('humo: configuración → empresa', montarConfig('empresa'), ['Nombre de la empresa', 'Meta de ingreso', 'Guardar empresa'])
+humo('humo: configuración → datos y respaldo', montarConfig('datos'), ['Exportar respaldo', 'Zona de riesgo'])
 
 // ============================================================
 
@@ -5583,7 +5594,13 @@ comprobar('roles: un rol desconocido no puede nada', !puedeEscribir('visitante',
 comprobar('rutas: Usuarios solo para el administrador', rutaGlobalPermitida('administrador', '/usuarios') && ['gerencia', 'residente', 'administracion'].every((r) => !rutaGlobalPermitida(r, '/usuarios')))
 comprobar('rutas: el residente no ve Dashboard ni Oficina y arranca en Servicios', !rutaGlobalPermitida('residente', '/') && !rutaGlobalPermitida('residente', '/oficina') && inicioDeRol('residente') === '/servicios' && inicioDeRol('gerencia') === '/')
 comprobar('secciones de obra: el residente no ve Ingresos y solo el administrador ve Opciones', !seccionServicioPermitida('residente', 'ingresos') && seccionServicioPermitida('gerencia', 'ingresos') && seccionServicioPermitida('administrador', 'opciones') && ['gerencia', 'residente', 'administracion'].every((r) => !seccionServicioPermitida(r, 'opciones')))
-comprobar('sidebar: el administrador ve Usuarios y roles; los demás no', seccionesPara('administrador').flatMap((s) => s.enlaces).some((e) => e.to === '/usuarios') && ['gerencia', 'residente', 'administracion'].every((r) => !seccionesPara(r).flatMap((s) => s.enlaces).some((e) => e.to === '/usuarios')))
+comprobar('sidebar: Usuarios ya no está en el menú (vive en Configuración)', ['administrador', 'gerencia', 'residente', 'administracion'].every((r) => !seccionesPara(r).flatMap((s) => s.enlaces).some((e) => e.to === '/usuarios')))
+comprobar('configuración: cinco secciones; Mi cuenta y Apariencia para todos', SECCIONES_CONFIGURACION.join('|') === 'cuenta|apariencia|usuarios|empresa|datos' && ['administrador', 'gerencia', 'residente', 'administracion'].every((r) => seccionConfiguracionPermitida(r, 'cuenta') && seccionConfiguracionPermitida(r, 'apariencia')))
+comprobar('configuración: Usuarios, Empresa y Datos solo para el administrador', ['usuarios', 'empresa', 'datos'].every((id) => seccionConfiguracionPermitida('administrador', id) && ['gerencia', 'residente', 'administracion'].every((r) => !seccionConfiguracionPermitida(r, id))))
+comprobar('configuración: sección o rol desconocidos se rechazan', !seccionConfiguracionPermitida('administrador', 'otra') && !seccionConfiguracionPermitida('visitante', 'cuenta'))
+comprobar('usuario: bajo el nombre se ve el cargo y, sin cargo, el rol', cargoVisible({ cargo: 'Gerente general' }, 'Administrador') === 'Gerente general' && cargoVisible({ cargo: '  ' }, 'Administrador') === 'Administrador' && cargoVisible({}, 'Gerencia') === 'Gerencia')
+comprobar('usuario: el cargo se guarda limpio al crear', crearRegistroUsuario({ id: 9, nombre: 'C', correo: 'c@e.com', rol: 'gerencia', clave: 'claveSegura1', cargo: '  Jefe de obra ' }).cargo === 'Jefe de obra')
+comprobar('sidebar: la tarjeta del usuario abre Configuración en ambos paneles', htmlInicioSeguro.includes('href="/configuracion"') && htmlPanelSeguro.includes('href="/configuracion"'))
 comprobar('sidebar: el residente no ve Dashboard ni Oficina', !seccionesPara('residente').flatMap((s) => s.enlaces).some((e) => e.to === '/' || e.to === '/oficina'))
 comprobar('login: sin sesión se muestra solo el acceso', renderToString(<MemoryRouter><Login /></MemoryRouter>).includes('Iniciar sesión') && !renderToString(<MemoryRouter><Login /></MemoryRouter>).includes('Dashboard'))
 

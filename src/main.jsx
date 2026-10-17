@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { DataProvider } from './context/DataContext'
 import { AuthProvider } from './context/AuthContext'
+import { TemaProvider } from './context/TemaContext'
 import './index.css'
 
 // Tema guardado: se aplica antes de pintar para que la pantalla de acceso
@@ -18,11 +19,13 @@ try {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <DataProvider>
-          <App />
-        </DataProvider>
-      </AuthProvider>
+      <TemaProvider>
+        <AuthProvider>
+          <DataProvider>
+            <App />
+          </DataProvider>
+        </AuthProvider>
+      </TemaProvider>
     </BrowserRouter>
   </StrictMode>,
 )

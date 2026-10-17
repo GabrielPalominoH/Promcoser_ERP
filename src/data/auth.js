@@ -131,11 +131,12 @@ export function nuevaSalt() {
 // ---------- usuarios ----------
 export const normalizarCorreo = (correo) => String(correo ?? '').trim().toLowerCase()
 
-export function crearRegistroUsuario({ id, nombre, correo, rol, clave, activo = true }) {
+export function crearRegistroUsuario({ id, nombre, correo, rol, clave, cargo = '', activo = true }) {
   const salt = nuevaSalt()
   return {
     id,
     nombre: String(nombre ?? '').trim(),
+    cargo: String(cargo ?? '').trim(),
     correo: normalizarCorreo(correo),
     rol: ROLES.includes(rol) ? rol : 'gerencia',
     activo,
@@ -149,6 +150,7 @@ export function crearRegistroUsuario({ id, nombre, correo, rol, clave, activo = 
 export const ADMIN_INICIAL = {
   id: 1,
   nombre: 'Gabriel Palomino',
+  cargo: '',
   correo: 'gpalomino.promcoser@gmail.com',
   rol: 'administrador',
   activo: true,
@@ -195,6 +197,12 @@ export function validarClaveNueva(clave) {
 
 export function adminsActivos(lista) {
   return lista.filter((u) => u.rol === 'administrador' && u.activo !== false)
+}
+
+// Lo que se muestra bajo el nombre: el cargo si existe, si no el rol.
+export function cargoVisible(usuario, etiquetaRol) {
+  const cargo = String(usuario?.cargo ?? '').trim()
+  return cargo || etiquetaRol || ''
 }
 
 // ---------- sesión ----------

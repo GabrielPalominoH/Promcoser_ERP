@@ -94,6 +94,15 @@ export function inicioDeRol(rol) {
   return rutaGlobalPermitida(rol, '/') ? '/' : '/servicios'
 }
 
+// Secciones del módulo Configuración. Mi cuenta y Apariencia son de todos; el
+// resto (usuarios, empresa, datos y respaldo) solo del administrador.
+export const SECCIONES_CONFIGURACION = ['cuenta', 'apariencia', 'usuarios', 'empresa', 'datos']
+
+export function seccionConfiguracionPermitida(rol, id) {
+  if (!ROLES.includes(rol) || !SECCIONES_CONFIGURACION.includes(id)) return false
+  return rol === 'administrador' || id === 'cuenta' || id === 'apariencia'
+}
+
 export function esAdministrador(rol) {
   return rol === 'administrador'
 }

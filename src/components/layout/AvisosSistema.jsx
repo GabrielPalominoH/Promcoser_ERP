@@ -24,7 +24,7 @@ function Bienvenida({ onElegir }) {
     <Modal
       abierto
       titulo="Bienvenido a PROMCOSER"
-      descripcion="Elige cómo quieres empezar. Siempre puedes cambiar después desde Dashboard → Datos y respaldo."
+      descripcion="Elige cómo quieres empezar. Siempre puedes cambiar después desde Configuración → Datos y respaldo."
       onCerrar={() => onElegir(false)}
       ancho="sm"
     >

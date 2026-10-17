@@ -6,7 +6,7 @@ ejemplo: tres obras —servicio 6 *Mejoramiento del servicio de agua potable y
 alcantarillado – AA.HH. San Isidro (II Etapa)*, servicio 7 *Mejoramiento y
 ampliación de pistas y veredas – Jr. Amazonas* y servicio 8 *Mantenimiento de
 redes de agua potable – Sector Muyuna*— y están verificados contra la suite
-(`npm run verificar`, 866 pruebas).
+(`npm run verificar`, 876 pruebas).
 
 > **Verificación**: cada cifra de este documento puede reproducirse con la suite.
 > Si cambias semillas o fórmulas, actualiza este documento y la suite.
@@ -673,7 +673,7 @@ Orden real de la pantalla:
 7. **Caja real por mes**, **Proyección de personal por mes**, **Utilidad por cliente**,
    **Gasto por servicio**, **Cobros por concepto**, **Cronograma global**.
 8. **Movimientos recientes** colapsado (detalle operativo).
-9. **Datos y respaldo**: exportar / importar / restablecer ejemplo / vaciar todo.
+9. **Datos y respaldo**: se movió a Configuración → Datos y respaldo.
 
 ### Resumen del servicio (`/servicios/:id`)
 1. Fechas y días restantes (`diasRestantes`).
@@ -767,7 +767,21 @@ Al abrir el sistema se pide **correo y clave** (`Login.jsx`). Los usuarios y la 
 `localStorage` (`src/data/auth.js`), separados de los datos de negocio: no entran al respaldo. La clave
 se guarda como sal + SHA-256 iterado (20 000 rondas). La sesión dura 8 horas y tras 5 intentos fallidos
 se bloquea 60 s. Hay un administrador inicial; el administrador crea, edita, desactiva y elimina usuarios
-y restablece claves en **Usuarios y roles** (`/usuarios`), y siempre debe quedar al menos uno activo.
+y restablece claves en **Configuración → Usuarios y roles**, y siempre debe quedar al menos uno activo.
+Cada usuario tiene además un **cargo** descriptivo (opcional) que se muestra bajo su nombre.
+
+### Módulo Configuración (`/configuracion`)
+Se abre con la tarjeta del usuario al pie del sidebar (avatar, nombre y cargo; sin cargo, el rol).
+
+| Sección | Quién | Qué hace |
+|---|---|---|
+| Mi cuenta | Todos | Editar nombre y cargo propios; cambiar la clave (actual + nueva repetida) |
+| Apariencia | Todos | Tema claro u oscuro (preferencia del navegador) |
+| Usuarios y roles | Administrador | Crear usuarios con rol y cargo, editar, restablecer claves, activar/desactivar, eliminar; matriz de roles |
+| Empresa | Administrador | Nombre de la empresa (cabecera de reportes) y meta de ingreso |
+| Datos y respaldo | Administrador | Último respaldo, espacio usado, exportar, importar, restablecer ejemplo y vaciar (con doble clic) |
+
+La sección se elige con `?seccion=`; una sección no permitida cae en Mi cuenta.
 
 | Rol | Puede |
 |---|---|
@@ -776,8 +790,8 @@ y restablece claves en **Usuarios y roles** (`/usuarios`), y siempre debe quedar
 | Residente de obra | Cronograma, partidas, parte diario, personal asignado, materiales, equipos y gastos; no edita los datos de la obra ni ve Ingresos, Dashboard ni Oficina |
 | Administración | Ingresos, facturas, valorizaciones, gastos, oficina, fichas de personal/equipos/cargos; lee el resto |
 
-La **barra superior** (`BarraSuperior.jsx`) reúne la campana de alertas y el menú del usuario
-(nombre, rol, Mi cuenta y **Cerrar sesión**); gerencia ve además la franja *Modo solo lectura*. Al
+La **barra superior** (`BarraSuperior.jsx`) muestra la fecha y la campana de alertas; gerencia ve
+además la franja *Modo solo lectura*. **Cerrar sesión** está al pie del sidebar, bajo la tarjeta del usuario. Al
 entrar, cada rol arranca en su inicio (`inicioDeRol`: Dashboard, o Servicios para el residente).
 
 Los permisos se aplican en dos capas: **rutas y menús** (lo vedado no se muestra y redirige) y

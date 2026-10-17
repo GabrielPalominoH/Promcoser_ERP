@@ -95,9 +95,23 @@ export function AuthProvider({ children }) {
     [usuario, usuarios, persistir],
   )
 
+  // Cualquier usuario puede corregir su propio nombre y cargo (no su rol ni su correo).
+  const actualizarMiPerfil = useCallback(
+    ({ nombre, cargo }) => {
+      if (!usuario) return { ok: false, error: 'No hay sesión activa.' }
+      const limpio = String(nombre ?? '').trim()
+      if (!limpio) return { ok: false, error: 'Escribe tu nombre.' }
+      persistir(
+        usuarios.map((u) => (u.id === usuario.id ? { ...u, nombre: limpio, cargo: String(cargo ?? '').trim() } : u)),
+      )
+      return { ok: true }
+    },
+    [usuario, usuarios, persistir],
+  )
+
   // ---- administración de usuarios (la pantalla ya la restringe al administrador) ----
   const crearUsuario = useCallback(
-    ({ nombre, correo, rol, clave }) => {
+    ({ nombre, correo, rol, clave, cargo }) => {
       if (usuario?.rol !== 'administrador') return { ok: false, error: 'Solo el administrador gestiona usuarios.' }
       if (!String(nombre ?? '').trim()) return { ok: false, error: 'Escribe el nombre.' }
       const mail = normalizarCorreo(correo)
@@ -106,7 +120,7 @@ export function AuthProvider({ children }) {
       const errorClave = validarClaveNueva(clave)
       if (errorClave) return { ok: false, error: errorClave }
       const id = usuarios.reduce((max, u) => Math.max(max, u.id), 0) + 1
-      persistir([...usuarios, crearRegistroUsuario({ id, nombre, correo: mail, rol, clave })])
+      persistir([...usuarios, crearRegistroUsuario({ id, nombre, correo: mail, rol, clave, cargo })])
       return { ok: true }
     },
     [usuario, usuarios, persistir],
@@ -167,6 +181,7 @@ export function AuthProvider({ children }) {
       iniciarSesion,
       cerrarSesion,
       cambiarMiClave,
+      actualizarMiPerfil,
       crearUsuario,
       actualizarUsuario,
       restablecerClave,
@@ -174,7 +189,7 @@ export function AuthProvider({ children }) {
       puedeEscribir: (coleccion, accion) => Boolean(usuario) && puedeEscribir(usuario.rol, coleccion, accion),
       avisarDenegado: avisar,
     }),
-    [usuario, usuarios, iniciarSesion, cerrarSesion, cambiarMiClave, crearUsuario, actualizarUsuario, restablecerClave, eliminarUsuario, avisar],
+    [usuario, usuarios, iniciarSesion, cerrarSesion, cambiarMiClave, actualizarMiPerfil, crearUsuario, actualizarUsuario, restablecerClave, eliminarUsuario, avisar],
   )
 
   return (

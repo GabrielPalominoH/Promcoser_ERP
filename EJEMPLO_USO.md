@@ -5,7 +5,7 @@ orden. Sigue los pasos con los valores exactos y verifica al final que ves
 los números esperados.
 
 > Datos 100% ficticios para aprender. Antes de empezar, exporta tu respaldo
-> (Dashboard → **Datos y respaldo** → **Exportar respaldo**): así no arriesgas
+> (Configuración → **Datos y respaldo** → **Exportar respaldo**): así no arriesgas
 > tu información real.
 
 ## El caso
@@ -112,7 +112,7 @@ gasto real por persona vigente.
    meta de la empresa, no le afectan los filtros).
 
 ## Paso 12. Respaldo y limpieza
-1. Dashboard → **Datos y respaldo** → **Exportar respaldo** y guárdalo.
+1. Configuración → **Datos y respaldo** → **Exportar respaldo** y guárdalo.
 2. Para borrar el ejemplo: Servicios → entra a la obra → **Opciones** →
    escribe *Eliminar servicio*. **Verás** que arrastra registros, tareas,
    asignaciones, facturas e ingresos.

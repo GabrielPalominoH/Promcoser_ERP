@@ -1,23 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../context/useData'
-import { useAuth } from '../context/useAuth'
 import { Card } from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
 import { Badge, BadgeEstatus } from '../components/ui/Badge'
 import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../components/ui/Table'
-import { Modal } from '../components/ui/Modal'
 import { Icono } from '../components/layout/Sidebar'
 import { Campo, Select } from '../components/ui/Field'
 import { InputMonto } from '../components/ui/Monto'
 import { Button } from '../components/ui/Button'
 import { Aviso } from '../components/ui/Aviso'
-import { COLECCIONES } from '../data/mockData'
-import {
-  leerConfig,
-  normalizarRespaldo,
-  validarRespaldo,
-} from '../data/store'
+import { leerConfig } from '../data/store'
 import {
   formatearCantidad,
   formatearFecha,
@@ -51,7 +44,7 @@ import { serieHorasHombre } from '../utils/horasHombre'
 import { alertasCentro, etiquetaAlerta } from '../utils/alertasCentro'
 import { servicioConPresupuestoVigente } from '../utils/modificaciones'
 import { libroFlujoCaja } from '../utils/exportaciones'
-import { descargarLibro, descargarRespaldo } from '../utils/descargas'
+import { descargarLibro } from '../utils/descargas'
 
 function descargarCSV(nombre, filas) {
   const contenido = filas.map((fila) => fila.join(',')).join('\n')
@@ -102,127 +95,11 @@ function BarraMes({ valor, maximo, tono }) {
   )
 }
 
-// Datos y respaldo: exportar/importar/restablecer/vaciar. Extraído para poder
-// montarlo abierto en pruebas; el contenido es el mismo del bloque inline.
-// `inputArchivo` es el ref del input de archivo (vive en el padre).
-export function ModalDatosRespaldo({
-  abierto,
-  vaciarArmado,
-  inputArchivo,
-  onCerrar,
-  onExportar,
-  onImportarArchivo,
-  onRestablecer,
-  onVaciar,
-}) {
-  return (
-    <Modal
-      abierto={abierto}
-      titulo="Datos y respaldo"
-      descripcion="Tu información vive en este navegador. Exporta un respaldo con frecuencia."
-      onCerrar={onCerrar}
-      ancho="sm"
-      pie={
-        <Button variante="secundario" onClick={onCerrar}>
-          Cerrar
-        </Button>
-      }
-    >
-      <div className="space-y-3">
-        <p className="text-sm text-slate-600">
-          «Exportar» descarga un archivo JSON con todo. «Importar» reemplaza los datos actuales
-          por los del archivo. «Restablecer» vuelve a los datos de ejemplo.
-          «Vaciar todo» borra todo para empezar de cero (conserva la configuración).
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button variante="secundario" onClick={onExportar}>
-            Exportar respaldo
-          </Button>
-          <Button variante="secundario" onClick={() => inputArchivo.current?.click()}>
-            Importar respaldo
-          </Button>
-          <Button variante="peligro" onClick={onRestablecer}>
-            Restablecer datos de ejemplo
-          </Button>
-          <Button variante={vaciarArmado ? 'peligro' : 'secundario'} onClick={onVaciar}>
-            {vaciarArmado ? 'Pulsa de nuevo para vaciar todo' : 'Vaciar todo'}
-          </Button>
-        </div>
-        <input
-          ref={inputArchivo}
-          type="file"
-          accept="application/json,.json"
-          className="hidden"
-          aria-label="Importar respaldo JSON"
-          onChange={onImportarArchivo}
-        />
-      </div>
-    </Modal>
-  )
-}
-
 export function Dashboard() {
-  const { estado, restablecer, reemplazarColeccion, actualizarItem } = useData()
-  const { rol } = useAuth()
+  const { estado, actualizarItem } = useData()
   const [aviso, setAviso] = useState(null)
-  const [datosAbierto, setDatosAbierto] = useState(false)
-  const [vaciarArmado, setVaciarArmado] = useState(false)
   const [movimientosAbierto, setMovimientosAbierto] = useState(false)
   const [metaTexto, setMetaTexto] = useState('')
-  const inputArchivo = useRef(null)
-
-  const cerrarDatos = () => {
-    setDatosAbierto(false)
-    setVaciarArmado(false)
-  }
-
-  // Vacía todas las colecciones para empezar de cero en producción.
-  // Conserva la configuración (empresa, moneda, meta). Pide dos clics.
-  const vaciarTodo = () => {
-    if (!vaciarArmado) {
-      setVaciarArmado(true)
-      return
-    }
-    for (const coleccion of COLECCIONES) {
-      if (coleccion === 'config') continue
-      reemplazarColeccion(coleccion, [])
-    }
-    cerrarDatos()
-    setAviso({ tipo: 'exito', mensaje: 'Datos vaciados. Listo para cargar información real.' })
-  }
-
-  const exportarRespaldo = () => {
-    descargarRespaldo(estado)
-    cerrarDatos()
-    setAviso({ tipo: 'exito', mensaje: 'Respaldo descargado. Guárdalo en un lugar seguro.' })
-  }
-
-  const importarRespaldo = (evento) => {
-    const archivo = evento.target.files?.[0]
-    evento.target.value = ''
-    if (!archivo) return
-
-    const lector = new FileReader()
-    lector.onload = () => {
-      try {
-        const datos = JSON.parse(lector.result)
-        const { ok, errores } = validarRespaldo(datos)
-        if (!ok) {
-          setAviso({ tipo: 'error', mensaje: `Archivo inválido: ${errores[0]}` })
-          return
-        }
-        const normalizado = normalizarRespaldo(datos)
-        for (const coleccion of COLECCIONES) {
-          reemplazarColeccion(coleccion, normalizado[coleccion])
-        }
-        cerrarDatos()
-        setAviso({ tipo: 'exito', mensaje: 'Respaldo importado correctamente.' })
-      } catch {
-        setAviso({ tipo: 'error', mensaje: 'No se pudo leer el archivo JSON.' })
-      }
-    }
-    lector.readAsText(archivo)
-  }
 
   // Guarda la meta de ingreso en la config (0 = sin meta). Se redondea a
   // céntimos y viaja en el respaldo, como el resto de la configuración.
@@ -477,11 +354,6 @@ export function Dashboard() {
             Resultado, caja, riesgos y rentabilidad de PROMCOSER en una sola vista.
           </p>
         </div>
-        {rol === 'administrador' && (
-          <Button variante="secundario" onClick={() => setDatosAbierto(true)}>
-            Datos y respaldo
-          </Button>
-        )}
       </div>
 
       <Card
@@ -1396,17 +1268,6 @@ export function Dashboard() {
           </p>
         )}
       </Card>
-
-      <ModalDatosRespaldo
-        abierto={datosAbierto}
-        vaciarArmado={vaciarArmado}
-        inputArchivo={inputArchivo}
-        onCerrar={cerrarDatos}
-        onExportar={exportarRespaldo}
-        onImportarArchivo={importarRespaldo}
-        onRestablecer={restablecer}
-        onVaciar={vaciarTodo}
-      />
 
       <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
     </div>

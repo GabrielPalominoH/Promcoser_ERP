@@ -5,12 +5,13 @@ import { AuthContext } from './AuthContext'
 // suite): administrador sin sesión que exigir.
 const ABIERTO = {
   autenticado: true,
-  usuario: { id: 0, nombre: 'Administrador', correo: '', rol: 'administrador', activo: true },
+  usuario: { id: 0, nombre: 'Administrador', cargo: '', correo: '', rol: 'administrador', activo: true },
   rol: 'administrador',
   usuarios: [],
   iniciarSesion: () => ({ ok: true }),
   cerrarSesion: () => {},
   cambiarMiClave: () => ({ ok: false, error: 'No disponible.' }),
+  actualizarMiPerfil: () => ({ ok: false, error: 'No disponible.' }),
   crearUsuario: () => ({ ok: false, error: 'No disponible.' }),
   actualizarUsuario: () => ({ ok: false, error: 'No disponible.' }),
   restablecerClave: () => ({ ok: false, error: 'No disponible.' }),

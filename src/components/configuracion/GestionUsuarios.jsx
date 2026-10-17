@@ -1,20 +1,22 @@
 import { useState } from 'react'
-import { useAuth } from '../context/useAuth'
-import { Card } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
-import { Modal } from '../components/ui/Modal'
-import { Aviso } from '../components/ui/Aviso'
-import { Badge } from '../components/ui/Badge'
-import { Campo, Input, Select } from '../components/ui/Field'
-import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../components/ui/Table'
-import { DESCRIPCION_ROL, ETIQUETAS_ROL, ROLES } from '../utils/permisos'
-import { LARGO_MINIMO_CLAVE } from '../data/auth'
+import { useAuth } from '../../context/useAuth'
+import { Card } from '../ui/Card'
+import { Button } from '../ui/Button'
+import { Modal } from '../ui/Modal'
+import { Aviso } from '../ui/Aviso'
+import { Badge } from '../ui/Badge'
+import { Campo, Input, Select } from '../ui/Field'
+import { Table, TableBody, TableEmpty, TableHead, TableRow, Td, Th } from '../ui/Table'
+import { DESCRIPCION_ROL, ETIQUETAS_ROL, ROLES } from '../../utils/permisos'
+import { LARGO_MINIMO_CLAVE } from '../../data/auth'
 
-const VACIO = { nombre: '', correo: '', rol: 'residente', clave: '' }
+const VACIO = { nombre: '', cargo: '', correo: '', rol: 'residente', clave: '' }
 
 function ModalUsuario({ usuario, onCerrar, onGuardar }) {
   const [valores, setValores] = useState(
-    usuario ? { nombre: usuario.nombre, correo: usuario.correo, rol: usuario.rol, clave: '' } : VACIO,
+    usuario
+      ? { nombre: usuario.nombre, cargo: usuario.cargo ?? '', correo: usuario.correo, rol: usuario.rol, clave: '' }
+      : VACIO,
   )
   const [error, setError] = useState('')
   const poner = (campo) => (e) => {
@@ -39,6 +41,9 @@ function ModalUsuario({ usuario, onCerrar, onGuardar }) {
       <form onSubmit={enviar} noValidate className="space-y-4">
         <Campo label="Nombre" htmlFor="usr-nombre">
           <Input id="usr-nombre" value={valores.nombre} onChange={poner('nombre')} />
+        </Campo>
+        <Campo label="Cargo" htmlFor="usr-cargo" hint="Opcional. Ej.: Gerente general, Residente de obra, Asistente contable.">
+          <Input id="usr-cargo" value={valores.cargo} onChange={poner('cargo')} />
         </Campo>
         <Campo label="Correo" htmlFor="usr-correo">
           <Input id="usr-correo" type="email" value={valores.correo} onChange={poner('correo')} />
@@ -116,7 +121,7 @@ function ModalClave({ usuario, onCerrar, onGuardar }) {
   )
 }
 
-export function Usuarios() {
+export function GestionUsuarios() {
   const { usuario, usuarios, crearUsuario, actualizarUsuario, restablecerClave, eliminarUsuario } = useAuth()
   const [modal, setModal] = useState(null) // { tipo: 'nuevo' | 'editar' | 'clave', usuario? }
   const [aviso, setAviso] = useState(null)
@@ -135,21 +140,16 @@ export function Usuarios() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Usuarios y roles</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Quién puede entrar al sistema y qué puede hacer. Solo el administrador ve esta pantalla.
-          </p>
-        </div>
-        <Button onClick={() => setModal({ tipo: 'nuevo' })}>Nuevo usuario</Button>
-      </div>
-
-      <Card>
+      <Card
+        titulo="Usuarios y roles"
+        descripcion="Quién puede entrar al sistema, con qué rol y cargo. Restablece aquí las claves olvidadas."
+        acciones={<Button onClick={() => setModal({ tipo: 'nuevo' })}>Nuevo usuario</Button>}
+      >
         <Table>
           <TableHead>
             <TableRow>
               <Th>Nombre</Th>
+              <Th>Cargo</Th>
               <Th>Correo</Th>
               <Th>Rol</Th>
               <Th>Estado</Th>
@@ -157,7 +157,7 @@ export function Usuarios() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {usuarios.length === 0 && <TableEmpty colSpan={5} />}
+            {usuarios.length === 0 && <TableEmpty colSpan={6} />}
             {usuarios.map((u) => {
               const yo = u.id === usuario?.id
               return (
@@ -166,6 +166,7 @@ export function Usuarios() {
                     {u.nombre}
                     {yo && <span className="ml-2 text-xs text-slate-500">(tú)</span>}
                   </Td>
+                  <Td>{u.cargo || '—'}</Td>
                   <Td>{u.correo}</Td>
                   <Td>{ETIQUETAS_ROL[u.rol] ?? u.rol}</Td>
                   <Td>
@@ -179,7 +180,7 @@ export function Usuarios() {
                         Editar
                       </Button>
                       <Button tamano="sm" variante="secundario" onClick={() => setModal({ tipo: 'clave', usuario: u })}>
-                        Clave
+                        Restablecer clave
                       </Button>
                       {!yo && (
                         <Button
@@ -209,7 +210,7 @@ export function Usuarios() {
         </Table>
       </Card>
 
-      <Card titulo="Qué puede hacer cada rol">
+      <Card titulo="Qué puede hacer cada rol" descripcion="El rol define los permisos; el cargo es solo descriptivo.">
         <dl className="grid gap-3 sm:grid-cols-2">
           {ROLES.map((r) => (
             <div key={r}>
@@ -236,7 +237,12 @@ export function Usuarios() {
           onCerrar={() => setModal(null)}
           onGuardar={(v) =>
             resultado(
-              actualizarUsuario(modal.usuario.id, { nombre: v.nombre.trim(), correo: v.correo, rol: v.rol }),
+              actualizarUsuario(modal.usuario.id, {
+                nombre: v.nombre.trim(),
+                cargo: v.cargo.trim(),
+                correo: v.correo,
+                rol: v.rol,
+              }),
               'Usuario actualizado.',
             )
           }
