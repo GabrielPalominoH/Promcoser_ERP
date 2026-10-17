@@ -65,7 +65,7 @@ export function etiquetaAlerta(tipo) {
 
 // Escalones por tipo: qué medida se vigila, en qué unidad escalona y hacia
 // dónde empeora. `tipo: 'rel'` compara en porcentaje (montos: +10 %); `'abs'`
-// compara en la unidad de la medida (+7 días, +10 puntos de desvío, 1 día de
+// compara en la unidad de la medida (+7 días, +10 puntos de desvío, 7 días de
 // plazo). `direccion` dice si empeora al subir ('sube') o al bajar ('baja').
 const ESCALONES = {
   partida_vencida: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
@@ -74,7 +74,7 @@ const ESCALONES = {
   presupuesto_excedido: { medida: 'gastado', tipo: 'rel', umbral: 0.1, direccion: 'sube' },
   margen_bajo: { medida: 'disponible', tipo: 'rel', umbral: 0.1, direccion: 'baja' },
   plazo_vencido: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
-  plazo_cercano: { medida: 'dias', tipo: 'abs', umbral: 1, direccion: 'baja' },
+  plazo_cercano: { medida: 'dias', tipo: 'abs', umbral: 7, direccion: 'baja' },
   factura_vencida: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
   valorizacion_sin_cobrar: { medida: 'atraso_dias', tipo: 'abs', umbral: 7, direccion: 'sube' },
 }

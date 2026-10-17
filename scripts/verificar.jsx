@@ -4828,7 +4828,7 @@ const CASOS_ESCALON = [
   { tipo: 'presupuesto_excedido', va: (v) => ({ gastado: v }), base: 100000, poco: 105000, escalon: 111000, causa: { tipo: 'presupuesto_excedido', servicio_id: 2 } },
   { tipo: 'margen_bajo', va: (v) => ({ disponible: v }), base: 50000, poco: 47000, escalon: 44000, causa: { tipo: 'margen_bajo', servicio_id: 3 } },
   { tipo: 'plazo_vencido', va: (v) => ({ atraso_dias: v }), base: 2, poco: 3, escalon: 10, causa: { tipo: 'plazo_vencido', servicio_id: 4, fecha_fin: '2026-10-01' } },
-  { tipo: 'plazo_cercano', va: (v) => ({ dias: v }), base: 10, poco: 9, escalon: 8, causa: { tipo: 'plazo_cercano', servicio_id: 5, fecha_fin: '2026-10-20' } },
+  { tipo: 'plazo_cercano', va: (v) => ({ dias: v }), base: 10, poco: 4, escalon: 2, causa: { tipo: 'plazo_cercano', servicio_id: 5, fecha_fin: '2026-10-20' } },
   { tipo: 'factura_vencida', va: (v) => ({ atraso_dias: v }), base: 5, poco: 6, escalon: 13, causa: { tipo: 'factura_vencida', factura_id: 9, servicio_id: 6 } },
   { tipo: 'valorizacion_sin_cobrar', va: (v) => ({ atraso_dias: v }), base: 31, poco: 32, escalon: 39, causa: { tipo: 'valorizacion_sin_cobrar', valorizacion_id: 7, servicio_id: 7 } },
 ]
@@ -4887,9 +4887,22 @@ comprobar('tarea 6C: reloj plazo_vencido — +7 días reaparece', rPlazoV.ok && 
 const estPlazoC = estadoMin({
   servicios: [{ id: 905, nombre_servicio: 'Obra PC', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2026-10-20', estatus: 'En ejecución' }],
 })
-const rPlazoC = casoReloj(estPlazoC, 'plazo_cercano', '2026-10-10', '2026-10-11', '2026-10-12')
-comprobar('tarea 6C: reloj plazo_cercano — un día más sigue oculta', rPlazoC.ok && rPlazoC.sigueOculta)
-comprobar('tarea 6C: reloj plazo_cercano — 2 días reaparece', rPlazoC.ok && rPlazoC.reapa)
+const rPlazoC = casoReloj(estPlazoC, 'plazo_cercano', '2026-10-10', '2026-10-16', '2026-10-18')
+comprobar('tarea 6C: reloj plazo_cercano — con N-6 días restantes sigue oculta', rPlazoC.ok && rPlazoC.sigueOculta)
+comprobar('tarea 6C: reloj plazo_cercano — con N-8 días restantes reaparece', rPlazoC.ok && rPlazoC.reapa)
+{
+  // Dentro del escalón (N-6) la gravedad mayor o la causa distinta igual reaparecen.
+  const causaPC = { tipo: 'plazo_cercano', servicio_id: 905, fecha_fin: '2026-10-20' }
+  const descPC = descartarAlerta(null, alertaSintetica('plazo_cercano', 'media', { dias: 10 }, causaPC), 'n', '2026-10-10')
+  comprobar(
+    'tarea 6C: plazo_cercano N-6 con mayor gravedad reaparece',
+    reapareceDescartada(descPC, alertaSintetica('plazo_cercano', 'alta', { dias: 4 }, causaPC)) === true,
+  )
+  comprobar(
+    'tarea 6C: plazo_cercano N-6 con otra causa (fecha_fin) reaparece',
+    reapareceDescartada(descPC, alertaSintetica('plazo_cercano', 'media', { dias: 4 }, { ...causaPC, fecha_fin: '2026-10-14' })) === true,
+  )
+}
 
 const estFactura = estadoMin({
   servicios: [{ id: 906, nombre_servicio: 'Obra F', presupuesto_asignado: 100000, fecha_inicio: '2026-01-01', fecha_fin_estimada: '2030-01-01', estatus: 'En ejecución' }],
